@@ -1,0 +1,6 @@
+{
+  "name": "Overdrive Strikers",
+  "description": "Fast-paced 3D car-soccer arcade game with deterministic physics, WebGL2 rendering, AI bots, aerial acrobatics, and procedural audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -116,22 +116,36 @@ export var CFG = {
     pitchContrast: 1.0,
     pitchRoughness: 0.35,
     turfSheen: 0.45,
-    // Vehicle Material & Clearcoat Controls
-    carGloss: 0.92,
-    carClearcoat: 0.90,
-    carMetallic: 0.60,
-    carFlakes: 0.85, // Procedural metallic flake micro-sparkle
+    // Vehicle Material & Clearcoat Controls (Solid, high-gloss automotive lacquer without brushed/grainy flakes)
+    carGloss: 0.96,
+    carClearcoat: 0.95,
+    carMetallic: 0.08,
+    carFlakes: 0.00, // Zero brushed noise for pure mirror-smooth lacquer
     carAmbientOcclusion: 0.85, // Cavity & chassis contact self-shadowing
     carReflection: 0.80,
     shadowMapping: true, // Real-time directional sun shadow map (WebGL2 native PCF)
     shadowSoftness: 1.0, // Soft penumbra PCF filter radius
     // Ball Material & Procedural Bump Controls
     ballType: "soccer", // "soccer" | "volleyball" | "tennis" | "basketball"
-    ballBrightness: 1.00,
-    ballGloss: 0.95,
-    ballMetallic: 0.85, // Metallic foil & chrome reflectivity
-    ballBumpIntensity: 2.80, // Deep 3D embossed panel seams & leather relief
-    ballEmissiveGlow: 0.00 // Clean 0 glow so sphere does not wash out flatly
+    ballBrightness: 1.00, // Solid saturated colors
+    ballGloss: 0.72,
+    ballMetallic: 0.00, // 0 metallic to maintain solid saturated panel paint
+    ballBumpIntensity: 1.00, // Deep 3D embossed panel relief
+    ballEmissiveGlow: 0.00, // Clean 0 glow so sphere does not wash out flatly
+    // Dynamic 3D Instanced Pitch Grass System
+    grassEnabled: true,
+    grassDensity: "HIGH", // "HYPER_DENSE" (5M) | "CINEMATIC_MAX" (3M) | "EXTREME" (1.5M) | "ULTRA_DENSE" (750k) | "ULTRA" (350k) | "HIGH" (150k) | "BALANCED" (60k) | "LOW" (25k)
+    grassBladeCount: 150000,
+    grassBladeWidth: 1.00, // Blade thickness / width factor (0.2x to 4.0x)
+    grassHeight: 0.65, // in meters
+    grassWindSpeed: 1.4,
+    grassWaveStrength: 0.85,
+    grassTremble: 0.80, // flutter jitter
+    grassTipCreaminess: 0.95, // Soft creamy warm golden sunlight tips
+    grassSubsurface: 0.75, // Soft light translucency
+    // Animated Stadium Spectator Crowds & Mexican Wave
+    crowdAnimation: true,
+    crowdEnergy: 1.0 // Cheering wave and jump height intensity
   },
   input: { steerSens: 1.0, airSens: 1.0, deadzone: 0.15 },
   debug: { showHitboxes: false }

@@ -52,20 +52,12 @@ export function texField(A, themeKey) {
   }
   g.clip();
 
-  // Natural stadium turf stripes
+  // Natural stadium turf stripes with smooth manicured finish
   var nStripes = 20;
   var stripeH = pHeight / nStripes;
   for (var s = 0; s < nStripes; s++) {
     g.fillStyle = (s % 2 === 0) ? theme.turfStripe1 : theme.turfStripe2;
     g.fillRect(pLeft, pTop + s * stripeH, pWidth, stripeH);
-  }
-
-  // Fine grass blade noise / procedural micro-detail
-  for (var k = 0; k < 6000; k++) {
-    var kx = pLeft + Math.random() * pWidth;
-    var ky = pTop + Math.random() * pHeight;
-    g.fillStyle = (Math.random() > 0.5 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.035)");
-    g.fillRect(kx, ky, 2, 2);
   }
 
   // Soft team side gradient washes
@@ -368,26 +360,20 @@ export function texBallSoccer() {
   var W = 1024, H = 512, c = makeCanvas(W), g = c.getContext("2d");
   c.height = H;
 
-  // 1. Crisp metallic silver/white pearl leather base
-  var baseGrad = g.createLinearGradient(0, 0, 0, H);
-  baseGrad.addColorStop(0, "#eef2f7");
-  baseGrad.addColorStop(0.5, "#ffffff");
-  baseGrad.addColorStop(1, "#eef2f7");
-  g.fillStyle = baseGrad;
+  // 1. Deep Solid Neutral Charcoal Base
+  g.fillStyle = "#161b22";
   g.fillRect(0, 0, W, H);
 
   // 2. Exact 12 Icosahedron Pentagon Centers in Spherical Coordinates (phi, theta)
   var pentagons = [];
-  // North and South Poles
-  pentagons.push({ phi: 0.0, th: 0.0 });
-  pentagons.push({ phi: Math.PI, th: 0.0 });
-  // Northern & Southern Rings
+  pentagons.push({ phi: 0.0, th: 0.0, team: 0 });
+  pentagons.push({ phi: Math.PI, th: 0.0, team: 1 });
   var phi1 = Math.atan(0.5); // ~26.565 deg
-  var phiRing1 = Math.PI * 0.5 - phi1; // Northern ring (~63.43 deg latitude)
+  var phiRing1 = Math.PI * 0.5 - phi1; // Northern ring (~63.43 deg)
   var phiRing2 = Math.PI * 0.5 + phi1; // Southern ring
   for (var k = 0; k < 5; k++) {
-    pentagons.push({ phi: phiRing1, th: (k / 5) * TAU });
-    pentagons.push({ phi: phiRing2, th: ((k + 0.5) / 5) * TAU });
+    pentagons.push({ phi: phiRing1, th: (k / 5) * TAU, team: k % 2 });
+    pentagons.push({ phi: phiRing2, th: ((k + 0.5) / 5) * TAU, team: (k + 1) % 2 });
   }
 
   function sphToCart(phi, th) {
@@ -402,10 +388,12 @@ export function texBallSoccer() {
   var data = imgData.data;
 
   var pCenters3D = pentagons.map(function (p) {
-    return sphToCart(p.phi, p.th);
+    var cart = sphToCart(p.phi, p.th);
+    cart.team = p.team;
+    return cart;
   });
 
-  var pentRad = 0.34;
+  var pentRad = 0.36; // Bold, distinct pentagons
 
   for (var y = 0; y < H; y++) {
     var v = y / H;
@@ -423,6 +411,7 @@ export function texBallSoccer() {
 
       var minDist = 999.0;
       var secondDist = 999.0;
+      var closestCenter = null;
       for (var pi = 0; pi < pCenters3D.length; pi++) {
         var pc = pCenters3D[pi];
         var dot = px * pc.x + py * pc.y + pz * pc.z;
@@ -431,59 +420,97 @@ export function texBallSoccer() {
         if (angDist < minDist) {
           secondDist = minDist;
           minDist = angDist;
+          closestCenter = pc;
         } else if (angDist < secondDist) {
           secondDist = angDist;
         }
       }
 
       var idx = (y * W + x) * 4;
+      var team = closestCenter ? closestCenter.team : 0;
 
-      // Pentagon Patch (Metallic Carbon-Anthracite with Domed Pillow Height)
-      if (minDist < pentRad) {
-        var pentPillow = Math.cos((minDist / pentRad) * (Math.PI * 0.5));
-        var pentBevel = Math.min(1.0, (pentRad - minDist) / 0.06);
-        // Carbon weave micro-texture for ultra-rich bump relief
-        var weave = ((x ^ y) & 4) ? 8 : 0;
-        var rVal = Math.floor(18 + pentPillow * 28 + pentBevel * 12 + weave);
-        var gVal = Math.floor(22 + pentPillow * 32 + pentBevel * 14 + weave);
-        var bVal = Math.floor(30 + pentPillow * 42 + pentBevel * 18 + weave);
-        data[idx] = rVal;
-        data[idx + 1] = gVal;
-        data[idx + 2] = bVal;
-        data[idx + 3] = 255;
+      // A. Deep Solid Jet-Black Obsidian Pentagons with Rich Carbon Weave
+      if (minDist < pentRad * 0.76) {
+        var pDist = minDist / (pentRad * 0.76);
+        var lum = Math.floor(16 + (1.0 - pDist) * 14);
+        data[idx] = lum;
+        data[idx + 1] = lum + 2;
+        data[idx + 2] = lum + 5;
+        // Pronounced domed center height (180 -> 255)
+        var pHeight = Math.floor(180 + Math.cos(pDist * Math.PI * 0.5) * 75);
+        data[idx + 3] = pHeight;
       }
-      // Pentagon Seam Border Channel (Deeply Recessed 3D Groove)
-      else if (minDist < pentRad + 0.048) {
-        var seamDist = minDist - pentRad;
-        var seamProfile = Math.abs(seamDist - 0.024) / 0.024;
-        var seamVal = Math.floor(seamProfile * 16);
-        data[idx] = seamVal;
-        data[idx + 1] = seamVal;
-        data[idx + 2] = seamVal + 4;
-        data[idx + 3] = 255;
+      // B. Solid High-Saturation Electric Team Accent Ribbon
+      else if (minDist < pentRad) {
+        var tRatio = (minDist - pentRad * 0.76) / (pentRad * 0.24);
+        if (team === 0) {
+          // Solid Vibrant Royal Blue / Cyan Strike (#0055ff -> #00d4ff)
+          data[idx] = Math.floor(0 + tRatio * 10);
+          data[idx + 1] = Math.floor(90 + tRatio * 120);
+          data[idx + 2] = 255;
+        } else {
+          // Solid Vibrant Crimson / Amber Fire (#d62828 -> #ff8800)
+          data[idx] = 255;
+          data[idx + 1] = Math.floor(40 + tRatio * 110);
+          data[idx + 2] = 15;
+        }
+        // Beveled shoulder height (150 -> 180)
+        data[idx + 3] = Math.floor(150 + (1.0 - tRatio) * 30);
       }
-      // Hexagon Boundary Seam or White Leather Panel
+      // C. Championship Solid Gold Ring Accent
+      else if (minDist < pentRad + 0.020) {
+        data[idx] = 255;
+        data[idx + 1] = 190;
+        data[idx + 2] = 25;
+        data[idx + 3] = 140; // Bevel ridge
+      }
+      // D. Deep Recessed Dark Seam Trench (Deep Valley for extreme 3D bump relief)
+      else if (minDist < pentRad + 0.046) {
+        var seamDist = minDist - (pentRad + 0.020);
+        var seamProfile = Math.abs(seamDist - 0.013) / 0.013; // 0.0 at center, 1.0 at edges
+        var seamDark = Math.floor(10 + seamProfile * 25);
+        data[idx] = seamDark;
+        data[idx + 1] = seamDark;
+        data[idx + 2] = seamDark;
+        // Deep carved canyon height in alpha channel!
+        data[idx + 3] = Math.floor(15 + seamProfile * 90);
+      }
+      // E. Hexagonal Panels with Solid Rich Color Blocking & Pillow Doming
       else {
         var seamDiff = Math.abs(minDist - secondDist);
-        if (seamDiff < 0.046) {
-          // Hexagonal boundary trench
-          var hexGroove = seamDiff / 0.046;
-          var hVal = Math.floor(hexGroove * hexGroove * 70);
-          data[idx] = hVal;
-          data[idx + 1] = hVal;
-          data[idx + 2] = hVal + 6;
-          data[idx + 3] = 255;
+        if (seamDiff < 0.034) {
+          // Hexagonal Boundary Dark Seam (Deep Valley)
+          var hexProfile = seamDiff / 0.034;
+          var hexGroove = Math.floor(10 + hexProfile * 30);
+          data[idx] = hexGroove;
+          data[idx + 1] = hexGroove;
+          data[idx + 2] = hexGroove;
+          data[idx + 3] = Math.floor(15 + hexProfile * 90);
         } else {
-          // Embossed White/Silver Hexagonal Panel Pillow
-          var distToEdge = Math.min(minDist - (pentRad + 0.048), seamDiff - 0.046);
-          var hexPillow = Math.sin(Math.min(1.0, distToEdge / 0.16) * (Math.PI * 0.5));
-          var microGrain = ((x * 7 + y * 13) % 9 < 3) ? 4 : 0;
-          var lum = Math.floor(205 + hexPillow * 48 + microGrain);
-          lum = Math.min(255, lum);
-          data[idx] = lum;
-          data[idx + 1] = Math.min(255, lum + 1);
-          data[idx + 2] = Math.min(255, lum + 3);
-          data[idx + 3] = 255;
+          // Solid Rich Hexagonal Panel
+          var distToEdge = Math.min(minDist - (pentRad + 0.046), seamDiff - 0.034);
+          var pillow = Math.sin(Math.min(1.0, distToEdge / 0.10) * (Math.PI * 0.5));
+          
+          // Checker alternating solid panel color scheme: Clean Solid Off-White, Electric Cobalt, and Solar Crimson
+          var hexType = (Math.floor(phi * 2.2) + Math.floor(th * 2.2)) % 3;
+          if (hexType === 0) {
+            // Solid Rich Deep Cobalt Blue
+            data[idx] = 15;
+            data[idx + 1] = 75;
+            data[idx + 2] = 225;
+          } else if (hexType === 1) {
+            // Solid Rich Scarlet Red
+            data[idx] = 230;
+            data[idx + 1] = 30;
+            data[idx + 2] = 40;
+          } else {
+            // Solid Clean Pearl Off-White
+            data[idx] = 235;
+            data[idx + 1] = 238;
+            data[idx + 2] = 245;
+          }
+          // Domed pillow height peaking at 255 at panel center!
+          data[idx + 3] = Math.floor(120 + pillow * 135);
         }
       }
     }
@@ -491,23 +518,21 @@ export function texBallSoccer() {
 
   g.putImageData(imgData, 0, 0);
 
-  // 3. FIFA Match Ball Metallic Foil Accents & Dynamic Racing Stripes
-  g.lineWidth = 12;
-  g.strokeStyle = "rgba(255, 30, 85, 0.92)";
-  g.beginPath();
-  g.arc(W * 0.5, H * 0.5, 95, 0.35, 2.75);
-  g.stroke();
-
-  g.strokeStyle = "rgba(0, 210, 255, 0.92)";
-  g.beginPath();
-  g.arc(W * 0.5, H * 0.5, 95, 3.45, 5.85);
-  g.stroke();
-
-  // Polished Championship Gold Crest
-  g.fillStyle = "rgba(255, 215, 0, 0.98)";
-  g.font = "bold 26px sans-serif";
+  // 3. Bold Crisp Championship Emblems & Graphics
+  g.fillStyle = "#ffffff";
+  g.font = "900 28px sans-serif";
   g.textAlign = "center";
-  g.fillText("FIFA PRO MATCH BALL", W * 0.5, H * 0.5 + 8);
+  g.shadowColor = "rgba(0,0,0,0.8)";
+  g.shadowBlur = 6;
+  g.fillText("OVERDRIVE", W * 0.5, H * 0.5 - 6);
+  g.fillStyle = "#ffcc00";
+  g.font = "bold 16px sans-serif";
+  g.fillText("★ STRIKER PRO ★", W * 0.5, H * 0.5 + 18);
+
+  g.fillStyle = "#ffffff";
+  g.font = "900 28px sans-serif";
+  g.fillText("OVERDRIVE", W * 0.5, H * 0.18);
+  g.fillText("OVERDRIVE", W * 0.5, H * 0.82);
 
   return c;
 }
@@ -521,7 +546,7 @@ export function texBallVolleyball() {
   // 12 Curved multi-color panel ribbons (Royal Blue, Vibrant Yellow, Clean White)
   var nSwirls = 12;
   var w = W / nSwirls;
-  var cols = ["#1543a6", "#ffc700", "#f8f9fa", "#1543a6", "#ffc700", "#f8f9fa"];
+  var cols = ["#1240a0", "#ffbe00", "#f4f6fa", "#1240a0", "#ffbe00", "#f4f6fa"];
 
   for (var i = 0; i < nSwirls; i++) {
     g.fillStyle = cols[i % cols.length];
@@ -536,13 +561,13 @@ export function texBallVolleyball() {
     g.fill();
 
     // Deep recessed rubber groove for pronounced bump & lighting relief
-    g.strokeStyle = "#050a18";
+    g.strokeStyle = "#080c16";
     g.lineWidth = 6;
     g.stroke();
   }
 
   // Horizontal grip channels with deep contrast seams
-  g.strokeStyle = "rgba(10, 20, 40, 0.6)";
+  g.strokeStyle = "rgba(10, 16, 30, 0.9)";
   g.lineWidth = 5;
   for (var h = 1; h < 4; h++) {
     g.beginPath();
@@ -552,10 +577,20 @@ export function texBallVolleyball() {
   }
 
   // Official Pro Volleyball Gold Badge
-  g.fillStyle = "rgba(255, 215, 0, 0.9)";
+  g.fillStyle = "#ffcc00";
   g.font = "bold 32px sans-serif";
   g.textAlign = "center";
   g.fillText("PRO V-200 OLYMPIC", W * 0.5, H * 0.5);
+
+  // Set Alpha Heightmap: compute from luminance + groove depth
+  var img = g.getImageData(0, 0, W, H);
+  var d = img.data;
+  for (var p = 0; p < d.length; p += 4) {
+    var lum = (d[p] + d[p + 1] + d[p + 2]) / 3;
+    // Dark grooves have very low height (30), panels have high pillow height (240)
+    d[p + 3] = lum < 35 ? 25 : Math.floor(140 + (lum / 255) * 115);
+  }
+  g.putImageData(img, 0, 0);
 
   return c;
 }
@@ -563,15 +598,15 @@ export function texBallVolleyball() {
 export function texBallTennis() {
   var W = 1024, H = 512, c = makeCanvas(W), g = c.getContext("2d");
   c.height = H;
-  // High-visibility Optic Yellow / Electric Chartreuse Tennis Base
-  g.fillStyle = "#cce615"; g.fillRect(0, 0, W, H);
+  // High-visibility Optic Yellow Tennis Base
+  g.fillStyle = "#d4ee10"; g.fillRect(0, 0, W, H);
 
   // Fibrous fuzzy felt micro-texture
-  for (var f = 0; f < 12000; f++) {
+  for (var f = 0; f < 8000; f++) {
     var fx = Math.random() * W, fy = Math.random() * H;
     var fLen = 3 + Math.random() * 4;
     var fAng = Math.random() * TAU;
-    g.strokeStyle = Math.random() > 0.45 ? "rgba(245,255,140,0.30)" : "rgba(140,165,0,0.25)";
+    g.strokeStyle = Math.random() > 0.5 ? "rgba(255,255,160,0.4)" : "rgba(120,150,0,0.3)";
     g.lineWidth = 1.4;
     g.beginPath();
     g.moveTo(fx, fy);
@@ -580,8 +615,7 @@ export function texBallTennis() {
   }
 
   // Curved tennis ball rubber seam (continuous harmonic sine wave across longitude)
-  // Deep dark valley for bump map
-  g.strokeStyle = "#404c08";
+  g.strokeStyle = "#384405";
   g.lineWidth = 18;
   g.beginPath();
   for (var x = 0; x <= W; x += 4) {
@@ -600,6 +634,14 @@ export function texBallTennis() {
   }
   g.stroke();
 
+  var img2 = g.getImageData(0, 0, W, H);
+  var d2 = img2.data;
+  for (var p2 = 0; p2 < d2.length; p2 += 4) {
+    var isDarkSeam = (d2[p2] < 90 && d2[p2 + 1] < 100);
+    d2[p2 + 3] = isDarkSeam ? 20 : 235;
+  }
+  g.putImageData(img2, 0, 0);
+
   return c;
 }
 
@@ -607,12 +649,12 @@ export function texBallBasketball() {
   var W = 1024, H = 512, c = makeCanvas(W), g = c.getContext("2d");
   c.height = H;
   // Official regulation NBA amber/burnt orange pebbled composite leather
-  g.fillStyle = "#c24d14"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#cf4d10"; g.fillRect(0, 0, W, H);
 
-  // Micro-pebble grain surface (thousands of tactile nodules for rich bump)
-  for (var p = 0; p < 15000; p++) {
+  // Micro-pebble grain surface
+  for (var p = 0; p < 10000; p++) {
     var px = Math.random() * W, py = Math.random() * H;
-    g.fillStyle = Math.random() > 0.5 ? "rgba(255,160,80,0.28)" : "rgba(60,20,0,0.35)";
+    g.fillStyle = Math.random() > 0.5 ? "rgba(255,140,50,0.3)" : "rgba(80,25,0,0.35)";
     g.fillRect(px, py, 2.5, 2.5);
   }
 
@@ -635,10 +677,18 @@ export function texBallBasketball() {
   g.stroke();
 
   // Gold foil tournament lettering
-  g.fillStyle = "rgba(255, 205, 50, 0.9)";
+  g.fillStyle = "#ffcc00";
   g.font = "900 36px monospace";
   g.textAlign = "center";
   g.fillText("SPALDING OFFICIAL GAME", W * 0.5, H * 0.44);
+
+  var img3 = g.getImageData(0, 0, W, H);
+  var d3 = img3.data;
+  for (var p3 = 0; p3 < d3.length; p3 += 4) {
+    var isRib = (d3[p3] < 30 && d3[p3 + 1] < 30 && d3[p3 + 2] < 30);
+    d3[p3 + 3] = isRib ? 20 : 240;
+  }
+  g.putImageData(img3, 0, 0);
 
   return c;
 }
@@ -1049,9 +1099,17 @@ var VS_MAIN = [
   "layout(location = 1) in vec3 aNormal;",
   "layout(location = 2) in vec2 aUV;",
   "uniform mat4 uVP; uniform mat4 uModel; uniform mat3 uNM; uniform mat4 uShadowVP;",
+  "uniform float uTime; uniform float uCrowd;",
   "out vec3 vN; out vec3 vW; out vec2 vUV; out vec4 vShadowCoord;",
   "void main(){",
-  "  vec4 w = uModel * vec4(aPos,1.0); vW = w.xyz; vN = uNM * aNormal; vUV = aUV;",
+  "  vec4 w = uModel * vec4(aPos, 1.0);",
+  "  if (uCrowd > 0.5 && aPos.y > 1.8) {",
+  "    float wave = sin(uTime * 4.2 - aUV.x * 26.0) * 0.5 + 0.5;",
+  "    float bounce = sin(uTime * 7.5 + aPos.x * 0.9 + aPos.z * 0.7) * 0.5 + 0.5;",
+  "    float cheer = pow(wave, 3.5) * 0.55 + pow(bounce, 3.0) * 0.20;",
+  "    w.y += cheer * clamp((aPos.y - 1.8) * 0.16, 0.0, 1.0);",
+  "  }",
+  "  vW = w.xyz; vN = uNM * aNormal; vUV = aUV;",
   "  vShadowCoord = uShadowVP * w;",
   "  gl_Position = uVP * w;",
   "}"
@@ -1068,6 +1126,7 @@ var FS_MAIN = [
   "uniform float uFlood; uniform float uSun; uniform float uAmb; uniform float uBump;",
   "uniform float uClearcoat; uniform float uMetallic; uniform float uAO; uniform float uFlakes;",
   "uniform float uShadowEnable; uniform float uShadowSoftness;",
+  "uniform float uTime; uniform float uCrowd;",
   "uniform highp sampler2D uTex;",
   "uniform highp sampler2DShadow uShadowMap;",
   "out vec4 outColor;",
@@ -1104,16 +1163,28 @@ var FS_MAIN = [
   "  if (uUseTex > 0.5) tex = texture(uTex, vUV);",
   "  if (uAlphaTest > 0.5 && tex.a < 0.20) discard;",
   "  vec3 base = uColor * tex.rgb;",
+  "  if (uCrowd > 0.5) {",
+  "    vec2 gridUV = floor(vUV * vec2(192.0, 48.0));",
+  "    float flashHash = fract(sin(dot(gridUV, vec2(12.9898, 78.233)) + floor(uTime * 14.0) * 0.07) * 43758.5453);",
+  "    if (flashHash > 0.985) {",
+  "      vec3 flashCol = vec3(1.2, 1.15, 1.05) * 3.2;",
+  "      base += flashCol;",
+  "    }",
+  "    float waveGlow = sin(uTime * 4.2 - vUV.x * 26.0) * 0.5 + 0.5;",
+  "    base += vec3(0.08, 0.12, 0.18) * pow(waveGlow, 2.5);",
+  "  }",
   "  vec3 N = normalize(vN);",
   "  if (!gl_FrontFacing) N = -N;",
-  // High-Impact Procedural Bump / Normal mapping with Surface Gradient Formulation
+  // High-Impact True Procedural Bump / Normal mapping with Surface Gradient Formulation from Alpha Heightmap
+  "  float seamAO = 1.0;",
   "  if (uBump > 0.001 && uUseTex > 0.5) {",
-  "    vec2 uvStepX = vec2(2.0 / 1024.0, 0.0);",
-  "    vec2 uvStepY = vec2(0.0, 2.0 / 512.0);",
-  "    float hR = dot(texture(uTex, vUV + uvStepX).rgb, vec3(0.299, 0.587, 0.114));",
-  "    float hL = dot(texture(uTex, vUV - uvStepX).rgb, vec3(0.299, 0.587, 0.114));",
-  "    float hU = dot(texture(uTex, vUV + uvStepY).rgb, vec3(0.299, 0.587, 0.114));",
-  "    float hD = dot(texture(uTex, vUV - uvStepY).rgb, vec3(0.299, 0.587, 0.114));",
+  "    vec2 uvStepX = vec2(1.5 / 1024.0, 0.0);",
+  "    vec2 uvStepY = vec2(0.0, 1.5 / 512.0);",
+  "    float hC = texture(uTex, vUV).a;",
+  "    float hR = texture(uTex, vUV + uvStepX).a;",
+  "    float hL = texture(uTex, vUV - uvStepX).a;",
+  "    float hU = texture(uTex, vUV + uvStepY).a;",
+  "    float hD = texture(uTex, vUV - uvStepY).a;",
   "    float dU = (hR - hL);",
   "    float dV = (hU - hD);",
   "    vec3 dp1 = dFdx(vW);",
@@ -1128,13 +1199,14 @@ var FS_MAIN = [
   "    vec3 surfGrad = (T * (dU * invmax) + B * (dV * invmax));",
   "    float bumpScale = uBump * 6.5;",
   "    N = normalize(N - surfGrad * bumpScale);",
+  "    seamAO = clamp(hC * 1.5 + 0.15, 0.20, 1.0);",
   "  }",
   "  vec3 V = normalize(uCam - vW);",
   "  float NdotV = clamp(dot(N, V), 0.0, 1.0);",
   // Chassis Cavity & Ground Ambient Occlusion (underbody crevices, wheel wells)
   "  float groundAO = clamp(vW.y * 0.45 + 0.55, 0.50, 1.0);",
   "  float normalAO = clamp(N.y * 0.30 + 0.70, 0.60, 1.0);",
-  "  float totalAO = mix(1.0, groundAO * normalAO, clamp(uAO, 0.0, 1.0));",
+  "  float totalAO = mix(1.0, groundAO * normalAO, clamp(uAO, 0.0, 1.0)) * seamAO;",
   // Environmental hemisphere lighting: clear sky above, warm bounce below
   "  float hemi = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);",
   "  vec3 skyAmb = vec3(0.28, 0.38, 0.52) * uAmb;",
@@ -1159,44 +1231,30 @@ var FS_MAIN = [
   "  float dCorners = max(dot(N, nLC1), 0.0) + max(dot(N, nLC2), 0.0) + max(dot(N, nLC3), 0.0) + max(dot(N, nLC4), 0.0);",
   "  float dSides = max(dot(N, nLM1), 0.0) + max(dot(N, nLM2), 0.0);",
   "  vec3 floodDiffuse = ((dCorners * vec3(0.020, 0.023, 0.028)) + (dSides * vec3(0.024, 0.027, 0.032))) * (uFlood * totalAO);",
-  // Metallic PBR: Darken diffuse body based on metalness so metallic surfaces don't look flat or over-bright
-  "  vec3 diffuseBase = base * (1.0 - clamp(uMetallic * 0.82, 0.0, 0.94));",
+  // PBR Diffuse: Keep full vibrant base colors without washing out or darkening to mud
+  "  vec3 diffuseBase = base * (1.0 - clamp(uMetallic * 0.35, 0.0, 0.50));",
   "  vec3 lit = diffuseBase * (amb + sunDiffuse + floodDiffuse);",
   // Physically-Based Microfacet GGX Basecoat Specular (saturated with metallic tint)
   "  vec3 HSun = normalize(nLSun + V);",
   "  float NdotH = max(dot(N, HSun), 0.0);",
-  "  float roughness = clamp(1.0 - uSpec * 0.92, 0.02, 1.0);",
+  "  float roughness = clamp(1.0 - uSpec * 0.90, 0.03, 1.0);",
   "  float alphaR = roughness * roughness;",
   "  float alpha2 = alphaR * alphaR;",
   "  float denomSun = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);",
   "  float D_GGX = alpha2 / (3.14159265 * denomSun * denomSun + 1e-5);",
   "  float fresnel = pow(1.0 - NdotV, 4.0);",
-  "  vec3 F0 = mix(vec3(0.04), base * 1.35 + vec3(0.08), clamp(uMetallic, 0.0, 1.0));",
+  "  vec3 F0 = mix(vec3(0.04), base * 1.25 + vec3(0.06), clamp(uMetallic, 0.0, 1.0));",
   "  vec3 F = F0 + (vec3(1.0) - F0) * fresnel;",
-  "  vec3 specularSun = F * (D_GGX * 0.50) * sunColor * (uSpec * 3.2 * shadow);",
+  "  vec3 specularSun = F * (D_GGX * 0.45) * sunColor * (uSpec * 3.0 * shadow);",
   // Multi-Layer Clearcoat (High-Gloss Automotive Lacquer - Transparent, never bleaching paint!)
   "  vec3 clearcoatLobe = vec3(0.0);",
   "  if (uClearcoat > 0.02) {",
   "    float NdotH_cc = max(dot(N, HSun), 0.0);",
-  "    float ccSpec = pow(NdotH_cc, 180.0);",
-  "    vec3 ccSunHighlight = vec3(1.0, 0.98, 0.92) * (ccSpec * 3.6 * shadow * uClearcoat);",
+  "    float ccSpec = pow(NdotH_cc, 160.0);",
+  "    vec3 ccSunHighlight = vec3(1.0, 0.98, 0.92) * (ccSpec * 3.2 * shadow * uClearcoat);",
   "    float ccFresnel = pow(1.0 - NdotV, 5.0) * uClearcoat;",
-  "    vec3 skyRefl = mix(base * 0.40, vec3(0.70, 0.85, 1.0), 0.45) * (ccFresnel * 0.45);",
+  "    vec3 skyRefl = mix(base * 0.30, vec3(0.70, 0.85, 1.0), 0.40) * (ccFresnel * 0.45);",
   "    clearcoatLobe = ccSunHighlight + skyRefl;",
-  "  }",
-  // Procedural Metallic Flakes (Sparkling in vehicle's own saturated team paint!)
-  "  vec3 flakeLobe = vec3(0.0);",
-  "  if (uFlakes > 0.05 && uSpec > 0.20) {",
-  "    vec3 fP = vW * 85.0;",
-  "    float fHash = fract(sin(dot(floor(fP), vec3(27.31, 61.17, 19.45))) * 43758.5453);",
-  "    if (fHash > 0.65) {",
-  "      vec3 fJitter = (fract(fP) - 0.5) * 0.70;",
-  "      vec3 fNormal = normalize(N + fJitter);",
-  "      float fDot = max(dot(fNormal, HSun), 0.0);",
-  "      float fSparkle = pow(fDot, 28.0) * ((fHash - 0.65) / 0.35);",
-  "      vec3 flakeColor = mix(base * 1.8, vec3(1.0, 0.95, 0.85), 0.4);",
-  "      flakeLobe = flakeColor * (fSparkle * uFlakes * 2.0 * shadow * uSun);",
-  "    }",
   "  }",
   // Dynamic Stadium Floodlight Glints
   "  vec3 floodSpec = vec3(0.0);",
@@ -1204,7 +1262,7 @@ var FS_MAIN = [
   "    vec3 H1 = normalize(nLC1 + V); vec3 H2 = normalize(nLC2 + V);",
   "    vec3 H3 = normalize(nLC3 + V); vec3 H4 = normalize(nLC4 + V);",
   "    vec3 HM1 = normalize(nLM1 + V); vec3 HM2 = normalize(nLM2 + V);",
-    "    float glintExp = mix(38.0, 160.0, clamp(uMetallic + uClearcoat * 0.5, 0.0, 1.0));",
+  "    float glintExp = mix(38.0, 160.0, clamp(uMetallic + uClearcoat * 0.5, 0.0, 1.0));",
   "    float spC = pow(max(dot(N, H1), 0.0), glintExp) + pow(max(dot(N, H2), 0.0), glintExp) +",
   "                pow(max(dot(N, H3), 0.0), glintExp) + pow(max(dot(N, H4), 0.0), glintExp);",
   "    float spM = pow(max(dot(N, HM1), 0.0), glintExp) + pow(max(dot(N, HM2), 0.0), glintExp);",
@@ -1216,18 +1274,154 @@ var FS_MAIN = [
   "  float skyFac = clamp(R.y * 0.5 + 0.5, 0.0, 1.0);",
   "  vec3 envColor = mix(groundBounce, skyAmb * 1.2, skyFac);",
   "  vec3 envReflection = pow(1.0 - NdotV, 4.0) * envColor * (uSpec * 0.20 + uRim * 0.25);",
-  // Turf Anisotropic Sheen for stadium grass
-  "  float turfMask = smoothstep(0.75, 0.98, N.y);",
-  "  vec3 turfSheen = turfMask * vec3(0.08, 0.16, 0.08) * pow(1.0 - NdotV, 3.0) * uSun;",
-  "  vec3 col = lit + specularSun + clearcoatLobe + flakeLobe + floodSpec + envReflection + turfSheen + uEmissive;",
+  "  vec3 col = lit + specularSun + clearcoatLobe + floodSpec + envReflection + uEmissive;",
   // Atmospheric Fog
   "  float dist = length(uCam - vW);",
   "  float fog = 1.0 - exp(-dist * uFog);",
   "  col = mix(col, uFogCol, clamp(fog, 0.0, 1.0));",
-  // Filmic tone mapping that preserves rich vibrant color saturation (built-in sRGB curve)
-  "  vec3 x = max(vec3(0.0), col - 0.004);",
-  "  vec3 tonemapped = (x * (6.2 * x + 0.5)) / (x * (6.2 * x + 1.7) + 0.06);",
-  "  outColor = vec4(tonemapped, uOpacity * tex.a);",
+  // Standard ACES Film Tonemapper (Preserves rich, solid, vibrant saturated colors)
+  "  vec3 aCol = col * (2.51 * col + 0.03);",
+  "  vec3 bCol = col * (2.43 * col + 0.59) + 0.14;",
+  "  vec3 tonemapped = clamp(aCol / bCol, 0.0, 1.0);",
+  "  outColor = vec4(tonemapped, uOpacity * (uAlphaTest > 0.5 ? tex.a : 1.0));",
+  "}"
+].join("\n");
+
+var VS_GRASS = [
+  "#version 300 es",
+  "layout(location = 0) in vec3 aBladePos;",
+  "layout(location = 1) in vec3 aBladeNormal;",
+  "layout(location = 2) in vec2 aBladeUV;",
+  "layout(location = 3) in vec4 aInstPosRot;",
+  "layout(location = 4) in vec3 aInstScale;",
+  "uniform mat4 uVP; uniform mat4 uShadowVP;",
+  "uniform float uTime; uniform float uWindSpeed; uniform float uWindStrength; uniform float uGrassHeight; uniform float uGrassWidth; uniform float uTremble;",
+  "uniform vec3 uCarPos; uniform vec3 uBallPos;",
+  "out vec3 vN; out vec3 vW; out vec2 vUV; out vec4 vShadowCoord; out float vHeight; out float vStripe; out vec2 vRootXZ;",
+  "void main(){",
+  "  vec3 rootPos = aInstPosRot.xyz;",
+  "  float rot = aInstPosRot.w;",
+  "  float hRatio = aBladePos.y;",
+  "  vHeight = hRatio;",
+  "  vUV = aBladeUV;",
+  "  vRootXZ = rootPos.xz;",
+  "  vStripe = sin(rootPos.z * 0.65) * 0.5 + 0.5;",
+  "  float wMult = uGrassWidth > 0.005 ? uGrassWidth : 1.0;",
+  "  float wScale = aInstScale.x * 0.038 * wMult;",
+  "  float hScale = aInstScale.y * uGrassHeight * 0.75;",
+  "  vec3 localPos = vec3(aBladePos.x * wScale, aBladePos.y * hScale, aBladePos.z * wScale);",
+  "  float cosR = cos(rot), sinR = sin(rot);",
+  "  vec3 rotated = vec3(localPos.x * cosR - localPos.z * sinR, localPos.y, localPos.x * sinR + localPos.z * cosR);",
+  "  vec3 wPos = rootPos + rotated;",
+  "  float t = uTime * uWindSpeed;",
+  "  vec2 windDir = normalize(vec2(0.82, 0.45));",
+  "  float macroWave = sin(t * 2.2 + rootPos.x * 0.12 + rootPos.z * 0.16) * cos(t * 1.5 + rootPos.z * 0.22);",
+  "  float microFlutter = sin(t * 6.5 + rootPos.x * 0.85 + rootPos.z * 0.95) * 0.40;",
+  "  float jitterTremble = sin(t * 14.0 + rootPos.x * 8.0 + rootPos.z * 7.0) * (uTremble * 0.25);",
+  "  float totalWind = (macroWave + microFlutter + jitterTremble) * uWindStrength;",
+  "  float bend = pow(hRatio, 1.45) * totalWind * 0.65;",
+  "  wPos.x += windDir.x * bend * hScale;",
+  "  wPos.z += windDir.y * bend * hScale;",
+  "  wPos.y -= (bend * bend) * 0.35 * hScale;",
+  "  vec2 toCar = wPos.xz - uCarPos.xz;",
+  "  float distCar = length(toCar);",
+  "  if (distCar < 3.2 && abs(wPos.y - uCarPos.y) < 1.8) {",
+  "    float carPush = (1.0 - distCar / 3.2) * hRatio * 0.65;",
+  "    vec2 pushDir = normalize(toCar + vec2(1e-4));",
+  "    wPos.xz += pushDir * carPush;",
+  "    wPos.y -= carPush * 0.45;",
+  "  }",
+  "  vec2 toBall = wPos.xz - uBallPos.xz;",
+  "  float distBall = length(toBall);",
+  "  if (distBall < 2.8 && abs(wPos.y - uBallPos.y) < 2.0) {",
+  "    float ballPush = (1.0 - distBall / 2.8) * hRatio * 0.70;",
+  "    vec2 pushDir = normalize(toBall + vec2(1e-4));",
+  "    wPos.xz += pushDir * ballPush;",
+  "    wPos.y -= ballPush * 0.50;",
+  "  }",
+  "  vec3 normalRot = vec3(aBladeNormal.x * cosR - aBladeNormal.z * sinR, aBladeNormal.y, aBladeNormal.x * sinR + aBladeNormal.z * cosR);",
+  "  normalRot.x += windDir.x * bend * 0.8;",
+  "  normalRot.z += windDir.y * bend * 0.8;",
+  "  vN = normalize(normalRot);",
+  "  vW = wPos;",
+  "  vShadowCoord = uShadowVP * vec4(wPos, 1.0);",
+  "  gl_Position = uVP * vec4(wPos, 1.0);",
+  "}"
+].join("\n");
+
+var FS_GRASS = [
+  "#version 300 es",
+  "precision highp float;",
+  "precision highp sampler2DShadow;",
+  "in vec3 vN; in vec3 vW; in vec2 vUV; in vec4 vShadowCoord; in float vHeight; in float vStripe; in vec2 vRootXZ;",
+  "uniform vec3 uCam; uniform vec3 uFogCol; uniform float uFog;",
+  "uniform float uSun; uniform float uAmb; uniform float uFlood;",
+  "uniform float uShadowEnable; uniform float uShadowSoftness;",
+  "uniform float uTipCream; uniform float uSubsurface;",
+  "uniform vec2 uArenaHalf;",
+  "uniform sampler2D uFieldTex;",
+  "uniform highp sampler2DShadow uShadowMap;",
+  "out vec4 outColor;",
+  "const vec3 L_SUN = vec3(0.38, 0.85, -0.36);",
+  "float calcShadow(vec4 sc, float NdotL) {",
+  "  if (uShadowEnable < 0.5) return 1.0;",
+  "  vec3 proj = sc.xyz / sc.w;",
+  "  if (proj.x < 0.01 || proj.x > 0.99 || proj.y < 0.01 || proj.y > 0.99 || proj.z > 1.0 || proj.z < 0.0) return 1.0;",
+  "  float bias = 0.0018;",
+  "  vec2 texel = vec2(1.0 / 1024.0) * max(uShadowSoftness, 0.8);",
+  "  float s = 0.0;",
+  "  s += texture(uShadowMap, vec3(proj.xy + vec2(-0.8, -0.8) * texel, proj.z - bias));",
+  "  s += texture(uShadowMap, vec3(proj.xy + vec2( 0.8, -0.8) * texel, proj.z - bias));",
+  "  s += texture(uShadowMap, vec3(proj.xy + vec2(-0.8,  0.8) * texel, proj.z - bias));",
+  "  s += texture(uShadowMap, vec3(proj.xy + vec2( 0.8,  0.8) * texel, proj.z - bias));",
+  "  return mix(0.50, 1.0, s * 0.25);",
+  "}",
+  "void main(){",
+  "  vec3 N = normalize(vN);",
+  "  if (!gl_FrontFacing) N = -N;",
+  "  vec2 fieldUV = vec2((vRootXZ.x + uArenaHalf.x) / (2.0 * uArenaHalf.x), (vRootXZ.y + uArenaHalf.y) / (2.0 * uArenaHalf.y));",
+  "  vec4 fieldCol = texture(uFieldTex, clamp(fieldUV, 0.0, 1.0));",
+  "  float lineWhiteness = min(fieldCol.r, min(fieldCol.g, fieldCol.b));",
+  "  float lineLuma = dot(fieldCol.rgb, vec3(0.299, 0.587, 0.114));",
+  "  float maxChannel = max(fieldCol.r, max(fieldCol.g, fieldCol.b));",
+  "  float lineFactor = max(lineWhiteness * 1.25, (maxChannel > 0.65 && lineLuma > 0.38) ? lineLuma * 1.15 : 0.0);",
+  "  float lineMarking = smoothstep(0.36, 0.65, lineFactor);",
+  "  vec3 fieldTint = mix(vec3(1.0), fieldCol.rgb * 2.4, 0.38);",
+  "  vec3 rootCol = mix(vec3(0.04, 0.16, 0.06), vec3(0.06, 0.22, 0.08), vStripe) * fieldTint;",
+  "  vec3 midCol = mix(vec3(0.16, 0.52, 0.18), vec3(0.24, 0.65, 0.26), vStripe) * fieldTint;",
+  "  vec3 tipCol = mix(vec3(0.55, 0.78, 0.32), vec3(0.96, 0.92, 0.68), uTipCream) * fieldTint;",
+  "  vec3 markCol = (maxChannel > 0.02) ? (fieldCol.rgb / maxChannel) : vec3(1.0);",
+  "  vec3 whiteLineRoot = mix(vec3(0.72, 0.76, 0.78), markCol * 0.85, 0.5);",
+  "  vec3 whiteLineMid  = mix(vec3(0.95, 0.97, 0.99), markCol, 0.5);",
+  "  vec3 whiteLineTip  = vec3(1.0, 1.0, 1.0);",
+  "  rootCol = mix(rootCol, whiteLineRoot, lineMarking);",
+  "  midCol  = mix(midCol, whiteLineMid, lineMarking);",
+  "  tipCol  = mix(tipCol, whiteLineTip, lineMarking);",
+  "  vec3 baseColor = (vHeight < 0.55) ? mix(rootCol, midCol, vHeight / 0.55) : mix(midCol, tipCol, (vHeight - 0.55) / 0.45);",
+  "  float rootAO = clamp(vHeight * 1.4 + 0.32, 0.35, 1.0);",
+  "  vec3 nLSun = normalize(L_SUN);",
+  "  float NdotL = max(dot(N, nLSun), 0.0);",
+  "  float NdotL_sss = clamp((dot(N, nLSun) + 0.45) / 1.45, 0.0, 1.0);",
+  "  float diffuse = mix(NdotL, NdotL_sss, uSubsurface * 0.65);",
+  "  float shadow = calcShadow(vShadowCoord, NdotL);",
+  "  vec3 sunColor = vec3(1.0, 0.96, 0.88) * uSun;",
+  "  vec3 sunLight = sunColor * (diffuse * shadow);",
+  "  float hemi = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);",
+  "  vec3 skyAmb = vec3(0.28, 0.42, 0.55) * uAmb;",
+  "  vec3 groundBounce = vec3(0.08, 0.14, 0.06) * uAmb;",
+  "  vec3 ambLight = mix(groundBounce, skyAmb, hemi) * rootAO;",
+  "  vec3 V = normalize(uCam - vW);",
+  "  vec3 H = normalize(nLSun + V);",
+  "  float spec = pow(max(dot(N, H), 0.0), 32.0) * vHeight * 0.45 * shadow;",
+  "  vec3 specLight = sunColor * spec;",
+  "  vec3 col = baseColor * (ambLight + sunLight) + specLight;",
+  "  float dist = length(uCam - vW);",
+  "  float fog = 1.0 - exp(-dist * uFog);",
+  "  col = mix(col, uFogCol, clamp(fog, 0.0, 1.0));",
+  "  vec3 aCol = col * (2.51 * col + 0.03);",
+  "  vec3 bCol = col * (2.43 * col + 0.59) + 0.14;",
+  "  vec3 tonemapped = clamp(aCol / bCol, 0.0, 1.0);",
+  "  outColor = vec4(tonemapped, 1.0);",
   "}"
 ].join("\n");
 var VS_PART = [
@@ -1274,6 +1468,7 @@ export function Renderer(canvas) {
   var gl = canvas.getContext("webgl2", opts);
   if (!gl) throw new Error("WebGL2 is not available in this browser.");
   this.gl = gl;
+  this.time = 0;
   this.vpDirty = true;
   this.proj = M4(); this.view = M4(); this.vp = M4();
   this.model = M4(); this.nm = new Float32Array(9);
@@ -1285,12 +1480,21 @@ export function Renderer(canvas) {
   this.progMain = this.program(VS_MAIN, FS_MAIN);
   this.progPart = this.program(VS_PART, FS_PART);
   this.progLine = this.program(VS_LINE, FS_LINE);
+  this.progGrass = this.program(VS_GRASS, FS_GRASS);
   this.uMain = this.uniforms(this.progMain, [
     "uVP", "uModel", "uNM", "uColor", "uEmissive", "uCam", "uFogCol",
     "uOpacity", "uSpec", "uUseTex", "uFog", "uAlphaTest", "uRim",
     "uFlood", "uSun", "uAmb", "uBump", "uTex",
     "uClearcoat", "uMetallic", "uAO", "uFlakes",
-    "uShadowVP", "uShadowMap", "uShadowEnable", "uShadowSoftness"
+    "uShadowVP", "uShadowMap", "uShadowEnable", "uShadowSoftness",
+    "uTime", "uCrowd"
+  ]);
+  this.uGrass = this.uniforms(this.progGrass, [
+    "uVP", "uShadowVP", "uShadowMap", "uShadowEnable", "uShadowSoftness",
+    "uCam", "uFogCol", "uFog", "uSun", "uAmb", "uFlood",
+    "uTime", "uWindSpeed", "uWindStrength", "uGrassHeight", "uGrassWidth", "uTremble",
+    "uTipCream", "uSubsurface", "uCarPos", "uBallPos",
+    "uArenaHalf", "uFieldTex"
   ]);
   this.uPart = this.uniforms(this.progPart, ["uVP", "uRight", "uUp", "uTex"]);
   this.uLine = this.uniforms(this.progLine, ["uVP"]);
@@ -1307,6 +1511,7 @@ export function Renderer(canvas) {
   this.initParticles(4096);
   this.initLines(24000);
   this.initShadowMap();
+  this.initGrass();
   this.texCache = {};
   this.curProg = null;
   this.curTex = null;
@@ -1377,8 +1582,9 @@ Renderer.prototype.resize = function (scale) {
   gl.viewport(0, 0, c.width, c.height);
   this.aspect = c.width / c.height;
 };
-Renderer.prototype.beginFrame = function (camPos, camTarget, camUp, fovDeg) {
+Renderer.prototype.beginFrame = function (camPos, camTarget, camUp, fovDeg, dt) {
   var gl = this.gl;
+  this.time = (this.time || 0) + (dt !== undefined && dt > 0 ? dt : 0.01667);
   this.camPos.copy(camPos);
   m4perspective(this.proj, rad(fovDeg), this.aspect || 1.6, 0.12, 480);
   m4lookAt(this.view, camPos, camTarget, camUp);
@@ -1399,6 +1605,8 @@ Renderer.prototype.beginFrame = function (camPos, camTarget, camUp, fovDeg) {
   gl.uniform1f(this.uMain.uFlood, gfx.floodlightIntensity !== undefined ? gfx.floodlightIntensity : 0.35);
   gl.uniform1f(this.uMain.uSun, gfx.sunIntensity !== undefined ? gfx.sunIntensity : 0.95);
   gl.uniform1f(this.uMain.uAmb, gfx.ambientLight !== undefined ? gfx.ambientLight : 0.85);
+  gl.uniform1f(this.uMain.uTime, this.time);
+  gl.uniform1f(this.uMain.uCrowd, 0.0);
 
   // Bind shadow depth texture on unit 1
   if (this.shadowDepthTex) {
@@ -1443,7 +1651,8 @@ var MAT_DEFAULT = {
   clearcoat: 0.0,
   metallic: 0.0,
   ao: 0.0,
-  flakes: 0.0
+  flakes: 0.0,
+  crowd: 0.0
 };
 Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   var gl = this.gl, u = this.uMain;
@@ -1475,6 +1684,7 @@ Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   gl.uniform1f(u.uFlakes, mat.flakes !== undefined ? mat.flakes : 0.0);
   gl.uniform1f(u.uAlphaTest, mat.alphaTest ? 1 : 0);
   gl.uniform1f(u.uUseTex, mat.tex ? 1 : 0);
+  gl.uniform1f(u.uCrowd, mat.crowd !== undefined ? mat.crowd : 0.0);
 
   var wantTex = mat.tex || this.whiteTex;
   if (this.curTex !== wantTex) {
@@ -1494,6 +1704,202 @@ Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   }
   gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
   this.drawCalls++;
+};
+Renderer.prototype.initGrass = function () {
+  var gl = this.gl;
+  // 5-vertex tapered realistic 3D grass blade geometry (3 triangles, 9 indices)
+  // Format per vertex: pos(x,y,z), normal(x,y,z), uv(u,v) -> 8 floats
+  var bladeVerts = new Float32Array([
+    -0.50, 0.0, 0.0,   0.0, 0.35, 0.94,  0.00, 0.0,
+     0.50, 0.0, 0.0,   0.0, 0.35, 0.94,  1.00, 0.0,
+    -0.32, 0.5, 0.0,   0.0, 0.58, 0.81,  0.15, 0.5,
+     0.32, 0.5, 0.0,   0.0, 0.58, 0.81,  0.85, 0.5,
+     0.00, 1.0, 0.0,   0.0, 0.85, 0.52,  0.50, 1.0
+  ]);
+  var bladeIndices = new Uint16Array([
+    0, 1, 2,
+    1, 3, 2,
+    2, 3, 4
+  ]);
+
+  var vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  var vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, bladeVerts, gl.STATIC_DRAW);
+
+  // aBladePos (location 0)
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+  // aBladeNormal (location 1)
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+  // aBladeUV (location 2)
+  gl.enableVertexAttribArray(2);
+  gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+
+  var ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, bladeIndices, gl.STATIC_DRAW);
+
+  // Instanced Buffer: posRot (vec4: x,y,z,rot) + scale (vec3: wScale, hScale, clump) = 7 floats = 28 bytes per instance
+  var instBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, instBuffer);
+
+  // aInstPosRot (location 3)
+  gl.enableVertexAttribArray(3);
+  gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 28, 0);
+  gl.vertexAttribDivisor(3, 1);
+
+  // aInstScale (location 4)
+  gl.enableVertexAttribArray(4);
+  gl.vertexAttribPointer(4, 3, gl.FLOAT, false, 28, 16);
+  gl.vertexAttribDivisor(4, 1);
+
+  gl.bindVertexArray(null);
+
+  this.grassVAO = vao;
+  this.grassInstBuffer = instBuffer;
+  this.grassCount = 0;
+  var initialCount = (CFG.gfx && CFG.gfx.grassBladeCount) || 150000;
+  this.generateGrassInstances(initialCount);
+};
+Renderer.prototype.generateGrassInstances = function (count) {
+  var gl = this.gl;
+  count = Math.max(5000, Math.min(count || 150000, 5000000));
+  var data = new Float32Array(count * 7);
+  var halfW = 38.2;
+  var halfL = 47.8;
+  var cornerR = 7.5;
+  var idx = 0;
+
+  // Stratified Poisson-like random distribution across pitch
+  for (var i = 0; i < count; i++) {
+    var rx = (Math.random() * 2 - 1) * halfW;
+    var rz = (Math.random() * 2 - 1) * halfL;
+
+    // Soft round corners
+    var cx = Math.abs(rx) - (halfW - cornerR);
+    var cz = Math.abs(rz) - (halfL - cornerR);
+    if (cx > 0 && cz > 0 && Math.sqrt(cx * cx + cz * cz) > cornerR) {
+      // Re-sample within bounds
+      rx *= 0.88;
+      rz *= 0.88;
+    }
+
+    var rot = Math.random() * Math.PI * 2;
+    var wScale = 0.80 + Math.random() * 0.40;
+    var hScale = 0.75 + Math.random() * 0.50;
+    var clump = Math.random();
+
+    // Position (x, y, z, rot)
+    data[idx++] = rx;
+    data[idx++] = 0.012; // Resting exactly on the turf surface
+    data[idx++] = rz;
+    data[idx++] = rot;
+
+    // Scale (w, h, clump)
+    data[idx++] = wScale;
+    data[idx++] = hScale;
+    data[idx++] = clump;
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.grassInstBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  this.grassCount = count;
+  this.lastGrassCount = count;
+};
+Renderer.prototype.drawGrass = function (arena, cars, ball) {
+  var gfx = CFG.gfx || {};
+  if (gfx.grassEnabled === false) return;
+  if (!this.progGrass || !this.grassVAO || this.grassCount <= 0) return;
+
+  var targetCount = gfx.grassBladeCount || 150000;
+  if (gfx.grassDensity === "HYPER_DENSE" || gfx.grassDensity === "HYPER") targetCount = 5000000;
+  else if (gfx.grassDensity === "CINEMATIC_MAX" || gfx.grassDensity === "MAX") targetCount = 3000000;
+  else if (gfx.grassDensity === "EXTREME") targetCount = 1500000;
+  else if (gfx.grassDensity === "ULTRA_DENSE") targetCount = 750000;
+  else if (gfx.grassDensity === "ULTRA") targetCount = 350000;
+  else if (gfx.grassDensity === "HIGH") targetCount = 150000;
+  else if (gfx.grassDensity === "BALANCED") targetCount = 60000;
+  else if (gfx.grassDensity === "LOW") targetCount = 25000;
+  else if (typeof gfx.grassBladeCount === "number") targetCount = gfx.grassBladeCount;
+
+  targetCount = Math.max(5000, Math.min(targetCount, 5000000));
+
+  if (targetCount !== this.grassCount) {
+    this.generateGrassInstances(targetCount);
+  }
+
+  var gl = this.gl;
+  var u = this.uGrass;
+
+  gl.useProgram(this.progGrass);
+  this.curProg = this.progGrass;
+  this.curVAO = this.grassVAO;
+  this.curTex = null;
+
+  gl.uniformMatrix4fv(u.uVP, false, this.vp);
+  gl.uniform3f(u.uCam, this.camPos.x, this.camPos.y, this.camPos.z);
+  gl.uniform3f(u.uFogCol, this.fogColor[0], this.fogColor[1], this.fogColor[2]);
+  gl.uniform1f(u.uFog, this.fogDensity);
+  gl.uniform1f(u.uSun, gfx.sunIntensity !== undefined ? gfx.sunIntensity : 0.95);
+  gl.uniform1f(u.uAmb, gfx.ambientLight !== undefined ? gfx.ambientLight : 0.85);
+  gl.uniform1f(u.uFlood, gfx.floodlightIntensity !== undefined ? gfx.floodlightIntensity : 0.35);
+
+  // Dynamic multi-harmonic wind & flutter jitter
+  var time = this.time || 0.0;
+  gl.uniform1f(u.uTime, time);
+  gl.uniform1f(u.uWindSpeed, gfx.grassWindSpeed !== undefined ? gfx.grassWindSpeed : 1.4);
+  gl.uniform1f(u.uWindStrength, gfx.grassWaveStrength !== undefined ? gfx.grassWaveStrength : 0.85);
+  gl.uniform1f(u.uGrassHeight, gfx.grassHeight !== undefined ? gfx.grassHeight : 0.65);
+  gl.uniform1f(u.uGrassWidth, gfx.grassBladeWidth !== undefined ? gfx.grassBladeWidth : 1.0);
+  gl.uniform1f(u.uTremble, gfx.grassTremble !== undefined ? gfx.grassTremble : 0.80);
+  gl.uniform1f(u.uTipCream, gfx.grassTipCreaminess !== undefined ? gfx.grassTipCreaminess : 0.95);
+  gl.uniform1f(u.uSubsurface, gfx.grassSubsurface !== undefined ? gfx.grassSubsurface : 0.75);
+
+  // Pitch Arena Dimensions & Soccer Field Texture for White Chalk Markings & Turf Tint
+  var hx = (arena && arena.hx) || 40.0;
+  var hz = (arena && arena.hz) || 50.0;
+  gl.uniform2f(u.uArenaHalf, hx, hz);
+
+  if (this.texField) {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.texField);
+    gl.uniform1i(u.uFieldTex, 0);
+  }
+
+  // Interactive collision positions (car and ball bend grass on contact)
+  var carPos = (cars && cars[0] && cars[0].pos) ? cars[0].pos : _vPos.set(999, 999, 999);
+  gl.uniform3f(u.uCarPos, carPos.x, carPos.y, carPos.z);
+  var ballPos = (ball && ball.pos) ? ball.pos : _vPos.set(999, 999, 999);
+  gl.uniform3f(u.uBallPos, ballPos.x, ballPos.y, ballPos.z);
+
+  // Shadow Map on Unit 1
+  if (this.shadowDepthTex) {
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowDepthTex);
+    gl.uniform1i(u.uShadowMap, 1);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  if (this.shadowVP) {
+    gl.uniformMatrix4fv(u.uShadowVP, false, this.shadowVP);
+  }
+  gl.uniform1f(u.uShadowEnable, gfx.shadowMapping !== false ? 1.0 : 0.0);
+  gl.uniform1f(u.uShadowSoftness, gfx.shadowSoftness !== undefined ? gfx.shadowSoftness : 1.0);
+
+  // Double-sided grass rendering with depth buffer test
+  gl.disable(gl.CULL_FACE);
+  this.curCull = false;
+  this.setBlend("none");
+
+  gl.bindVertexArray(this.grassVAO);
+  gl.drawElementsInstanced(gl.TRIANGLES, 9, gl.UNSIGNED_SHORT, 0, this.grassCount);
+  this.drawCalls++;
+
+  gl.enable(gl.CULL_FACE);
+  this.curCull = true;
 };
 Renderer.prototype.initShadowMap = function () {
   var gl = this.gl;
@@ -1852,33 +2258,33 @@ export function buildProps(R) {
   // ==========================================
   // SLEEK CYBER-GRID BOOST PADS
   // ==========================================
-  // 1. Small Boost Pad (12% Pad): Hex bevel plate + floating rotating diamond energy core
+  // 1. Small Boost Pad (12% Pad): Elevated Hex bevel pedestal + floating rotating diamond energy core
   var psBase = new Builder();
-  psBase.polyDisc(1.05, 6, 0.035, 1, 1);
+  psBase.polyDisc(1.22, 6, 0.24, 1, 1);
   for (var hxi = 0; hxi < 6; hxi++) {
     var ha0 = (hxi / 6) * TAU, ha1 = ((hxi + 1) / 6) * TAU;
-    var hmx = (Math.cos(ha0) + Math.cos(ha1)) * 0.5 * 0.98;
-    var hmz = (Math.sin(ha0) + Math.sin(ha1)) * 0.5 * 0.98;
-    psBase.box(0.06, 0.045, 0.50, new V3(hmx, 0.025, hmz), new Quat().fromAxisAngle(0, 1, 0, ha0 + PI / 6), 0.8);
+    var hmx = (Math.cos(ha0) + Math.cos(ha1)) * 0.5 * 1.10;
+    var hmz = (Math.sin(ha0) + Math.sin(ha1)) * 0.5 * 1.10;
+    psBase.box(0.10, 0.24, 0.60, new V3(hmx, 0.12, hmz), new Quat().fromAxisAngle(0, 1, 0, ha0 + PI / 6), 0.8);
   }
   var padSmallBase = R.mesh(psBase);
 
   // Floating Small Boost Diamond Crystal Core
   var psCore = new Builder();
-  psCore.cylinder(0.20, 0.02, 0.38, 6, new V3(0, 0.19, 0), null, true, true);
-  psCore.cylinder(0.02, 0.20, 0.38, 6, new V3(0, -0.19, 0), null, true, true);
+  psCore.cylinder(0.28, 0.02, 0.52, 6, new V3(0, 0.26, 0), null, true, true);
+  psCore.cylinder(0.02, 0.28, 0.52, 6, new V3(0, -0.26, 0), null, true, true);
   var padSmallCore = R.mesh(psCore);
 
   // 2. Big Boost Pad (100% Full Pill): Heavy 6-pylon launcher base + floating energy orb + dual orbital gimbal rings
   var pbBase = new Builder();
-  pbBase.polyDisc(2.25, 6, 0.055, 1, 1);
+  pbBase.polyDisc(2.5, 6, 0.32, 1, 1);
   for (var bp = 0; bp < 6; bp++) {
     var bpa = (bp / 6) * TAU;
-    var bx = Math.cos(bpa) * 1.95, bz = Math.sin(bpa) * 1.95;
-    pbBase.box(0.18, 0.38, 0.18, new V3(bx, 0.20, bz), null, 0.8);
-    pbBase.box(0.12, 0.32, 0.12, new V3(bx * 0.85, 0.32, bz * 0.85), new Quat().fromAxisAngle(bz, 0, -bx, 0.35), 0.8);
+    var bx = Math.cos(bpa) * 2.2, bz = Math.sin(bpa) * 2.2;
+    pbBase.box(0.26, 0.70, 0.26, new V3(bx, 0.38, bz), null, 0.8);
+    pbBase.box(0.18, 0.55, 0.18, new V3(bx * 0.82, 0.60, bz * 0.82), new Quat().fromAxisAngle(bz, 0, -bx, 0.35), 0.8);
   }
-  pbBase.polyDisc(1.25, 16, 0.08, 1, 1);
+  pbBase.polyDisc(1.5, 16, 0.38, 1, 1);
   var padBigBase = R.mesh(pbBase);
 
   // Big Boost Floating Energy Core (Faceted power sphere)
@@ -1978,7 +2384,7 @@ var _metallicCol = [0, 0, 0];
 var _trimEmissive = [0, 0, 0];
 var _colScratch = [0, 0, 0];
 
-Renderer.prototype.drawArena = function (meshes, arena, props) {
+Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
   this.initTextures(arena);
   if (props) this.props = props;
 
@@ -2000,11 +2406,12 @@ Renderer.prototype.drawArena = function (meshes, arena, props) {
     });
   }
 
-  // 2. Spectator Grandstands (Spaciously elevated outside net walls)
+  // 2. Spectator Grandstands (Spaciously elevated outside net walls with lively cheer animations)
   if (meshes.grandstands || meshes.crowd) {
     var gMesh = meshes.grandstands || meshes.crowd;
     this.draw(gMesh, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
       tex: this.texCrowd,
+      crowd: (CFG.gfx && CFG.gfx.crowdAnimation !== false) ? 1.0 : 0.0,
       emissive: [0.18, 0.20, 0.25],
       spec: 0.25,
       rim: 0.15
@@ -2030,6 +2437,9 @@ Renderer.prototype.drawArena = function (meshes, arena, props) {
     spec: pitchSpec,
     rim: 0.12
   });
+
+  // 5b. Dynamic 3D Instanced Pitch Grass Blades (Full pitch coverage with wind flutter, soft cream tips & ball/car physics interaction)
+  this.drawGrass(arena, cars, ball);
 
   // 6. Perimeter Ad Boards (LED Sponsor Panels)
   if (meshes.adBoards) {
@@ -2152,16 +2562,17 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
     var active = p.active;
 
     if (isBig) {
-      // 1. Heavy Launcher Base Pad
+      // 1. Heavy Launcher Base Pad (Elevated prominently above grass)
       var bigBaseMesh = props.padBigBase || props.padBig;
-      this.draw(bigBaseMesh, p.pos, _qIdentity, _vOne, {
+      var bBasePos = _vPos.set(p.pos.x, p.pos.y + 0.18, p.pos.z);
+      this.draw(bigBaseMesh, bBasePos, _qIdentity, _vOne, {
         color: active ? [0.28, 0.30, 0.36] : [0.15, 0.16, 0.18],
         emissive: active ? [0.35, 0.22, 0.04] : [0.03, 0.03, 0.03],
         spec: active ? 0.7 : 0.2
       });
 
       if (active) {
-        var bobY = p.pos.y + 0.92 + Math.sin(p.anim * 2.5) * 0.06;
+        var bobY = p.pos.y + 1.55 + Math.sin(p.anim * 2.5) * 0.08;
         _vScratch1.set(p.pos.x, bobY, p.pos.z);
 
         // 2. Spinning Energy Core Orb
@@ -2194,10 +2605,10 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
           });
         }
 
-        // 5. Floor Pulse Rune
+        // 5. Floor Pulse Rune (Hovering above grass on launcher deck)
         var rScale = 2.45 + Math.sin(p.anim * 3.0) * 0.12;
         _vScale.set(rScale, 1, rScale);
-        this.draw(props.ring, _vPos.set(p.pos.x, 0.02, p.pos.z), _qIdentity, _vScale, {
+        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.32, p.pos.z), _qIdentity, _vScale, {
           tex: this.texBoostGlow,
           color: [1.0, 0.85, 0.25],
           emissive: [1.2, 0.9, 0.2],
@@ -2207,16 +2618,17 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
       }
     } else {
       // Small Boost Pad
-      // 1. Chamfered Hex Plate on Turf
+      // 1. Chamfered Hex Plate on Turf (Elevated above grass)
       var smallBaseMesh = props.padSmallBase || props.padSmall;
-      this.draw(smallBaseMesh, p.pos, _qIdentity, _vOne, {
+      var sBasePos = _vPos.set(p.pos.x, p.pos.y + 0.14, p.pos.z);
+      this.draw(smallBaseMesh, sBasePos, _qIdentity, _vOne, {
         color: active ? [0.25, 0.27, 0.32] : [0.14, 0.15, 0.17],
         emissive: active ? [0.22, 0.15, 0.02] : [0.02, 0.02, 0.02],
         spec: active ? 0.6 : 0.15
       });
 
       if (active) {
-        var sBobY = p.pos.y + 0.35 + Math.sin(p.anim * 3.2) * 0.035;
+        var sBobY = p.pos.y + 0.85 + Math.sin(p.anim * 3.2) * 0.045;
         _vScratch1.set(p.pos.x, sBobY, p.pos.z);
 
         // 2. Floating Rotating Diamond Crystal
@@ -2233,7 +2645,7 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
         // 3. Ground Glow Ring
         var sScale = 1.35 + Math.sin(p.anim * 2.5) * 0.08;
         _vScale.set(sScale, 1, sScale);
-        this.draw(props.ring, _vPos.set(p.pos.x, 0.015, p.pos.z), _qIdentity, _vScale, {
+        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.25, p.pos.z), _qIdentity, _vScale, {
           tex: this.texBoostGlow,
           color: [1.0, 0.82, 0.2],
           emissive: [1.0, 0.75, 0.15],
@@ -2383,10 +2795,10 @@ Renderer.prototype.drawBall = function (props, ball) {
   // Ball Mesh (exact physics radius r)
   _vScale.set(r, r, r);
   var flash = ball.hitFlash > 0 ? ball.hitFlash * 0.6 : 0;
-  var ballBright = (CFG.gfx && CFG.gfx.ballBrightness !== undefined) ? CFG.gfx.ballBrightness : 1.0;
-  var ballGloss = (CFG.gfx && CFG.gfx.ballGloss !== undefined) ? CFG.gfx.ballGloss : 0.95;
-  var ballMetallic = (CFG.gfx && CFG.gfx.ballMetallic !== undefined) ? CFG.gfx.ballMetallic : 0.85;
-  var ballBump = (CFG.gfx && CFG.gfx.ballBumpIntensity !== undefined) ? CFG.gfx.ballBumpIntensity : 2.80;
+  var ballBright = (CFG.gfx && CFG.gfx.ballBrightness !== undefined) ? CFG.gfx.ballBrightness : 0.95;
+  var ballGloss = (CFG.gfx && CFG.gfx.ballGloss !== undefined) ? CFG.gfx.ballGloss : 0.65;
+  var ballMetallic = (CFG.gfx && CFG.gfx.ballMetallic !== undefined) ? CFG.gfx.ballMetallic : 0.0;
+  var ballBump = (CFG.gfx && CFG.gfx.ballBumpIntensity !== undefined) ? CFG.gfx.ballBumpIntensity : 1.0;
   var ballGlow = (CFG.gfx && CFG.gfx.ballEmissiveGlow !== undefined) ? CFG.gfx.ballEmissiveGlow : 0.0;
   var emissiveTotal = flash + ballGlow;
 
@@ -2394,11 +2806,11 @@ Renderer.prototype.drawBall = function (props, ball) {
     tex: this.texBall,
     color: [ballBright, ballBright, ballBright],
     spec: ballGloss,
-    clearcoat: 0.90,
+    clearcoat: 0.25,
     metallic: ballMetallic,
-    flakes: 0.35,
-    ao: 0.45,
-    rim: 0.30 + ballGloss * 0.30,
+    flakes: 0.0,
+    ao: 0.50,
+    rim: 0.15,
     bump: ballBump,
     emissive: [emissiveTotal, emissiveTotal, emissiveTotal]
   });

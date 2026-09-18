@@ -370,7 +370,7 @@ GameEngine.prototype.start = function () {
     if (dt > 0.1) dt = 0.1;
 
     self.update(dt);
-    self.render();
+    self.render(dt);
 
     // FPS calculation
     self.framesCount++;
@@ -436,18 +436,19 @@ GameEngine.prototype.update = function (dt) {
   }
 };
 
-GameEngine.prototype.render = function () {
+GameEngine.prototype.render = function (dt) {
   var R = this.renderer;
   if (!R || !this.meshes || !this.props) return;
 
   var W = this.world;
   var cam = this.camera;
+  var delta = (typeof dt === "number" && dt > 0) ? dt : 0.01667;
 
   R.resize();
   if (typeof R.renderShadowMap === "function") {
     R.renderShadowMap(this.props, W.cars, W.ball);
   }
-  R.beginFrame(cam.pos, cam.target, cam.up, cam.fov);
+  R.beginFrame(cam.pos, cam.target, cam.up, cam.fov, delta);
 
   var tSec = Math.max(0, Math.ceil(W.matchTime || 0));
   var clockStr = Math.floor(tSec / 60) + ":" + String(tSec % 60).padStart(2, "0");
@@ -455,8 +456,8 @@ GameEngine.prototype.render = function () {
     R.updateScoreboard(clockStr, W.score[0], W.score[1], W.overtime ? "OVERTIME" : "NEON VELOCITY CHAMPIONSHIP");
   }
 
-  // 1. Draw Arena (Sky, Elevated Grandstands, Animated Spectators, Pitch Floor, Trusses, Goals)
-  R.drawArena(this.meshes, W.arena, this.props);
+  // 1. Draw Arena (Sky, Elevated Grandstands, Animated Spectators, Pitch Floor, 3D Dynamic Instanced Grass, Trusses, Goals)
+  R.drawArena(this.meshes, W.arena, this.props, W.cars, W.ball);
 
   // 2. Draw Boost Pads
   R.drawBoostPads(this.props, W.pads);

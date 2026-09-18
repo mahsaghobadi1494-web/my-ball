@@ -125,7 +125,21 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     ballBrightness: (CFG.gfx && CFG.gfx.ballBrightness !== undefined) ? CFG.gfx.ballBrightness : 1.0,
     ballGloss: (CFG.gfx && CFG.gfx.ballGloss !== undefined) ? CFG.gfx.ballGloss : 0.70,
     ballBumpIntensity: (CFG.gfx && CFG.gfx.ballBumpIntensity !== undefined) ? CFG.gfx.ballBumpIntensity : 0.80,
-    ballEmissiveGlow: (CFG.gfx && CFG.gfx.ballEmissiveGlow !== undefined) ? CFG.gfx.ballEmissiveGlow : 0.0
+    ballEmissiveGlow: (CFG.gfx && CFG.gfx.ballEmissiveGlow !== undefined) ? CFG.gfx.ballEmissiveGlow : 0.0,
+
+    // 7. Dynamic 3D Grass & Crowd Atmosphere
+    grassEnabled: (CFG.gfx && CFG.gfx.grassEnabled !== undefined) ? CFG.gfx.grassEnabled : true,
+    grassDensity: (CFG.gfx && CFG.gfx.grassDensity) || "HIGH",
+    grassBladeCount: (CFG.gfx && CFG.gfx.grassBladeCount) || 150000,
+    grassBladeWidth: (CFG.gfx && CFG.gfx.grassBladeWidth !== undefined) ? CFG.gfx.grassBladeWidth : 1.0,
+    grassHeight: (CFG.gfx && CFG.gfx.grassHeight !== undefined) ? CFG.gfx.grassHeight : 0.65,
+    grassWindSpeed: (CFG.gfx && CFG.gfx.grassWindSpeed !== undefined) ? CFG.gfx.grassWindSpeed : 1.4,
+    grassWaveStrength: (CFG.gfx && CFG.gfx.grassWaveStrength !== undefined) ? CFG.gfx.grassWaveStrength : 0.85,
+    grassTremble: (CFG.gfx && CFG.gfx.grassTremble !== undefined) ? CFG.gfx.grassTremble : 0.80,
+    grassTipCreaminess: (CFG.gfx && CFG.gfx.grassTipCreaminess !== undefined) ? CFG.gfx.grassTipCreaminess : 0.95,
+    grassSubsurface: (CFG.gfx && CFG.gfx.grassSubsurface !== undefined) ? CFG.gfx.grassSubsurface : 0.75,
+    crowdAnimation: (CFG.gfx && CFG.gfx.crowdAnimation !== undefined) ? CFG.gfx.crowdAnimation : true,
+    crowdEnergy: (CFG.gfx && CFG.gfx.crowdEnergy !== undefined) ? CFG.gfx.crowdEnergy : 1.0
   });
 
   const [values, setValues] = useState(getInitialValues);
@@ -1976,6 +1990,347 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* 3D Instanced Pitch Grass (چمن سه‌بعدی و متحرک زمین) */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/70 via-neutral-900/95 to-neutral-900/90 border border-emerald-500/40 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-300 font-mono flex items-center gap-1.5">
+                        <Wind className="w-3.5 h-3.5 text-emerald-400" /> چمن سه‌بعدی و باد دینامیک (3D Dynamic Pitch Grass)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !(values.grassEnabled !== false);
+                          updateParam("grassEnabled", next, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.grassEnabled = val;
+                          });
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition ${
+                          values.grassEnabled !== false
+                            ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                            : "bg-neutral-800 text-neutral-400 border-white/10"
+                        }`}
+                      >
+                        {values.grassEnabled !== false ? "فعال (ON)" : "خاموش (OFF)"}
+                      </button>
+                    </div>
+
+                    {values.grassEnabled !== false && (
+                      <div className="space-y-3.5 pt-1">
+                        {/* Grass Density Presets & Continuous Slider */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">تراکم بوته‌های چمن (Density & Count)</span>
+                            <span className="text-emerald-400 font-mono font-bold text-[11px] bg-black/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                              {values.grassBladeCount ? values.grassBladeCount.toLocaleString() : "150,000"} تیغه
+                            </span>
+                          </div>
+                          
+                          {/* Presets up to Multi-Million Blades */}
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: "LOW", count: 25000, label: "سبک (25k)" },
+                              { id: "BALANCED", count: 60000, label: "متعادل (60k)" },
+                              { id: "HIGH", count: 150000, label: "پرتراکم (150k)" },
+                              { id: "ULTRA", count: 350000, label: "اولترا (350k)" },
+                              { id: "ULTRA_DENSE", count: 750000, label: "فوق متراکم (750k)" },
+                              { id: "EXTREME", count: 1500000, label: "اکستریم (1.5M)" },
+                              { id: "CINEMATIC_MAX", count: 3000000, label: "سینماتیک (3M)" },
+                              { id: "HYPER_DENSE", count: 5000000, label: "هایپر تراکم (5M)" }
+                            ].map(d => {
+                              const isCur = (values.grassBladeCount === d.count) || (values.grassDensity === d.id);
+                              return (
+                                <button
+                                  key={d.id}
+                                  type="button"
+                                  onClick={() => {
+                                    updateParam("grassDensity", d.id, () => {
+                                      if (!CFG.gfx) CFG.gfx = {};
+                                      CFG.gfx.grassDensity = d.id;
+                                      CFG.gfx.grassBladeCount = d.count;
+                                    });
+                                    updateParam("grassBladeCount", d.count, () => {});
+                                  }}
+                                  className={`py-1.5 px-1 rounded text-center border text-[11px] font-mono transition ${
+                                    isCur
+                                      ? "bg-emerald-500/30 text-emerald-200 border-emerald-400 font-bold shadow-sm shadow-emerald-950"
+                                      : "bg-neutral-800/60 text-neutral-400 border-white/10 hover:bg-neutral-800 hover:text-white"
+                                  }`}
+                                >
+                                  {d.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Continuous Blade Count Slider */}
+                          <div className="pt-1">
+                            <input
+                              type="range"
+                              min="10000"
+                              max="5000000"
+                              step="25000"
+                              value={values.grassBladeCount || 150000}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                updateParam("grassBladeCount", v, val => {
+                                  if (!CFG.gfx) CFG.gfx = {};
+                                  CFG.gfx.grassBladeCount = val;
+                                  CFG.gfx.grassDensity = "CUSTOM";
+                                });
+                                updateParam("grassDensity", "CUSTOM", () => {});
+                              }}
+                              className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                            />
+                            <div className="flex justify-between text-[10px] text-neutral-500 font-mono pt-0.5">
+                              <span>10,000 (سبک)</span>
+                              <span>حداکثر ۱۰ برابری: ۵,۰۰۰,۰۰۰ تیغه چمن</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grass Blade Width / Thickness (کلفتی و نازکی تیغه‌ها) */}
+                        <div className="space-y-1.5 bg-neutral-900/50 p-2 rounded-lg border border-white/5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">ضخامت و کلفتی تیغه‌ها (Blade Thickness & Width)</span>
+                            <span className="text-emerald-400 font-mono font-bold text-[11px] bg-black/60 px-2 py-0.5 rounded border border-white/10">
+                              {(values.grassBladeWidth !== undefined ? values.grassBladeWidth : 1.0).toFixed(2)}x
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.2"
+                            max="4.0"
+                            step="0.05"
+                            value={values.grassBladeWidth !== undefined ? values.grassBladeWidth : 1.0}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassBladeWidth", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassBladeWidth = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                          <div className="grid grid-cols-4 gap-1 pt-0.5">
+                            {[
+                              { label: "نازک (0.5x)", val: 0.5 },
+                              { label: "معمولی (1.0x)", val: 1.0 },
+                              { label: "ضخیم (1.8x)", val: 1.8 },
+                              { label: "فرش توپر (3.0x)", val: 3.0 }
+                            ].map(p => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => {
+                                  updateParam("grassBladeWidth", p.val, val => {
+                                    if (!CFG.gfx) CFG.gfx = {};
+                                    CFG.gfx.grassBladeWidth = val;
+                                  });
+                                }}
+                                className={`text-[10px] py-1 rounded border transition font-mono ${
+                                  Math.abs((values.grassBladeWidth || 1.0) - p.val) < 0.05
+                                    ? "bg-emerald-500/25 text-emerald-300 border-emerald-400 font-bold"
+                                    : "bg-neutral-800/50 text-neutral-400 border-white/5 hover:bg-neutral-800 hover:text-white"
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="text-[10px] text-neutral-400">
+                            امکان تنظیم از حالت چمن سوزنی ریز تا چمن ضخیم و پوشاننده به همراه تراکم فوق‌العاده
+                          </div>
+                        </div>
+
+                        {/* Grass Height */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">ارتفاع تیغه‌های چمن (Blade Height)</span>
+                            <span className="text-emerald-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {(values.grassHeight !== undefined ? values.grassHeight : 0.65).toFixed(2)}m
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.2"
+                            max="1.5"
+                            step="0.05"
+                            value={values.grassHeight !== undefined ? values.grassHeight : 0.65}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassHeight", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassHeight = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                        </div>
+
+                        {/* Grass Wind Wave Speed */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">سرعت موج باد (Wind Speed)</span>
+                            <span className="text-cyan-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {(values.grassWindSpeed !== undefined ? values.grassWindSpeed : 1.4).toFixed(1)}x
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.2"
+                            max="3.5"
+                            step="0.1"
+                            value={values.grassWindSpeed !== undefined ? values.grassWindSpeed : 1.4}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassWindSpeed", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassWindSpeed = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-cyan-400"
+                          />
+                        </div>
+
+                        {/* Grass Wave Strength & Tremble */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">لرزش و شدت خمیدگی باد (Wind Flutter & Sway)</span>
+                            <span className="text-cyan-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {Math.round((values.grassWaveStrength !== undefined ? values.grassWaveStrength : 0.85) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.1"
+                            max="2.0"
+                            step="0.05"
+                            value={values.grassWaveStrength !== undefined ? values.grassWaveStrength : 0.85}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassWaveStrength", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassWaveStrength = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-cyan-400"
+                          />
+                        </div>
+
+                        {/* Soft Cream Tip Gradient */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">گرادیانت کرم نرم نوک چمن (Cream Tip Gradient)</span>
+                            <span className="text-amber-200 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {Math.round((values.grassTipCreaminess !== undefined ? values.grassTipCreaminess : 0.95) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.0"
+                            max="1.8"
+                            step="0.05"
+                            value={values.grassTipCreaminess !== undefined ? values.grassTipCreaminess : 0.95}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassTipCreaminess", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassTipCreaminess = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-amber-200"
+                          />
+                          <div className="text-[10px] text-neutral-400">
+                            جلوه ابریشمی و طبیعی نوک چمن‌ها با تن کرم لطیف و تابش خورشید
+                          </div>
+                        </div>
+
+                        {/* Subsurface Light Scattering */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">عبور نور از بافت چمن (Subsurface Scattering)</span>
+                            <span className="text-emerald-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {Math.round((values.grassSubsurface !== undefined ? values.grassSubsurface : 0.75) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.0"
+                            max="1.5"
+                            step="0.05"
+                            value={values.grassSubsurface !== undefined ? values.grassSubsurface : 0.75}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("grassSubsurface", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.grassSubsurface = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-300"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stadium Crowd & Spectators (تماشاچیان و جو استادیوم) */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/60 via-neutral-900/90 to-neutral-900/90 border border-amber-500/40 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-300 font-mono flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-amber-400" /> تماشاچیان و موج مکزیکی استادیوم (Crowd & Cheer)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !(values.crowdAnimation !== false);
+                          updateParam("crowdAnimation", next, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.crowdAnimation = val;
+                          });
+                        }}
+                        className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold border transition ${
+                          values.crowdAnimation !== false
+                            ? "bg-amber-500/25 text-amber-300 border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+                            : "bg-neutral-800 text-neutral-400 border-white/10"
+                        }`}
+                      >
+                        {values.crowdAnimation !== false ? "فعال (ON)" : "خاموش (OFF)"}
+                      </button>
+                    </div>
+
+                    {values.crowdAnimation !== false && (
+                      <div className="space-y-2 pt-1">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">انرژی و تکان خوردن تماشاچیان (Crowd Energy)</span>
+                            <span className="text-amber-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {Math.round((values.crowdEnergy !== undefined ? values.crowdEnergy : 1.0) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.2"
+                            max="2.5"
+                            step="0.1"
+                            value={values.crowdEnergy !== undefined ? values.crowdEnergy : 1.0}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("crowdEnergy", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.crowdEnergy = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-amber-400"
+                          />
+                          <div className="text-[10px] text-neutral-400">
+                            انیمیشن دینامیک موج مکزیکی و بالا و پایین پریدن تماشاچیان در گرنداستند
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ball Type & Material Controls */}

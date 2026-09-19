@@ -45,32 +45,29 @@ export function createBoostPads(arena) {
 
   // 6 Big Corner & Mid boost pads
   var bigCoords = [
-    [-hx * 0.88, -hz * 0.88], [hx * 0.88, -hz * 0.88],
-    [-hx * 0.90, 0],          [hx * 0.90, 0],
-    [-hx * 0.88, hz * 0.88],  [hx * 0.88, hz * 0.88]
+    [-hx + 4.5, -hz + 4.5], [hx - 4.5, -hz + 4.5],
+    [-hx + 3.2, 0],          [hx - 3.2, 0],
+    [-hx + 4.5, hz - 4.5],  [hx - 4.5, hz - 4.5]
   ];
   for (var b = 0; b < bigCoords.length; b++) {
     pads.push(new BoostPad(bigCoords[b][0], bigCoords[b][1], true, idx++));
   }
 
-  // Small boost pads grid (spacious center field layout)
+  // Small boost pads grid across arena
   var smallCoords = [
-    // Goal mouth pads
-    [0, -hz * 0.88], [0, hz * 0.88],
-    [-hx * 0.32, -hz * 0.72], [hx * 0.32, -hz * 0.72],
-    [-hx * 0.32, hz * 0.72],  [hx * 0.32, hz * 0.72],
-
-    // Flank lanes
-    [-hx * 0.52, -hz * 0.42], [hx * 0.52, -hz * 0.42],
-    [-hx * 0.52, hz * 0.42],  [hx * 0.52, hz * 0.42],
-
-    // Straight kickoff lane pads (open center)
-    [0, -hz * 0.35], [0, hz * 0.35],
-    [-hx * 0.55, 0], [hx * 0.55, 0],
-
-    // Corner wings
-    [-hx * 0.68, -hz * 0.65], [hx * 0.68, -hz * 0.65],
-    [-hx * 0.68, hz * 0.65],  [hx * 0.68, hz * 0.65]
+    [0, -hz + 7.5], [0, hz - 7.5],
+    [-11.5, -hz + 14], [11.5, -hz + 14],
+    [-11.5, hz - 14],  [11.5, hz - 14],
+    [-18.5, -17], [18.5, -17],
+    [-18.5, 17],  [18.5, 17],
+    [-9.5, -5.5], [9.5, -5.5],
+    [-9.5, 5.5],  [9.5, 5.5],
+    [0, -18], [0, 18],
+    [0, -6.5], [0, 6.5],
+    [-6.5, 0], [6.5, 0],
+    [-17, 0], [17, 0],
+    [-24, -26], [24, -26],
+    [-24, 26], [24, 26]
   ];
   for (var s = 0; s < smallCoords.length; s++) {
     pads.push(new BoostPad(smallCoords[s][0], smallCoords[s][1], false, idx++));
@@ -166,24 +163,24 @@ World.prototype.setupKickoff = function (formationIndex) {
   var formations = [
     // Formation 0: Diagonal attack
     [
-      { p: new V3(-11, 0.28, -hz + 14), yaw: 0.4 },
-      { p: new V3(11, 0.28, -hz + 14), yaw: -0.4 },
-      { p: new V3(0, 0.28, -hz + 9), yaw: 0 },
-      { p: new V3(-3.5, 0.28, -hz + 10), yaw: 0 }
+      { p: new V3(-11, 0.2, -hz + 14), yaw: 0.4 },
+      { p: new V3(11, 0.2, -hz + 14), yaw: -0.4 },
+      { p: new V3(0, 0.2, -hz + 9), yaw: 0 },
+      { p: new V3(-3.5, 0.2, -hz + 10), yaw: 0 }
     ],
     // Formation 1: Center rush
     [
-      { p: new V3(0, 0.28, -hz + 18), yaw: 0 },
-      { p: new V3(-8, 0.28, -hz + 11), yaw: 0.2 },
-      { p: new V3(8, 0.28, -hz + 11), yaw: -0.2 },
-      { p: new V3(0, 0.28, -hz + 7), yaw: 0 }
+      { p: new V3(0, 0.2, -hz + 18), yaw: 0 },
+      { p: new V3(-8, 0.2, -hz + 11), yaw: 0.2 },
+      { p: new V3(8, 0.2, -hz + 11), yaw: -0.2 },
+      { p: new V3(0, 0.2, -hz + 7), yaw: 0 }
     ],
     // Formation 2: Spread diagonal
     [
-      { p: new V3(14, 0.28, -hz + 17), yaw: -0.5 },
-      { p: new V3(-14, 0.28, -hz + 17), yaw: 0.5 },
-      { p: new V3(0, 0.28, -hz + 8), yaw: 0 },
-      { p: new V3(0, 0.28, -hz + 12), yaw: 0 }
+      { p: new V3(14, 0.2, -hz + 17), yaw: -0.5 },
+      { p: new V3(-14, 0.2, -hz + 17), yaw: 0.5 },
+      { p: new V3(0, 0.2, -hz + 8), yaw: 0 },
+      { p: new V3(0, 0.2, -hz + 12), yaw: 0 }
     ]
   ];
 
@@ -194,7 +191,6 @@ World.prototype.setupKickoff = function (formationIndex) {
     var f = form[i % form.length];
     var q = new Quat().fromAxisAngle(0, 1, 0, f.yaw);
     pulseCars[i].resetState(f.p.clone(), q, 33);
-    pulseCars[i].castWheels(this.arena);
   }
 
   // Set Team Volt (mirrored z and rotated 180 deg)
@@ -203,7 +199,6 @@ World.prototype.setupKickoff = function (formationIndex) {
     var pv = new V3(-fv.p.x, fv.p.y, -fv.p.z);
     var qv = new Quat().fromAxisAngle(0, 1, 0, fv.yaw + Math.PI);
     voltCars[j].resetState(pv, qv, 33);
-    voltCars[j].castWheels(this.arena);
   }
 
   // Reactivate all boost pads
@@ -231,7 +226,6 @@ World.prototype.scoreGoal = function (scoringTeam, impactPos) {
 
   if (this.effects) {
     this.effects.goalBurst(impactPos || this.ball.body.pos, scoringTeam);
-    this.effects.confettiBurst(impactPos || this.ball.body.pos, scoringTeam);
   }
   if (this.audio) {
     this.audio.goal(this.cars.some(function (c) { return c.isPlayer && c.team !== scoringTeam; }));
@@ -263,7 +257,6 @@ World.prototype.step = function (dt) {
   // Update dynamic effects
   if (this.effects) {
     this.effects.update(dt);
-    this.effects.stadiumAtmosphere(this.arena, dt);
     if (this.ball) this.effects.ballTrail(this.ball, dt);
     for (var c = 0; c < this.cars.length; c++) {
       var car = this.cars[c];
@@ -354,11 +347,10 @@ World.prototype.fixedStep = function (dt) {
   // Step Vehicles
   for (var i = 0; i < this.cars.length; i++) {
     var car = this.cars[i];
-    if (this.state === "COUNTDOWN" || this.state === "MENU") {
-      // Lock movement during countdown and menu showcase but keep wheels positioned
+    if (this.state === "COUNTDOWN") {
+      // Lock movement during countdown
       car.body.vel.zero();
       car.body.angVel.zero();
-      car.castWheels(this.arena);
     } else {
       car.step(dt, this.arena, this);
       collideCarArena(car, this.arena, this);
@@ -372,16 +364,14 @@ World.prototype.fixedStep = function (dt) {
   }
 
   // Car vs Car Collisions
-  if (this.state !== "MENU") {
-    for (var c1 = 0; c1 < this.cars.length; c1++) {
-      for (var c2 = c1 + 1; c2 < this.cars.length; c2++) {
-        collideCarCar(this.cars[c1], this.cars[c2], this);
-      }
+  for (var c1 = 0; c1 < this.cars.length; c1++) {
+    for (var c2 = c1 + 1; c2 < this.cars.length; c2++) {
+      collideCarCar(this.cars[c1], this.cars[c2], this);
     }
   }
 
   // Step Ball
-  if (this.state !== "COUNTDOWN" && this.state !== "MENU") {
+  if (this.state !== "COUNTDOWN") {
     this.ball.step(dt, this.arena, this.cars, this);
   }
 

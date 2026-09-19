@@ -72,9 +72,6 @@ ReplayManager.prototype.sample = function (dt, cars, ball) {
         car.rpos = body.pos;
         car.rquat = body.quat;
         car.rboost = car.boostActive;
-        if (typeof car.updateWheelCenters === "function") {
-          car.updateWheelCenters();
-        }
       }
     }
   }

@@ -1,17 +1,6 @@
 // @ts-nocheck
 import { TAU, PI, rad, clamp, lerp, V3, Quat, M4, m4perspective, m4ortho, m4lookAt, m4mul, m4compose, m3fromM4, tv, tc } from './math.js';
 import { CFG, TEAM_COLOR, STADIUM_THEMES } from './config.js';
-import { buildCarKit } from './carModels.js';
-
-function parseHex(h, fallback) {
-  if (!h || typeof h !== 'string') return fallback;
-  var str = h.replace('#', '').trim();
-  if (str.length === 3) str = str[0] + str[0] + str[1] + str[1] + str[2] + str[2];
-  if (str.length !== 6) return fallback;
-  var n = parseInt(str, 16);
-  if (isNaN(n)) return fallback;
-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-}
 
 export function makeCanvas(size) {
   var c = document.createElement("canvas");
@@ -226,189 +215,12 @@ export function texNetWall() {
   return c;
 }
 
-export function texSky(themeKey) {
-  var activeTheme = themeKey || (CFG.gfx && CFG.gfx.stadiumTheme) || "NEON_CHAMPIONSHIP";
+export function texSky() {
   var W = 1024, H = 512, c = makeCanvas(W);
   c.height = H;
   var g = c.getContext("2d");
 
-  if (activeTheme === "CYBER_SUNSET") {
-    // Synthwave / Cyberpunk Sunset Sky
-    var grd = g.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0.00, "#12002b"); // Deep cosmic violet zenith
-    grd.addColorStop(0.25, "#2d0b4d"); // Rich twilight purple
-    grd.addColorStop(0.50, "#6c115e"); // Hot magenta
-    grd.addColorStop(0.72, "#b82645"); // Crimson twilight
-    grd.addColorStop(0.88, "#e85d26"); // Golden amber
-    grd.addColorStop(1.00, "#ffb830"); // Blazing horizon gold
-    g.fillStyle = grd;
-    g.fillRect(0, 0, W, H);
-
-    // Stars & celestial sparkles in the upper sky
-    g.fillStyle = "#ffffff";
-    for (var s = 0; s < 120; s++) {
-      var sx = (s * 47) % W, sy = (s * 29) % (H * 0.45);
-      var sAlpha = 0.3 + ((s % 5) * 0.15);
-      g.globalAlpha = sAlpha;
-      g.fillRect(sx, sy, (s % 3 === 0) ? 2.2 : 1.4, (s % 3 === 0) ? 2.2 : 1.4);
-    }
-    g.globalAlpha = 1.0;
-
-    // Giant Glowing Retrowave / Synthwave Sun
-    var sunX = W * 0.35, sunY = H * 0.62, sunR = 85;
-    var sGlow = g.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 2.8);
-    sGlow.addColorStop(0, "rgba(255, 230, 100, 0.95)");
-    sGlow.addColorStop(0.35, "rgba(255, 60, 140, 0.45)");
-    sGlow.addColorStop(0.75, "rgba(180, 20, 120, 0.15)");
-    sGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
-    g.fillStyle = sGlow;
-    g.beginPath(); g.arc(sunX, sunY, sunR * 2.8, 0, TAU); g.fill();
-
-    // Solid Sun disk with horizontal laser slice bands
-    g.save();
-    g.beginPath(); g.arc(sunX, sunY, sunR, 0, TAU); g.clip();
-    var sunGrad = g.createLinearGradient(sunX, sunY - sunR, sunX, sunY + sunR);
-    sunGrad.addColorStop(0.0, "#fff59d");
-    sunGrad.addColorStop(0.4, "#ff80ab");
-    sunGrad.addColorStop(1.0, "#ff1744");
-    g.fillStyle = sunGrad;
-    g.fillRect(sunX - sunR, sunY - sunR, sunR * 2, sunR * 2);
-
-    // Horizontal laser slices in lower half of sun
-    for (var slice = 0; slice < 7; slice++) {
-      var sliceY = sunY - 10 + slice * 14;
-      var sliceH = 2.0 + slice * 1.2;
-      g.fillStyle = "#2d0b4d";
-      g.fillRect(sunX - sunR, sliceY, sunR * 2, sliceH);
-    }
-    g.restore();
-
-    // Horizon Neon Wireframe Grid / Mountain Silhouettes
-    g.fillStyle = "#0c0418";
-    g.beginPath();
-    g.moveTo(0, H);
-    for (var mx = 0; mx <= W; mx += 32) {
-      var my = H * 0.82 + Math.sin(mx * 0.015) * 22 + Math.cos(mx * 0.04) * 14;
-      g.lineTo(mx, my);
-    }
-    g.lineTo(W, H); g.closePath(); g.fill();
-
-    // Glowing horizon laser line
-    g.strokeStyle = "#ff4081";
-    g.lineWidth = 2.5;
-    g.beginPath();
-    for (var lx = 0; lx <= W; lx += 32) {
-      var ly = H * 0.82 + Math.sin(lx * 0.015) * 22 + Math.cos(lx * 0.04) * 14;
-      if (lx === 0) g.moveTo(lx, ly); else g.lineTo(lx, ly);
-    }
-    g.stroke();
-
-    return c;
-  }
-
-  if (activeTheme === "COSMIC_AURORA") {
-    // Starlight & Cosmic Aurora Sky
-    var grd = g.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0.00, "#020712"); // Deep void zenith
-    grd.addColorStop(0.35, "#061324"); // Indigo space
-    grd.addColorStop(0.65, "#092233"); // Deep teal twilight
-    grd.addColorStop(1.00, "#0e3a47"); // Luminous emerald horizon
-    g.fillStyle = grd;
-    g.fillRect(0, 0, W, H);
-
-    // Dense star cluster and glowing cosmic dust
-    for (var st = 0; st < 250; st++) {
-      var stx = (st * 53) % W, sty = (st * 37) % (H * 0.75);
-      var size = (st % 7 === 0) ? 2.5 : ((st % 3 === 0) ? 1.8 : 1.0);
-      var bright = 0.4 + (st % 5) * 0.14;
-      g.fillStyle = (st % 6 === 0) ? "rgba(100, 255, 220, " + bright + ")" : (st % 4 === 0 ? "rgba(220, 180, 255, " + bright + ")" : "rgba(255, 255, 255, " + bright + ")");
-      g.fillRect(stx, sty, size, size);
-    }
-
-    // Sweeping Aurora Borealis Curtains
-    g.save();
-    g.globalCompositeOperation = "lighter";
-    var numCurtains = 4;
-    for (var cIdx = 0; cIdx < numCurtains; cIdx++) {
-      var curCol = (cIdx % 2 === 0) ? "rgba(5, 255, 170, " : "rgba(180, 50, 255, ";
-      var baseAy = 120 + cIdx * 45;
-      for (var wave = 0; wave < 3; wave++) {
-        var wGrad = g.createLinearGradient(0, baseAy - 60, 0, baseAy + 90);
-        wGrad.addColorStop(0, curCol + "0.0)");
-        wGrad.addColorStop(0.4, curCol + (0.35 - cIdx * 0.05) + ")");
-        wGrad.addColorStop(1, curCol + "0.0)");
-        g.fillStyle = wGrad;
-        g.beginPath();
-        g.moveTo(0, baseAy + 40);
-        for (var ax = 0; ax <= W; ax += 20) {
-          var ay = baseAy + Math.sin((ax + cIdx * 120) * 0.012) * 35 + Math.cos(ax * 0.025) * 18;
-          g.lineTo(ax, ay);
-        }
-        g.lineTo(W, baseAy + 90);
-        g.lineTo(0, baseAy + 90);
-        g.closePath();
-        g.fill();
-      }
-    }
-    g.restore();
-
-    return c;
-  }
-
-  if (activeTheme === "HYPERION_NIGHT" || activeTheme === "CYBER_DOME") {
-    // Cyberpunk Metropolis & Indoor Truss Dome
-    var grd = g.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0.00, "#080312"); // Deep obsidian
-    grd.addColorStop(0.35, "#140824"); // Dark magenta haze
-    grd.addColorStop(0.70, "#1f0d36"); // Glowing city atmospheric glow
-    grd.addColorStop(1.00, "#321354"); // Vibrant neon horizon
-    g.fillStyle = grd;
-    g.fillRect(0, 0, W, H);
-
-    // Towering distant holographic skyscraper silhouettes
-    for (var b = 0; b < 24; b++) {
-      var bx = b * 44;
-      var bw = 24 + (b % 4) * 8;
-      var bh = 90 + (b % 5) * 35 + Math.sin(b * 1.5) * 25;
-      var by = H * 0.88 - bh;
-      g.fillStyle = "#0c0418";
-      g.fillRect(bx, by, bw, bh + 80);
-
-      // Skyscraper neon window grids
-      g.fillStyle = (b % 2 === 0) ? "rgba(255, 85, 212, 0.45)" : "rgba(80, 200, 255, 0.45)";
-      for (var winY = by + 8; winY < by + bh; winY += 8) {
-        for (var winX = bx + 4; winX < bx + bw - 4; winX += 6) {
-          if ((winX + winY) % 3 !== 0) {
-            g.fillRect(winX, winY, 2.5, 3.5);
-          }
-        }
-      }
-    }
-
-    // Sky Searchlight Beams
-    g.save();
-    g.globalCompositeOperation = "lighter";
-    var lights = [W * 0.2, W * 0.5, W * 0.8];
-    for (var li = 0; li < lights.length; li++) {
-      var lx = lights[li];
-      var sGrad = g.createLinearGradient(lx, H * 0.85, lx + ((li % 2 === 0) ? 90 : -90), 0);
-      sGrad.addColorStop(0, "rgba(255, 85, 212, 0.4)");
-      sGrad.addColorStop(1, "rgba(80, 200, 255, 0.0)");
-      g.fillStyle = sGrad;
-      g.beginPath();
-      g.moveTo(lx - 12, H * 0.85);
-      g.lineTo(lx + ((li % 2 === 0) ? 140 : -140), 0);
-      g.lineTo(lx + ((li % 2 === 0) ? 180 : -100), 0);
-      g.lineTo(lx + 12, H * 0.85);
-      g.closePath();
-      g.fill();
-    }
-    g.restore();
-
-    return c;
-  }
-
-  // Brilliant clear daytime championship sky gradient
+  // Brilliant clear daytime sky gradient
   var grd = g.createLinearGradient(0, 0, 0, H);
   grd.addColorStop(0.00, "#0b52ba"); // Deep azure zenith
   grd.addColorStop(0.20, "#1f75fe"); // Vibrant sky blue
@@ -516,6 +328,20 @@ export function texSky(themeKey) {
   drawCumulusCloud(W * 0.02, 240, 1.05);
   drawCumulusCloud(W * 0.30, 280, 0.85);
   drawCumulusCloud(W * 0.76, 160, 0.90);
+
+  // Distant low horizon cloud haze
+  for (var hi = 0; hi < 18; hi++) {
+    var hx = (hi * 65) % W;
+    var hy = 340 + (hi % 3) * 18;
+    var hg = g.createRadialGradient(hx, hy, 0, hx, hy, 140);
+    hg.addColorStop(0, "rgba(255, 255, 255, 0.45)");
+    hg.addColorStop(0.6, "rgba(240, 248, 255, 0.2)");
+    hg.addColorStop(1, "rgba(255, 255, 255, 0)");
+    g.fillStyle = hg;
+    g.beginPath();
+    g.ellipse(hx, hy, 140, 25, 0, 0, TAU);
+    g.fill();
+  }
 
   return c;
 }
@@ -1203,312 +1029,6 @@ export function texBallBasketball() {
   return c;
 }
 
-export function texCarBodyDetail(style) {
-  var S = 1024, c = makeCanvas(S), g = c.getContext("2d");
-  c.height = S;
-
-  var bStyle = style || (CFG.gfx && CFG.gfx.carBumpStyle) || "SPORTS_PANELS";
-
-  // 1. Base Automotive Finish (Neutral high-key base so car body color tinting remains brilliantly pure)
-  g.fillStyle = "rgb(238, 242, 246)";
-  g.fillRect(0, 0, S, S);
-
-  var imgData = g.getImageData(0, 0, S, S);
-  var data = imgData.data;
-
-  // Initialize base heightmap (Alpha channel = 195: Smooth flat body panel baseline)
-  for (var i = 0; i < data.length; i += 4) {
-    data[i + 3] = 195;
-  }
-  g.putImageData(imgData, 0, 0);
-
-  // Helper for drawing sharp recessed seams with beveled specular lips
-  function drawBeveledSeam(x1, y1, x2, y2, width) {
-    var w = width || 3;
-    // Outer beveled edge highlight (raised relief for specular catch)
-    g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-    g.lineWidth = w + 3.5;
-    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-
-    // Inner deep canyon crevice (dark shadow + deep recessed alpha)
-    g.strokeStyle = "rgba(18, 20, 24, 1.0)";
-    g.lineWidth = w;
-    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-  }
-
-  function drawSeamPath(pts, width) {
-    if (!pts || pts.length < 2) return;
-    var w = width || 3;
-    // Highlight
-    g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-    g.lineWidth = w + 3.5;
-    g.beginPath();
-    g.moveTo(pts[0][0], pts[0][1]);
-    for (var k = 1; k < pts.length; k++) g.lineTo(pts[k][0], pts[k][1]);
-    g.stroke();
-
-    // Canyon
-    g.strokeStyle = "rgba(18, 20, 24, 1.0)";
-    g.lineWidth = w;
-    g.beginPath();
-    g.moveTo(pts[0][0], pts[0][1]);
-    for (var j = 1; j < pts.length; j++) g.lineTo(pts[j][0], pts[j][1]);
-    g.stroke();
-  }
-
-  // 2. Hood Center Aerodynamic Power-Bulge (Raised smooth contour)
-  var hoodBulge = g.createLinearGradient(0, 120, 0, 480);
-  hoodBulge.addColorStop(0.0, "rgba(255, 255, 255, 0.0)");
-  hoodBulge.addColorStop(0.3, "rgba(255, 255, 255, 0.85)");
-  hoodBulge.addColorStop(0.7, "rgba(255, 255, 255, 0.85)");
-  hoodBulge.addColorStop(1.0, "rgba(255, 255, 255, 0.0)");
-  g.fillStyle = hoodBulge;
-  g.fillRect(440, 140, 144, 320);
-
-  // Center Hood Spine Crease
-  drawBeveledSeam(512, 110, 512, 470, 2.5);
-
-  // 3. Twin Aerodynamic Hood Cooling Extraction Vents / Louvers
-  var ventBoxes = [
-    { x: 260, y: 190, w: 130, h: 180, angle: -0.15 },
-    { x: 634, y: 190, w: 130, h: 180, angle:  0.15 }
-  ];
-
-  for (var vi = 0; vi < ventBoxes.length; vi++) {
-    var vb = ventBoxes[vi];
-    g.save();
-    g.translate(vb.x + vb.w / 2, vb.y + vb.h / 2);
-    g.rotate(vb.angle);
-
-    // Recessed vent basin
-    g.fillStyle = "rgba(24, 26, 32, 0.98)";
-    g.fillRect(-vb.w / 2, -vb.h / 2, vb.w, vb.h);
-
-    // Beveled frame
-    g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-    g.lineWidth = 3.5;
-    g.strokeRect(-vb.w / 2, -vb.h / 2, vb.w, vb.h);
-
-    // Aerodynamic Slatted Louver Fins
-    var nFins = 6;
-    var finStep = vb.h / (nFins + 1);
-    for (var fi = 1; fi <= nFins; fi++) {
-      var fy = -vb.h / 2 + fi * finStep;
-      // Fin highlight edge
-      g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-      g.lineWidth = 3;
-      g.beginPath(); g.moveTo(-vb.w / 2 + 6, fy); g.lineTo(vb.w / 2 - 6, fy); g.stroke();
-      // Fin dark shadow slot underneath
-      g.strokeStyle = "rgba(10, 12, 16, 1.0)";
-      g.lineWidth = 2.5;
-      g.beginPath(); g.moveTo(-vb.w / 2 + 6, fy + 3); g.lineTo(vb.w / 2 - 6, fy + 3); g.stroke();
-    }
-    g.restore();
-  }
-
-  // 4. Door Shutlines, Fender Flaring Creases & Body Seams
-  // Front Fender to Hood Seams
-  drawSeamPath([[210, 80], [380, 130], [420, 480], [340, 520]], 3.5);
-  drawSeamPath([[814, 80], [644, 130], [604, 480], [684, 520]], 3.5);
-
-  // Door Shutlines & Cockpit Pillar Seams
-  drawSeamPath([[160, 480], [160, 820], [320, 860]], 3.5);
-  drawSeamPath([[864, 480], [864, 820], [704, 860]], 3.5);
-
-  // Side intake NACA duct scoop contours
-  drawBeveledSeam(80, 560, 150, 720, 3.0);
-  drawBeveledSeam(944, 560, 874, 720, 3.0);
-
-  // Rear Engine Deck Louvers & Air Extraction Slots
-  for (var rli = 0; rli < 5; rli++) {
-    var rly = 600 + rli * 34;
-    drawBeveledSeam(360, rly, 664, rly, 3.0);
-  }
-
-  // Fuel / Energy Fast-Charge Port Door (Circular embossed seam)
-  g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-  g.lineWidth = 4.0;
-  g.beginPath(); g.arc(880, 460, 26, 0, TAU); g.stroke();
-  g.strokeStyle = "rgba(18, 20, 24, 1.0)";
-  g.lineWidth = 2.5;
-  g.beginPath(); g.arc(880, 460, 26, 0, TAU); g.stroke();
-
-  // Widebody Fender Flare Fastener Bolts
-  var boltPoints = [
-    [180, 200], [150, 300], [150, 400], [180, 500],
-    [844, 200], [874, 300], [874, 400], [844, 500],
-    [130, 680], [130, 780], [160, 870],
-    [894, 680], [894, 780], [864, 870]
-  ];
-  for (var bi = 0; bi < boltPoints.length; bi++) {
-    var bx = boltPoints[bi][0], by = boltPoints[bi][1];
-    // Raised chrome outer ring
-    g.fillStyle = "rgba(255, 255, 255, 0.95)";
-    g.beginPath(); g.arc(bx, by, 4.5, 0, TAU); g.fill();
-    // Center recess
-    g.fillStyle = "rgba(20, 22, 26, 1.0)";
-    g.beginPath(); g.arc(bx, by, 2.0, 0, TAU); g.fill();
-  }
-
-  // 5. Post-Process Pass for Mathematical Alpha-Heightmap Normal Generation
-  var finalImg = g.getImageData(0, 0, S, S);
-  var fData = finalImg.data;
-
-  for (var y = 0; y < S; y++) {
-    for (var x = 0; x < S; x++) {
-      var pidx = (y * S + x) * 4;
-      var r = fData[pidx], gCol = fData[pidx + 1], b = fData[pidx + 2];
-      var lum = (r + gCol + b) / 3.0;
-
-      // Dark seam pixels -> Deep canyon height
-      if (lum < 50) {
-        fData[pidx + 3] = Math.floor(25 + lum * 0.7);
-        // Slight ambient occlusion darkening in crevice
-        fData[pidx] = Math.floor(r * 0.45);
-        fData[pidx + 1] = Math.floor(gCol * 0.45);
-        fData[pidx + 2] = Math.floor(b * 0.45);
-      }
-      // Bright bevel edge pixels -> Elevated peak height for crisp normal catch
-      else if (lum > 248) {
-        fData[pidx + 3] = 248;
-      }
-      // Base panel surface with micro carbon/aerodynamic texture
-      else {
-        var uCoord = x / S, vCoord = y / S;
-        var microHeight = 195;
-
-        if (bStyle === "CARBON_WEAVE" || y > 820) {
-          // 2x2 Twill Carbon Fiber Weave pattern
-          var cxVal = Math.floor(x / 4) % 4;
-          var cyVal = Math.floor(y / 4) % 4;
-          var isWeave = ((cxVal + cyVal) % 4 < 2);
-          microHeight = isWeave ? 218 : 172;
-        } else if (bStyle === "AERO_LOUVERS") {
-          var rib = Math.sin(x * 0.4) * Math.cos(y * 0.1);
-          microHeight = Math.floor(195 + rib * 16);
-        } else if (bStyle === "ARMOR_PLATES") {
-          var plateX = Math.floor(x / 64) % 2;
-          var plateY = Math.floor(y / 64) % 2;
-          microHeight = (plateX === plateY) ? 212 : 180;
-        }
-
-        fData[pidx + 3] = microHeight;
-      }
-    }
-  }
-
-  g.putImageData(finalImg, 0, 0);
-  return c;
-}
-
-export function texCarTrimDetail() {
-  var S = 512, c = makeCanvas(S), g = c.getContext("2d");
-  g.fillStyle = "rgb(245, 248, 252)";
-  g.fillRect(0, 0, S, S);
-
-  // Beveled outer racing stripe borders
-  g.strokeStyle = "rgba(20, 22, 28, 1.0)";
-  g.lineWidth = 4;
-  g.strokeRect(32, 0, S - 64, S);
-
-  var imgData = g.getImageData(0, 0, S, S);
-  var data = imgData.data;
-  for (var i = 0; i < data.length; i += 4) {
-    var lum = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    data[i + 3] = lum < 60 ? 25 : 230; // Elevated trim decal thickness
-  }
-  g.putImageData(imgData, 0, 0);
-  return c;
-}
-
-export function texCarAccentDetail() {
-  var S = 512, c = makeCanvas(S), g = c.getContext("2d");
-  c.height = S;
-
-  // Real 2x2 Twill High-Density Carbon Fiber Weave Texture
-  var imgData = g.createImageData(S, S);
-  var data = imgData.data;
-
-  for (var y = 0; y < S; y++) {
-    for (var x = 0; x < S; x++) {
-      var idx = (y * S + x) * 4;
-      var cx = Math.floor(x / 4) % 4;
-      var cy = Math.floor(y / 4) % 4;
-      var twill = ((cx + cy) % 4 < 2);
-
-      var baseLum = twill ? 48 : 26;
-      var flake = (Math.sin(x * 12.0) * Math.cos(y * 12.0)) * 6;
-      var lum = Math.floor(Math.max(15, Math.min(80, baseLum + flake)));
-
-      data[idx] = lum;
-      data[idx + 1] = Math.floor(lum * 1.05);
-      data[idx + 2] = Math.floor(lum * 1.15);
-      // High-Frequency 3D Carbon Weave Heightmap in Alpha Channel
-      data[idx + 3] = twill ? 235 : 155;
-    }
-  }
-
-  g.putImageData(imgData, 0, 0);
-  return c;
-}
-
-export function texCarWheelDetail() {
-  var S = 512, c = makeCanvas(S), g = c.getContext("2d");
-  c.height = S;
-
-  g.fillStyle = "#181a20";
-  g.fillRect(0, 0, S, S);
-
-  var cx = S / 2, cy = S / 2;
-
-  // 1. High-Performance Sport Tire Directional Tread Grooves
-  g.fillStyle = "rgba(10, 11, 14, 1.0)";
-  var nTreads = 36;
-  for (var ti = 0; ti < nTreads; ti++) {
-    var ang = (ti / nTreads) * TAU;
-    g.save();
-    g.translate(cx, cy);
-    g.rotate(ang);
-
-    // Tread Siping Slot
-    g.fillStyle = "rgba(255, 255, 255, 0.9)";
-    g.fillRect(cx * 0.76, -4, cx * 0.22, 8);
-    g.fillStyle = "rgba(8, 9, 12, 1.0)";
-    g.fillRect(cx * 0.77, -2.5, cx * 0.20, 5);
-    g.restore();
-  }
-
-  // 2. Sidewall Branding Ring
-  g.strokeStyle = "rgba(255, 255, 255, 0.85)";
-  g.lineWidth = 3;
-  g.beginPath(); g.arc(cx, cy, cx * 0.74, 0, TAU); g.stroke();
-  g.beginPath(); g.arc(cx, cy, cx * 0.52, 0, TAU); g.stroke();
-
-  // 3. Central Hubcap 5-Bolt Lug Nut Pattern
-  for (var b = 0; b < 5; b++) {
-    var bAng = (b / 5) * TAU;
-    var bx = cx + Math.cos(bAng) * (cx * 0.26);
-    var by = cy + Math.sin(bAng) * (cx * 0.26);
-    g.fillStyle = "rgba(255, 255, 255, 0.95)";
-    g.beginPath(); g.arc(bx, by, 7.5, 0, TAU); g.fill();
-    g.fillStyle = "rgba(15, 16, 20, 1.0)";
-    g.beginPath(); g.arc(bx, by, 4.0, 0, TAU); g.fill();
-  }
-
-  // 4. Center Logo / Spinner Dome
-  g.fillStyle = "rgba(255, 255, 255, 0.95)";
-  g.beginPath(); g.arc(cx, cy, cx * 0.12, 0, TAU); g.fill();
-
-  var imgData = g.getImageData(0, 0, S, S);
-  var data = imgData.data;
-  for (var i = 0; i < data.length; i += 4) {
-    var lum = (data[i] + data[i + 1] + data[i + 2]) / 3;
-    data[i + 3] = lum > 200 ? 250 : (lum < 30 ? 30 : 180);
-  }
-  g.putImageData(imgData, 0, 0);
-  return c;
-}
-
 export function texBall(ballType) {
   var t = (ballType || (CFG.gfx && CFG.gfx.ballType) || "soccer").toLowerCase();
   if (t === "volleyball") return texBallVolleyball();
@@ -1545,164 +1065,63 @@ export function texSpark() {
   return c;
 }
 
-export function texCrowd(themeKey) {
-  var activeTheme = themeKey || (CFG.gfx && CFG.gfx.stadiumTheme) || "NEON_CHAMPIONSHIP";
-  var S = 1024, c = makeCanvas(S), g = c.getContext("2d");
+export function texCrowd() {
+  var S = 512, c = makeCanvas(S), g = c.getContext("2d");
+  // Grandstand concrete terrace structure
+  g.fillStyle = "#10141f"; g.fillRect(0, 0, S, S);
 
-  // 1. High-Tech Grandstand Carbon/Titanium Deck
-  var deckColor = (activeTheme === "CYBER_SUNSET") ? "#180c26" :
-                   (activeTheme === "COSMIC_AURORA") ? "#081620" :
-                   (activeTheme === "HYPERION_NIGHT" || activeTheme === "CYBER_DOME") ? "#0d061a" : "#121724";
-  g.fillStyle = deckColor;
-  g.fillRect(0, 0, S, S);
-
-  // 2. Tiered Seating Rows with Glowing Neon Trims
-  var nRows = 48;
+  // Tiered seating rows
+  var nRows = 32;
   var rowH = S / nRows;
-  var isFantasy = (activeTheme === "CYBER_SUNSET" || activeTheme === "COSMIC_AURORA" || activeTheme === "HYPERION_NIGHT");
-
   for (var r = 0; r < nRows; r++) {
     var ry = r * rowH;
-    // Riser shadow
-    g.fillStyle = "rgba(5, 8, 14, 0.85)";
+    // Dark shadow riser
+    g.fillStyle = "#090c14";
     g.fillRect(0, ry, S, rowH * 0.28);
-
-    // Tread surface
-    g.fillStyle = (r % 6 === 0) ? "rgba(35, 48, 72, 0.9)" : "rgba(22, 30, 46, 0.85)";
+    // Concrete tread / walkway
+    g.fillStyle = (r % 4 === 0) ? "#1a2234" : "#141a28";
     g.fillRect(0, ry + rowH * 0.28, S, rowH * 0.72);
-
-    // Glowing Neon Edge Lines every 4 rows
-    if (r % 4 === 0) {
-      var neonCol = (activeTheme === "CYBER_SUNSET") ? "rgba(255, 64, 129, 0.85)" :
-                    (activeTheme === "COSMIC_AURORA") ? "rgba(5, 255, 170, 0.85)" :
-                    (activeTheme === "HYPERION_NIGHT") ? "rgba(255, 85, 212, 0.85)" :
-                    "rgba(53, 186, 255, 0.75)";
-      g.fillStyle = neonCol;
-      g.fillRect(0, ry + rowH * 0.28, S, 2.2);
-    }
   }
 
-  // 3. Middle Tier VIP Glass Box Suite
-  var vipY = S * 0.46, vipH = rowH * 4;
-  g.fillStyle = "#0a0e1a";
-  g.fillRect(0, vipY, S, vipH);
-  g.fillStyle = isFantasy ? "rgba(255, 215, 0, 0.35)" : "rgba(100, 200, 255, 0.25)";
-  g.fillRect(0, vipY + 4, S, vipH - 8);
-  // Glowing VIP Banner
-  g.font = "bold 20px sans-serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillStyle = isFantasy ? "#ffd166" : "#00e5ff";
-  g.shadowColor = g.fillStyle;
-  g.shadowBlur = 10;
-  g.fillText("★ GRAND CHAMPIONSHIP STADIUM SKYBOX VIP ★", S * 0.5, vipY + vipH * 0.5);
-  g.shadowBlur = 0;
-
-  // 4. Team Spectator Colors (Vibrant Fantasy Colors)
-  var bluePulsePalette = [
-    "#00d2ff", "#38bdf8", "#0284c7", "#00f0ff", "#e0f2fe", "#7dd3fc"
-  ];
-  var orangeVoltPalette = [
-    "#ff9900", "#fb923c", "#ea580c", "#ffd166", "#ff5500", "#ffedd5"
-  ];
-  var neutralPalette = [
-    "#ffffff", "#f1f5f9", "#cbd5e1", "#ec4899", "#a855f7", "#10b981"
+  // Spectator shirts & cheering fans
+  var fanPalette = [
+    "#ff9745", "#ffa760", "#ff6b25", // Team Orange
+    "#35baff", "#60d0ff", "#1890e0", // Team Blue
+    "#e2e8f5", "#ccd6ea", "#f5f7fc", // White / Silver
+    "#4a5572", "#353e54", "#262c3d"  // Dark neutral jackets
   ];
 
-  // 5. High-Density Cheering Fans
-  for (var f = 0; f < 5800; f++) {
+  for (var f = 0; f < 3800; f++) {
     var fx = Math.random() * S;
     var rowIdx = Math.floor(Math.random() * nRows);
-    // Don't draw over VIP text center
-    var fy = rowIdx * rowH + rowH * 0.35 + Math.random() * (rowH * 0.48);
-    if (fy >= vipY && fy <= vipY + vipH && fx > S * 0.25 && fx < S * 0.75) continue;
+    var fy = rowIdx * rowH + rowH * 0.35 + Math.random() * (rowH * 0.52);
 
     var col;
-    if (fx < S * 0.44) {
-      col = (Math.random() < 0.75) ? bluePulsePalette[Math.floor(Math.random() * bluePulsePalette.length)] : neutralPalette[Math.floor(Math.random() * neutralPalette.length)];
-    } else if (fx > S * 0.56) {
-      col = (Math.random() < 0.75) ? orangeVoltPalette[Math.floor(Math.random() * orangeVoltPalette.length)] : neutralPalette[Math.floor(Math.random() * neutralPalette.length)];
+    if (fx < S * 0.42) {
+      col = (Math.random() < 0.65) ? fanPalette[Math.floor(Math.random() * 3)] : fanPalette[Math.floor(Math.random() * fanPalette.length)];
+    } else if (fx > S * 0.58) {
+      col = (Math.random() < 0.65) ? fanPalette[3 + Math.floor(Math.random() * 3)] : fanPalette[Math.floor(Math.random() * fanPalette.length)];
     } else {
-      col = (Math.random() < 0.4) ? bluePulsePalette[Math.floor(Math.random() * bluePulsePalette.length)] :
-            (Math.random() < 0.8 ? orangeVoltPalette[Math.floor(Math.random() * orangeVoltPalette.length)] : neutralPalette[Math.floor(Math.random() * neutralPalette.length)]);
+      col = fanPalette[Math.floor(Math.random() * fanPalette.length)];
     }
 
-    // Fan Jersey Torso
     g.fillStyle = col;
-    g.fillRect(fx, fy, 3.8, 4.6);
-
-    // Fan Head with Stylized Headband / Visor
-    g.fillStyle = "rgba(255, 224, 196, 0.95)";
-    g.fillRect(fx + 0.6, fy - 2.8, 2.6, 2.6);
-
-    // Glowing Neon Headband / Visor on some fans
-    if (f % 5 === 0) {
-      g.fillStyle = (fx < S * 0.5) ? "#00f0ff" : "#ffd166";
-      g.fillRect(fx + 0.6, fy - 2.0, 2.6, 1.2);
-    }
+    g.fillRect(fx, fy, 2.6, 3.2);
+    // Fan head / skin
+    g.fillStyle = "rgba(255, 218, 185, 0.75)";
+    g.fillRect(fx + 0.4, fy - 1.8, 1.8, 1.8);
   }
 
-  // 6. Glowing LED Light-Sticks & Batons held up in the air!
-  for (var ls = 0; ls < 650; ls++) {
-    var lx = Math.random() * S;
-    var ly = Math.random() * S;
-    var lCol = (lx < S * 0.45) ? "#00f0ff" : (lx > S * 0.55 ? "#ffaa00" : (ls % 2 === 0 ? "#ff0077" : "#00ffaa"));
-    
-    // Glowing baton stick
-    g.save();
-    g.translate(lx, ly);
-    g.rotate((Math.random() - 0.5) * 0.8);
-    // Glow halo
-    var bGrad = g.createRadialGradient(0, 0, 1, 0, 0, 7);
-    bGrad.addColorStop(0, lCol);
-    bGrad.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = bGrad;
-    g.beginPath(); g.arc(0, 0, 7, 0, TAU); g.fill();
-    // Core neon line
-    g.fillStyle = "#ffffff";
-    g.fillRect(-1, -5, 2, 10);
-    g.restore();
-  }
-
-  // 7. Waving Team Stadium Banners & Crests
-  var banners = [
-    { x: S * 0.18, y: S * 0.22, text: "⚡ PULSE ⚡", col: "#00f0ff", bg: "rgba(0, 50, 120, 0.85)" },
-    { x: S * 0.82, y: S * 0.22, text: "⚡ VOLT ⚡", col: "#ffb703", bg: "rgba(120, 50, 0, 0.85)" },
-    { x: S * 0.22, y: S * 0.72, text: "OVERDRIVE", col: "#38bdf8", bg: "rgba(0, 40, 100, 0.85)" },
-    { x: S * 0.78, y: S * 0.72, text: "SUPERSONIC", col: "#fb8500", bg: "rgba(100, 30, 0, 0.85)" }
-  ];
-
-  for (var bi = 0; bi < banners.length; bi++) {
-    var ban = banners[bi];
-    var bw = 140, bh = 34;
-    g.fillStyle = ban.bg;
-    g.fillRect(ban.x - bw / 2, ban.y - bh / 2, bw, bh);
-    g.strokeStyle = ban.col;
-    g.lineWidth = 2.5;
-    g.strokeRect(ban.x - bw / 2, ban.y - bh / 2, bw, bh);
-
-    g.font = "bold 15px sans-serif";
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillStyle = ban.col;
-    g.shadowColor = ban.col;
-    g.shadowBlur = 8;
-    g.fillText(ban.text, ban.x, ban.y);
-    g.shadowBlur = 0;
-  }
-
-  // 8. Cheering Camera Flashes & Sparks
-  for (var fl = 0; fl < 120; fl++) {
+  // Cheering camera flashes and glow sticks
+  for (var fl = 0; fl < 75; fl++) {
     var flx = Math.random() * S, fly = Math.random() * S;
-    var flg = g.createRadialGradient(flx, fly, 0, flx, fly, 9.0);
-    flg.addColorStop(0, "rgba(255, 255, 255, 1.0)");
-    flg.addColorStop(0.3, "rgba(180, 235, 255, 0.7)");
-    flg.addColorStop(0.7, "rgba(255, 180, 240, 0.2)");
+    var flg = g.createRadialGradient(flx, fly, 0, flx, fly, 5.5);
+    flg.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+    flg.addColorStop(0.35, "rgba(180, 220, 255, 0.5)");
     flg.addColorStop(1, "rgba(0, 0, 0, 0)");
     g.fillStyle = flg;
-    g.beginPath(); g.arc(flx, fly, 9.0, 0, TAU); g.fill();
+    g.beginPath(); g.arc(flx, fly, 5.5, 0, TAU); g.fill();
   }
-
   return c;
 }
 
@@ -1711,14 +1130,14 @@ export function texAdBoard() {
   c.height = H;
 
   var ads = [
-    { title: "ROCKET LEAGUE", sub: "APEX CHAMPIONSHIP 2026", bg: "#040814", textCol: "#ffffff", accent: "#00e5ff", tag: "LIVE ★", icon: "⚡" },
-    { title: "NITRO OVERDRIVE", sub: "1000 HORSEPOWER BOOST", bg: "#160500", textCol: "#ffdd00", accent: "#ff4400", tag: "100% PWR", icon: "🔥" },
-    { title: "VOLT-X DRIFT", sub: "PRO TRACTION SYSTEM", bg: "#021609", textCol: "#88ff55", accent: "#00ff88", tag: "PRO GRIP", icon: "❖" },
-    { title: "CYBER DYNAMICS", sub: "AERO-GRAV TECHNOLOGY", bg: "#0c031c", textCol: "#e090ff", accent: "#a800ff", tag: "TURBO", icon: "▲" },
-    { title: "PULSE ENERGY", sub: "HIGH-VOLTAGE CELLS", bg: "#001222", textCol: "#90eeff", accent: "#00b4d8", tag: "ECO-MAX", icon: "⚡" },
-    { title: "AXIOM MOTORS", sub: "SUPERSONIC HYPER-ENGINES", bg: "#1c0012", textCol: "#ff99e0", accent: "#ff0077", tag: "FAST", icon: "★" },
-    { title: "KESTREL RACING", sub: "WORLD CUP QUALIFIER", bg: "#181200", textCol: "#ffee77", accent: "#ffbb00", tag: "STAGE 1", icon: "◆" },
-    { title: "ORBITAL TELEMETRY", sub: "PRECISION SENSOR SUITE", bg: "#041024", textCol: "#a8d5ff", accent: "#3a86ff", tag: "SYNC", icon: "◈" }
+    { title: "ROCKET LEAGUE", sub: "WORLD CHAMPIONSHIP", bg: "#060a14", textCol: "#ffffff", accent: "#00d2ff", tag: "LIVE" },
+    { title: "NITRO BOOST", sub: "MAXIMUM CHASSIS POWER", bg: "#160700", textCol: "#ffcc00", accent: "#ff5500", tag: "100%" },
+    { title: "VOLTRACK TYRES", sub: "EXTREME DRIFT GRIP", bg: "#021408", textCol: "#79ff42", accent: "#00ff88", tag: "PRO" },
+    { title: "NULLPOINT DYNAMICS", sub: "ZERO-GRAVITY TECH", bg: "#0c051a", textCol: "#d282ff", accent: "#9d00ff", tag: "AERO" },
+    { title: "HALCYON CELLS", sub: "ATMOSPHERIC DYNAMO", bg: "#00101c", textCol: "#80e5ff", accent: "#00a6ff", tag: "ELEC" },
+    { title: "AXIOM TURBO", sub: "QUAD-TURBO ENGINES", bg: "#1a000e", textCol: "#ff80d5", accent: "#ff0088", tag: "SPEED" },
+    { title: "KESTREL ENERGY", sub: "LIGHTNING CHARGE", bg: "#141000", textCol: "#ffea75", accent: "#ffaa00", tag: "POWER" },
+    { title: "ORBITAL LOGISTICS", sub: "INTERSTELLAR SPEED", bg: "#040e1c", textCol: "#99c2ff", accent: "#3385ff", tag: "GLOBAL" }
   ];
 
   var w = S / ads.length;
@@ -1726,51 +1145,47 @@ export function texAdBoard() {
     var ad = ads[i];
     var x0 = i * w;
 
-    // Rich gradient background for each ad
-    var bgGrad = g.createLinearGradient(x0, 0, x0 + w, H);
-    bgGrad.addColorStop(0, ad.bg);
-    bgGrad.addColorStop(0.5, "#0b101d");
-    bgGrad.addColorStop(1, ad.bg);
-    g.fillStyle = bgGrad;
+    // Dark sleek container background
+    g.fillStyle = ad.bg;
     g.fillRect(x0, 0, w, H);
 
     // Glowing top & bottom LED neon border strips
     g.fillStyle = ad.accent;
-    g.fillRect(x0, 0, w, 6);
-    g.fillRect(x0, H - 6, w, 6);
+    g.fillRect(x0, 0, w, 5);
+    g.fillRect(x0, H - 5, w, 5);
 
     // Diagonal speed accents / chevrons
     g.save();
     g.fillStyle = ad.accent;
-    g.globalAlpha = 0.22;
-    for (var ch = 0; ch < 6; ch++) {
+    g.globalAlpha = 0.18;
+    for (var ch = 0; ch < 5; ch++) {
       g.beginPath();
-      g.moveTo(x0 + ch * 42 + 10, H);
-      g.lineTo(x0 + ch * 42 + 32, 0);
-      g.lineTo(x0 + ch * 42 + 46, 0);
-      g.lineTo(x0 + ch * 42 + 24, H);
+      g.moveTo(x0 + ch * 45 + 15, H);
+      g.lineTo(x0 + ch * 45 + 35, 0);
+      g.lineTo(x0 + ch * 45 + 50, 0);
+      g.lineTo(x0 + ch * 45 + 30, H);
       g.fill();
     }
     g.restore();
 
-    // Icon & Brand Title Text with glow
-    g.font = "bold 26px sans-serif";
+    // Main Brand Title Text
+    g.font = "bold 28px sans-serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
     g.fillStyle = ad.textCol;
     g.shadowColor = ad.accent;
-    g.shadowBlur = 14;
-    g.fillText(ad.icon + " " + ad.title, x0 + w / 2 - 24, H / 2 - 14);
+    g.shadowBlur = 12;
+    g.fillText(ad.title, x0 + w / 2 - 20, H / 2 - 12);
 
     // Subtitle / Slogan Text
     g.font = "bold 13px sans-serif";
     g.fillStyle = ad.accent;
-    g.shadowBlur = 8;
-    g.fillText(ad.sub, x0 + w / 2 - 24, H / 2 + 18);
+    g.shadowBlur = 6;
+    g.fillText(ad.sub, x0 + w / 2 - 20, H / 2 + 18);
     g.shadowBlur = 0;
 
     // Tag / Badge Pill on the right side
-    var px = x0 + w - 62, py = H / 2 - 20, pw = 52, ph = 40;
+    var px = x0 + w - 58, py = H / 2 - 18, pw = 46, ph = 36;
     g.fillStyle = ad.accent;
     g.beginPath();
     g.fillRect(px, py, pw, ph);
@@ -1780,163 +1195,66 @@ export function texAdBoard() {
   }
 
   // Overlay stadium LED dot-matrix grid pattern
-  g.fillStyle = "rgba(0, 0, 0, 0.25)";
-  for (var ly = 0; ly < H; ly += 4) g.fillRect(0, ly, S, 2);
-  for (var lx = 0; lx < S; lx += 4) g.fillRect(lx, 0, 2, H);
+  g.fillStyle = "rgba(0, 0, 0, 0.20)";
+  for (var ly = 0; ly < H; ly += 4) {
+    g.fillRect(0, ly, S, 2);
+  }
+  for (var lx = 0; lx < S; lx += 4) {
+    g.fillRect(lx, 0, 2, H);
+  }
 
   return c;
 }
 
 export function texRibbon() {
-  var S = 1024, H = 64, c = makeCanvas(S), g = c.getContext("2d");
+  var S = 512, H = 64, c = makeCanvas(S), g = c.getContext("2d");
   c.height = H;
-
-  g.fillStyle = "#070b16";
-  g.fillRect(0, 0, S, H);
-
-  // Top and bottom bright neon ticker runners
-  g.fillStyle = "#00d2ff"; g.fillRect(0, 0, S / 2, 4);
-  g.fillStyle = "#ff8800"; g.fillRect(S / 2, 0, S / 2, 4);
-  g.fillStyle = "#00d2ff"; g.fillRect(0, H - 4, S / 2, 4);
-  g.fillStyle = "#ff8800"; g.fillRect(S / 2, H - 4, S / 2, 4);
-
-  // Dynamic Chevrons along ribbon
-  for (var i = 0; i < 32; i++) {
-    var isBlue = (i < 16);
-    g.fillStyle = isBlue ? "rgba(0, 210, 255, 0.45)" : "rgba(255, 136, 0, 0.45)";
+  g.fillStyle = "#080c18"; g.fillRect(0, 0, S, H);
+  g.fillStyle = "#35baff";
+  for (var i = 0; i < 16; i++) {
     g.beginPath();
-    var cx = i * 32;
-    g.moveTo(cx, H - 8);
-    g.lineTo(cx + 14, H * 0.5);
-    g.lineTo(cx, 8);
-    g.lineTo(cx + 8, 8);
-    g.lineTo(cx + 22, H * 0.5);
-    g.lineTo(cx + 8, H - 8);
+    g.moveTo(i * 32, H);
+    g.lineTo(i * 32 + 16, 0);
+    g.lineTo(i * 32 + 28, 0);
+    g.lineTo(i * 32 + 12, H);
     g.fill();
   }
-
-  // Ribbon Text & Badges
-  g.font = "bold 20px sans-serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-
-  g.fillStyle = "#00f0ff";
-  g.shadowColor = "#00f0ff";
-  g.shadowBlur = 10;
-  g.fillText("⚡ PULSE DIVISION ⚡", S * 0.25, H * 0.5);
-
-  g.fillStyle = "#ffaa00";
-  g.shadowColor = "#ffaa00";
-  g.shadowBlur = 10;
-  g.fillText("⚡ VOLT DIVISION ⚡", S * 0.75, H * 0.5);
-  g.shadowBlur = 0;
-
+  g.fillStyle = "#ff9745";
+  for (var j = 0; j < 16; j++) {
+    g.beginPath();
+    g.moveTo(j * 32 + 16, H);
+    g.lineTo(j * 32 + 32, 0);
+    g.lineTo(j * 32 + 44, 0);
+    g.lineTo(j * 32 + 28, H);
+    g.fill();
+  }
   return c;
 }
 
 export function texScreen(clockStr, score0, score1, title) {
   var S = 512, H = 256, c = makeCanvas(S), g = c.getContext("2d");
   c.height = H;
-
-  // Dark metallic bezel background
-  g.fillStyle = "#03060c";
-  g.fillRect(0, 0, S, H);
-
-  // Inner illuminated screen matrix
-  g.fillStyle = "#081120";
-  g.fillRect(10, 10, S - 20, H - 20);
-
-  // Team top & bottom neon header stripes
-  g.fillStyle = "#00d2ff";
-  g.fillRect(10, 10, S / 2 - 10, 6);
-  g.fillStyle = "#ff9500";
-  g.fillRect(S / 2, 10, S / 2 - 10, 6);
-
-  // Top Header: "● LIVE MATCH" and Championship title
-  g.font = "bold 14px sans-serif";
+  g.fillStyle = "#050810"; g.fillRect(0, 0, S, H);
+  g.fillStyle = "#0d182b"; g.fillRect(12, 12, S - 24, H - 24);
+  g.fillStyle = "#35baff"; g.fillRect(12, 12, S - 24, 8);
+  g.fillStyle = "#ff9745"; g.fillRect(12, H - 20, S - 24, 8);
   g.textAlign = "center";
-  g.textBaseline = "middle";
-
-  // Red LIVE dot
-  g.fillStyle = "#ff2244";
-  g.beginPath(); g.arc(42, 28, 5, 0, TAU); g.fill();
   g.fillStyle = "#ffffff";
+  g.font = "bold 58px sans-serif";
+  g.fillText(clockStr || "5:00", S / 2, 80);
+  g.font = "bold 100px sans-serif";
+  g.fillStyle = "#35baff";
+  g.textAlign = "right";
+  g.fillText(String(score0 !== undefined ? score0 : 0), S / 2 - 25, 180);
+  g.fillStyle = "#ff9745";
   g.textAlign = "left";
-  g.fillText("LIVE", 54, 28);
-
+  g.fillText(String(score1 !== undefined ? score1 : 0), S / 2 + 25, 180);
+  g.fillStyle = "#5d6b90";
+  g.fillRect(S / 2 - 4, 105, 8, 80);
   g.textAlign = "center";
-  g.fillStyle = "#88b5e8";
-  g.fillText(title || "ROCKET LEAGUE APEX ARENA", S / 2, 28);
-
-  // Main Digital Clock Box in Center
-  g.fillStyle = "#040814";
-  g.fillRect(S / 2 - 75, 46, 150, 48);
-  g.strokeStyle = "rgba(100, 200, 255, 0.4)";
-  g.lineWidth = 1.5;
-  g.strokeRect(S / 2 - 75, 46, 150, 48);
-
-  g.font = "bold 40px sans-serif";
-  g.fillStyle = "#ffffff";
-  g.shadowColor = "#00d2ff";
-  g.shadowBlur = 8;
-  g.fillText(clockStr || "5:00", S / 2, 70);
-  g.shadowBlur = 0;
-
-  // Team 0 Score Box (Team Pulse - Cyan)
-  var s0 = score0 !== undefined ? score0 : 0;
-  g.fillStyle = "rgba(0, 80, 160, 0.25)";
-  g.fillRect(24, 104, S / 2 - 36, 100);
-  g.strokeStyle = "#00d2ff";
-  g.lineWidth = 2;
-  g.strokeRect(24, 104, S / 2 - 36, 100);
-
-  g.font = "bold 16px sans-serif";
-  g.textAlign = "center";
-  g.fillStyle = "#00d2ff";
-  g.fillText("⚡ TEAM PULSE", 24 + (S / 2 - 36) / 2, 124);
-
-  g.font = "bold 68px sans-serif";
-  g.fillStyle = "#00f0ff";
-  g.shadowColor = "#00d2ff";
-  g.shadowBlur = 16;
-  g.fillText(String(s0), 24 + (S / 2 - 36) / 2, 172);
-  g.shadowBlur = 0;
-
-  // Team 1 Score Box (Team Volt - Orange)
-  var s1 = score1 !== undefined ? score1 : 0;
-  g.fillStyle = "rgba(160, 60, 0, 0.25)";
-  g.fillRect(S / 2 + 12, 104, S / 2 - 36, 100);
-  g.strokeStyle = "#ff9500";
-  g.lineWidth = 2;
-  g.strokeRect(S / 2 + 12, 104, S / 2 - 36, 100);
-
-  g.font = "bold 16px sans-serif";
-  g.textAlign = "center";
-  g.fillStyle = "#ffaa00";
-  g.fillText("TEAM VOLT ⚡", S / 2 + 12 + (S / 2 - 36) / 2, 124);
-
-  g.font = "bold 68px sans-serif";
-  g.fillStyle = "#ffaa00";
-  g.shadowColor = "#ff7700";
-  g.shadowBlur = 16;
-  g.fillText(String(s1), S / 2 + 12 + (S / 2 - 36) / 2, 172);
-  g.shadowBlur = 0;
-
-  // Bottom Audio/Energy Waveform Ticker
-  g.fillStyle = "#040810";
-  g.fillRect(10, H - 36, S - 20, 26);
-  for (var bar = 0; bar < 32; bar++) {
-    var barH = 4 + Math.sin(bar * 0.6) * 7 + Math.cos(bar * 1.2) * 5;
-    g.fillStyle = bar < 16 ? "#00d2ff" : "#ff9500";
-    g.fillRect(20 + bar * 15, H - 12 - barH, 10, barH);
-  }
-
-  // Scanline overlay
-  g.fillStyle = "rgba(0, 0, 0, 0.30)";
-  for (var sl = 10; sl < H - 10; sl += 3) {
-    g.fillRect(10, sl, S - 20, 1);
-  }
-
+  g.fillStyle = "#a9c2e4";
+  g.font = "bold 18px sans-serif";
+  g.fillText(title || "NEON VELOCITY CHAMPIONSHIP", S / 2, 226);
   return c;
 }
 
@@ -2129,101 +1447,6 @@ Builder.prototype.cylinder = function (rBottom, rTop, length, seg, p, q, capBott
   }
   return this;
 };
-Builder.prototype.lightningBolt = function (scale, thickness, p, q) {
-  var self = this;
-  var P = new V3(), N = new V3();
-
-  var pts = [
-    { x: -0.35, y:  0.8 }, // V0
-    { x:  0.35, y:  0.8 }, // V1
-    { x:  0.05, y:  0.15 }, // V2
-    { x:  0.45, y:  0.15 }, // V3
-    { x:  0.0,  y: -0.9 }, // V4
-    { x: -0.15, y: -0.1 }, // V5
-    { x: -0.45, y: -0.1 }  // V6
-  ];
-
-  var frontIdx = [];
-  var backIdx = [];
-
-  function put(x, y, z, nx, ny, nz) {
-    P.set(x, y, z);
-    N.set(nx, ny, nz);
-    if (q) { q.rotate(P, P); q.rotate(N, N); }
-    if (p) P.add(p);
-    return self.vert(P.x, P.y, P.z, N.x, N.y, N.z, (x / scale + 0.5), (y / scale + 0.5));
-  }
-
-  // 1. Front Face Vertices (Z = +thickness/2)
-  for (var i = 0; i < 7; i++) {
-    frontIdx.push(put(pts[i].x * scale, pts[i].y * scale, thickness * 0.5, 0, 0, 1));
-  }
-  // 2. Back Face Vertices (Z = -thickness/2)
-  for (var i = 0; i < 7; i++) {
-    backIdx.push(put(pts[i].x * scale, pts[i].y * scale, -thickness * 0.5, 0, 0, -1));
-  }
-
-  // 3. Front Face Triangles (Counter-Clockwise winding)
-  this.tri(frontIdx[0], frontIdx[2], frontIdx[1]);
-  this.tri(frontIdx[0], frontIdx[6], frontIdx[2]);
-  this.tri(frontIdx[6], frontIdx[5], frontIdx[2]);
-  this.tri(frontIdx[2], frontIdx[4], frontIdx[3]);
-  this.tri(frontIdx[2], frontIdx[5], frontIdx[4]);
-
-  // 4. Back Face Triangles (Clockwise winding looking from front, which is CCW from back)
-  this.tri(backIdx[0], backIdx[1], backIdx[2]);
-  this.tri(backIdx[0], backIdx[2], backIdx[6]);
-  this.tri(backIdx[6], backIdx[2], backIdx[5]);
-  this.tri(backIdx[2], backIdx[3], backIdx[4]);
-  this.tri(backIdx[2], backIdx[4], backIdx[5]);
-
-  // 5. Side Panels
-  for (var k = 0; k < 7; k++) {
-    var next = (k + 1) % 7;
-    var dx = pts[next].x - pts[k].x;
-    var dy = pts[next].y - pts[k].y;
-    var len = Math.sqrt(dx * dx + dy * dy);
-    var nx = 0, ny = 0;
-    if (len > 1e-5) {
-      nx = -dy / len;
-      ny = dx / len;
-    }
-
-    var f0 = put(pts[k].x * scale, pts[k].y * scale, thickness * 0.5, nx, ny, 0);
-    var f1 = put(pts[next].x * scale, pts[next].y * scale, thickness * 0.5, nx, ny, 0);
-    var b1 = put(pts[next].x * scale, pts[next].y * scale, -thickness * 0.5, nx, ny, 0);
-    var b0 = put(pts[k].x * scale, pts[k].y * scale, -thickness * 0.5, nx, ny, 0);
-
-    // Correct CCW winding for side panels to prevent backface culling
-    this.quad(f0, f1, b1, b0);
-  }
-
-  return this;
-};
-Builder.prototype.lightningBoltOutline = function (scale, tubeRadius) {
-  var pts = [
-    { x: -0.35, y:  0.8 },
-    { x:  0.35, y:  0.8 },
-    { x:  0.05, y:  0.15 },
-    { x:  0.45, y:  0.15 },
-    { x:  0.0,  y: -0.9 },
-    { x: -0.15, y: -0.1 },
-    { x: -0.45, y: -0.1 }
-  ];
-
-  var scalePts = pts.map(function(pt) {
-    return new V3(pt.x * scale, pt.y * scale, 0);
-  });
-
-  for (var k = 0; k < 7; k++) {
-    var p1 = scalePts[k];
-    var p2 = scalePts[(k + 1) % 7];
-    this.tube(p1, p2, tubeRadius, 8);
-    this.sphere(tubeRadius, 8, 6, p1);
-  }
-
-  return this;
-};
 Builder.prototype.tube = function (p1, p2, radius, seg) {
   seg = seg || 8;
   var dir = new V3().subV(p2, p1);
@@ -2357,18 +1580,14 @@ var FS_MAIN = [
   "  float seamAO = 1.0;",
   "  if (uBump > 0.001 && uUseTex > 0.5) {",
   "    vec2 uvStepX = vec2(1.5 / 1024.0, 0.0);",
-  "    vec2 uvStepY = vec2(0.0, 1.5 / 1024.0);",
-  "    float hTL = texture(uTex, vUV - uvStepX + uvStepY).a;",
-  "    float hU  = texture(uTex, vUV + uvStepY).a;",
-  "    float hTR = texture(uTex, vUV + uvStepX + uvStepY).a;",
-  "    float hL  = texture(uTex, vUV - uvStepX).a;",
-  "    float hC  = texture(uTex, vUV).a;",
-  "    float hR  = texture(uTex, vUV + uvStepX).a;",
-  "    float hBL = texture(uTex, vUV - uvStepX - uvStepY).a;",
-  "    float hD  = texture(uTex, vUV - uvStepY).a;",
-  "    float hBR = texture(uTex, vUV + uvStepX - uvStepY).a;",
-  "    float dU = (hTR + 2.0 * hR + hBR) - (hTL + 2.0 * hL + hBL);",
-  "    float dV = (hTL + 2.0 * hU + hTR) - (hBL + 2.0 * hD + hBR);",
+  "    vec2 uvStepY = vec2(0.0, 1.5 / 512.0);",
+  "    float hC = texture(uTex, vUV).a;",
+  "    float hR = texture(uTex, vUV + uvStepX).a;",
+  "    float hL = texture(uTex, vUV - uvStepX).a;",
+  "    float hU = texture(uTex, vUV + uvStepY).a;",
+  "    float hD = texture(uTex, vUV - uvStepY).a;",
+  "    float dU = (hR - hL);",
+  "    float dV = (hU - hD);",
   "    vec3 dp1 = dFdx(vW);",
   "    vec3 dp2 = dFdy(vW);",
   "    vec2 duv1 = dFdx(vUV);",
@@ -2377,17 +1596,11 @@ var FS_MAIN = [
   "    vec3 dp1perp = cross(N, dp1);",
   "    vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;",
   "    vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;",
-  "    float lenTB = dot(T, T) + dot(B, B);",
-  "    float invmax = inversesqrt(max(lenTB, 1e-6));",
+  "    float invmax = inversesqrt(max(dot(T, T), dot(B, B)) + 1e-6);",
   "    vec3 surfGrad = (T * (dU * invmax) + B * (dV * invmax));",
-  "    float bumpScale = uBump * 16.0;",
+  "    float bumpScale = uBump * 32.5;",
   "    N = normalize(N - surfGrad * bumpScale);",
-  "    seamAO = clamp(hC * 1.6 + 0.10, 0.15, 1.0);",
-  "  } else if (uBump > 0.001) {",
-  "    vec3 p = vW * 12.0;",
-  "    float pGroove = sin(p.x * 2.0) * cos(p.z * 2.0);",
-  "    vec3 gradP = vec3(dFdx(pGroove), 0.0, dFdy(pGroove));",
-  "    N = normalize(N - gradP * (uBump * 0.35));",
+  "    seamAO = clamp(hC * 1.5 + 0.15, 0.20, 1.0);",
   "  }",
   "  vec3 V = normalize(uCam - vW);",
   "  float NdotV = clamp(dot(N, V), 0.0, 1.0);",
@@ -3200,14 +2413,18 @@ Renderer.prototype.drawGrass = function (arena, cars, ball) {
     // 2. Frustum culling (skip chunks behind camera or outside FOV)
     if (!this.isChunkInFrustum(chunk.cx, chunk.cz, chunk.radius + 1.2)) continue;
 
-    // 3. Multi-tier LOD density calculation based on camera distance
-    // We render the full 12 indices (creamy rounded crown) to keep the grass level 100% flat and even, avoiding cut-off heights in the distance!
+    // 3. Multi-tier LOD calculation based on camera distance
+    // Near (< 25m): 4 triangles (12 indices, creamy rounded crown), 100% density
+    // Mid (25m - 48m): 2 triangles (6 indices quad), 70% density
+    // Far (> 48m): 1 triangle (3 indices), 40% density
     var indexCount = 12;
     var drawInstances = chunk.count;
 
     if (dist > 48.0) {
+      indexCount = 3;       // Far LOD: 1 triangle
       drawInstances = Math.floor(chunk.count * 0.40);
     } else if (dist > 25.0) {
+      indexCount = 6;       // Mid LOD: 2 triangles (quad)
       drawInstances = Math.floor(chunk.count * 0.70);
     }
 
@@ -3297,27 +2514,17 @@ Renderer.prototype.renderShadowMap = function (props, cars, ball) {
     var groundRestHeight = V.wheel.radius + V.wheel.rest - V.wheel.attachY;
     var upOffset = (CAR_SCALE - 1.0) * groundRestHeight;
 
-    var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM'];
     for (var i = 0; i < cars.length; i++) {
       var car = cars[i];
       if (!car || !car.body) continue;
       var B = car.body;
       var carDrawPos = _vScratch2.set(B.pos.x + B.up.x * upOffset, B.pos.y + B.up.y * upOffset, B.pos.z + B.up.z * upOffset);
       _vScale.set(CAR_SCALE, CAR_SCALE, CAR_SCALE);
-
-      var modelId = car.isPlayer
-        ? ((CFG.customization && CFG.customization.model) || 'OCTANE')
-        : (BOT_MODELS[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % BOT_MODELS.length] || 'OCTANE');
-
-      var kitM = (props.carKit && props.carKit.models && props.carKit.models[modelId]) || null;
-      var shadowBody = (kitM && kitM.body) || props.body;
-      var shadowAccent = (kitM && kitM.accent) || props.accent;
-
-      if (shadowBody) {
-        this.drawShadowMesh(shadowBody, carDrawPos, B.quat, _vScale);
+      if (props.body) {
+        this.drawShadowMesh(props.body, carDrawPos, B.quat, _vScale);
       }
-      if (shadowAccent) {
-        this.drawShadowMesh(shadowAccent, carDrawPos, B.quat, _vScale);
+      if (props.accent) {
+        this.drawShadowMesh(props.accent, carDrawPos, B.quat, _vScale);
       }
     }
   }
@@ -3609,48 +2816,51 @@ export function buildProps(R) {
   var shadowMesh = R.mesh(s);
 
   // ==========================================
-  // SLEEK CYBER-GRID BOOST PADS (Ultra low-profile rounded 3D cushion capsule style)
+  // SLEEK CYBER-GRID BOOST PADS
   // ==========================================
-  // 1. Small Boost Pad (12% Field Pad): Sleek, flat beveled cushion-capsule podium sitting flush on turf
+  // 1. Small Boost Pad (12% Pad): Elevated Hex bevel pedestal + floating rotating diamond energy core
   var psBase = new Builder();
-  var qCylVert = new Quat().fromAxisAngle(1, 0, 0, PI / 2);
-  psBase.cylinder(0.50, 0.44, 0.03, 16, new V3(0, 0.015, 0), qCylVert, true, true); // Extremely sleek base plate
-  psBase.cylinder(0.40, 0.30, 0.04, 16, new V3(0, 0.040, 0), qCylVert, true, true); // Smooth low-profile cushion top
+  psBase.polyDisc(1.22, 6, 0.24, 1, 1);
+  for (var hxi = 0; hxi < 6; hxi++) {
+    var ha0 = (hxi / 6) * TAU, ha1 = ((hxi + 1) / 6) * TAU;
+    var hmx = (Math.cos(ha0) + Math.cos(ha1)) * 0.5 * 1.10;
+    var hmz = (Math.sin(ha0) + Math.sin(ha1)) * 0.5 * 1.10;
+    psBase.box(0.10, 0.24, 0.60, new V3(hmx, 0.12, hmz), new Quat().fromAxisAngle(0, 1, 0, ha0 + PI / 6), 0.8);
+  }
   var padSmallBase = R.mesh(psBase);
 
-  // Floating Small Boost Micro Lightning Bolt (Shazam-style)
+  // Floating Small Boost Diamond Crystal Core
   var psCore = new Builder();
-  psCore.lightningBolt(0.42, 0.12);
+  psCore.cylinder(0.28, 0.02, 0.52, 6, new V3(0, 0.26, 0), null, true, true);
+  psCore.cylinder(0.02, 0.28, 0.52, 6, new V3(0, -0.26, 0), null, true, true);
   var padSmallCore = R.mesh(psCore);
 
-  var psOutline = new Builder();
-  psOutline.lightningBoltOutline(0.42, 0.024); // Smooth round 3D boundary tube outline for small lightning bolt
-  var padSmallCoreOutline = R.mesh(psOutline);
-
-  // 2. Big Boost Pad (100% Full Pill Station): High-fidelity flat beveled cushion-podium sitting flush on turf
+  // 2. Big Boost Pad (100% Full Pill): Heavy 6-pylon launcher base + floating energy orb + dual orbital gimbal rings
   var pbBase = new Builder();
-  pbBase.cylinder(1.50, 1.35, 0.04, 32, new V3(0, 0.02, 0), qCylVert, true, true);  // Flat, sleek lower bezel
-  pbBase.cylinder(1.20, 0.90, 0.06, 32, new V3(0, 0.06, 0), qCylVert, true, true);  // Flatter, elegant cushion dome
+  pbBase.polyDisc(2.5, 6, 0.32, 1, 1);
+  for (var bp = 0; bp < 6; bp++) {
+    var bpa = (bp / 6) * TAU;
+    var bx = Math.cos(bpa) * 2.2, bz = Math.sin(bpa) * 2.2;
+    pbBase.box(0.26, 0.70, 0.26, new V3(bx, 0.38, bz), null, 0.8);
+    pbBase.box(0.18, 0.55, 0.18, new V3(bx * 0.82, 0.60, bz * 0.82), new Quat().fromAxisAngle(bz, 0, -bx, 0.35), 0.8);
+  }
+  pbBase.polyDisc(1.5, 16, 0.38, 1, 1);
   var padBigBase = R.mesh(pbBase);
 
-  // Big Boost Floating Lightning Bolt (Shazam-style - sleek and compact)
+  // Big Boost Floating Energy Core (Faceted power sphere)
   var pbOrb = new Builder();
-  pbOrb.lightningBolt(0.85, 0.22);
+  pbOrb.sphere(0.46, 16, 12);
   var padBigOrb = R.mesh(pbOrb);
 
-  var pbOrbOutline = new Builder();
-  pbOrbOutline.lightningBoltOutline(0.85, 0.048); // Smooth round 3D boundary tube outline for big lightning bolt
-  var padBigOrbOutline = R.mesh(pbOrbOutline);
-
-  // Big Boost Orbital Gimbal Ring (scaled to match the smaller footprint)
+  // Big Boost Orbital Gimbal Ring
   var pbRing = new Builder();
   var rSegs = 20;
   for (var rs = 0; rs < rSegs; rs++) {
     var ra0 = (rs / rSegs) * TAU, ra1 = ((rs + 1) / rSegs) * TAU;
-    var rMidX = (Math.cos(ra0) + Math.cos(ra1)) * 0.5 * 0.58;
-    var rMidZ = (Math.sin(ra0) + Math.sin(ra1)) * 0.5 * 0.58;
-    var segLen = 0.58 * (TAU / rSegs) * 1.05;
-    pbRing.box(0.032, 0.032, segLen, new V3(rMidX, 0, rMidZ), new Quat().fromAxisAngle(0, 1, 0, ra0 + PI / rSegs), 1.0);
+    var rMidX = (Math.cos(ra0) + Math.cos(ra1)) * 0.5 * 0.80;
+    var rMidZ = (Math.sin(ra0) + Math.sin(ra1)) * 0.5 * 0.80;
+    var segLen = 0.80 * (TAU / rSegs) * 1.05;
+    pbRing.box(0.045, 0.045, segLen, new V3(rMidX, 0, rMidZ), new Quat().fromAxisAngle(0, 1, 0, ra0 + PI / rSegs), 1.0);
   }
   var padBigRing = R.mesh(pbRing);
 
@@ -3658,45 +2868,12 @@ export function buildProps(R) {
   kb.polyDisc(0.9, 24, 0.008, 1, 1);
   var ring = R.mesh(kb);
 
-  // ==========================================
-  // 3. VOLUMETRIC 3D LASER BEAM MESHES
-  // ==========================================
-  // Unit Z-aligned laser core cylinder (from z=0 to z=1)
-  var bLaserCore = new Builder();
-  bLaserCore.cylinder(1.0, 1.0, 1.0, 8, new V3(0, 0, 0.5), null, true, true);
-  var laserCore = R.mesh(bLaserCore);
-
-  // Unit Z-aligned laser blooming halo envelope cylinder (from z=0 to z=1)
-  var bLaserHalo = new Builder();
-  bLaserHalo.cylinder(1.0, 1.0, 1.0, 10, new V3(0, 0, 0.5), null, false, false);
-  var laserHalo = R.mesh(bLaserHalo);
-
-  // Optical lens flare and laser impact glow sphere
-  var bLaserFlare = new Builder();
-  bLaserFlare.sphere(1.0, 10, 8, new V3(0, 0, 0));
-  var laserFlare = R.mesh(bLaserFlare);
-
-  var carKit = null;
-  try {
-    carKit = buildCarKit(R);
-  } catch (e) {
-    console.error("buildCarKit error:", e);
-  }
-
   return {
-    carKit: carKit,
-    body: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.body) || bodyMesh,
-    accent: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.accent) || accentMesh,
-    glass: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.glass) || glassMesh,
-    lights: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.lights) || lightsMesh,
-    thruster: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.thruster) || thrusterMesh,
-    trim: (carKit && carKit.models && carKit.models.OCTANE && carKit.models.OCTANE.trim) || null,
-    wheel: (carKit && carKit.wheels && carKit.wheels.SPORT && carKit.wheels.SPORT.wheel) || wheelMesh,
-    hub: (carKit && carKit.wheels && carKit.wheels.SPORT && carKit.wheels.SPORT.hub) || hubMesh,
+    body: bodyMesh, accent: accentMesh, glass: glassMesh, lights: lightsMesh, thruster: thrusterMesh,
+    wheel: wheelMesh, hub: hubMesh,
     ball: ballMesh, shadow: shadowMesh,
-    padSmall: padSmallBase, padSmallBase: padSmallBase, padSmallCore: padSmallCore, padSmallCoreOutline: padSmallCoreOutline,
-    padBig: padBigBase, padBigBase: padBigBase, padBigOrb: padBigOrb, padBigOrbOutline: padBigOrbOutline, padBigRing: padBigRing,
-    laserCore: laserCore, laserHalo: laserHalo, laserFlare: laserFlare,
+    padSmall: padSmallBase, padSmallBase: padSmallBase, padSmallCore: padSmallCore,
+    padBig: padBigBase, padBigBase: padBigBase, padBigOrb: padBigOrb, padBigRing: padBigRing,
     ring: ring
   };
 }
@@ -3715,27 +2892,20 @@ Renderer.prototype.initTextures = function (arena) {
   var currentDrawCaps = typeof window.__basketballDrawCaps !== "undefined" ? window.__basketballDrawCaps : false;
   var currentBasketballKey = [currentOffset, currentArcGap, currentPoleGap, currentYMargin, currentCurvePower, currentMeridianShift, currentShowMeridian, currentShowEquator, currentDrawCaps].join("_");
 
-  var currentCarBumpStyle = (CFG.gfx && CFG.gfx.carBumpStyle) || "SPORTS_PANELS";
-
   if (!this.initializedTextures) {
     this.currentStadiumTheme = activeTheme;
     this.currentBallType = activeBallType;
     this.currentBasketballKey = currentBasketballKey;
-    this.currentCarBumpStyle = currentCarBumpStyle;
     this.texField = this.texture(texField(arena, activeTheme), false, true);
     this.texPanel = this.texture(texPanel(), true, true);
     this.texNet = this.texture(texNet(), true, true);
     this.texNetWall = this.texture(texNetWall(), true, true);
-    this.texSky = this.texture(texSky(activeTheme), false, true);
+    this.texSky = this.texture(texSky(), false, true);
     this.texBoostGlow = this.texture(texBoostGlow(), false, true);
     this.texBall = this.texture(texBall(activeBallType), false, true);
-    this.texCarBody = this.texture(texCarBodyDetail(currentCarBumpStyle), false, true);
-    this.texCarTrim = this.texture(texCarTrimDetail(), false, true);
-    this.texCarAccent = this.texture(texCarAccentDetail(), true, true);
-    this.texCarWheel = this.texture(texCarWheelDetail(), false, true);
     this.texBlob = this.texture(texBlob(), false, true);
     this.texSpark = this.texture(texSpark(), false, true);
-    this.texCrowd = this.texture(texCrowd(activeTheme), true, true);
+    this.texCrowd = this.texture(texCrowd(), true, true);
     this.texAdBoard = this.texture(texAdBoard(), true, true);
     this.texRibbon = this.texture(texRibbon(), true, true);
     this.texScreen = this.texture(texScreen("5:00", 0, 0, "NEON VELOCITY CHAMPIONSHIP"), false, true);
@@ -3746,21 +2916,12 @@ Renderer.prototype.initTextures = function (arena) {
       this.currentStadiumTheme = activeTheme;
       if (this.texField) gl.deleteTexture(this.texField);
       this.texField = this.texture(texField(arena, activeTheme), false, true);
-      if (this.texSky) gl.deleteTexture(this.texSky);
-      this.texSky = this.texture(texSky(activeTheme), false, true);
-      if (this.texCrowd) gl.deleteTexture(this.texCrowd);
-      this.texCrowd = this.texture(texCrowd(activeTheme), true, true);
     }
     if (this.currentBallType !== activeBallType || (activeBallType === "basketball" && this.currentBasketballKey !== currentBasketballKey)) {
       this.currentBallType = activeBallType;
       this.currentBasketballKey = currentBasketballKey;
       if (this.texBall) gl.deleteTexture(this.texBall);
       this.texBall = this.texture(texBall(activeBallType), false, true);
-    }
-    if (this.currentCarBumpStyle !== currentCarBumpStyle) {
-      this.currentCarBumpStyle = currentCarBumpStyle;
-      if (this.texCarBody) gl.deleteTexture(this.texCarBody);
-      this.texCarBody = this.texture(texCarBodyDetail(currentCarBumpStyle), false, true);
     }
   }
 };
@@ -3791,8 +2952,6 @@ var _qScratch2 = new Quat();
 var _qScratch3 = new Quat();
 var _vScratch1 = new V3();
 var _vScratch2 = new V3();
-var _vScratch3 = new V3();
-var _vCarDrawPos = new V3();
 var _wheelScale = new V3();
 var _metallicCol = [0, 0, 0];
 var _trimEmissive = [0, 0, 0];
@@ -3895,44 +3054,6 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
     });
   }
 
-  // 9b. Suspended 4-Sided Center 3D Halo Jumbotron & Holographic Scoreboard
-  if (meshes.jumbotron) {
-    this.draw(meshes.jumbotron, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
-      color: [0.35, 0.40, 0.48],
-      emissive: [0.15, 0.18, 0.24],
-      metallic: 0.85,
-      spec: 0.80,
-      rim: 0.35
-    });
-  }
-  if (meshes.jumbotronScreens) {
-    this.draw(meshes.jumbotronScreens, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
-      tex: this.texScreen,
-      emissive: [1.15, 1.15, 1.30],
-      spec: 0.85
-    });
-  }
-
-  // 9c. Arena Perimeter Glowing Neon Tubes
-  if (meshes.neonPerimeter) {
-    var pPulse = 0.85 + Math.sin(this.time * 3.5) * 0.18;
-    this.draw(meshes.neonPerimeter, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
-      color: [0.8, 0.95, 1.0],
-      emissive: [0.25 * pPulse, 0.65 * pPulse, 1.0 * pPulse],
-      spec: 0.9
-    });
-  }
-
-  // 9d. Pitch Corner Flags
-  if (meshes.cornerFlags) {
-    this.draw(meshes.cornerFlags, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
-      color: [0.95, 0.95, 0.98],
-      emissive: [0.18, 0.18, 0.22],
-      spec: 0.6,
-      cull: false
-    });
-  }
-
   // 10. Goals
   for (var g = 0; g < meshes.goals.length; g++) {
     var goal = meshes.goals[g];
@@ -3959,114 +3080,12 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
       clearcoat: 0.85,
       rim: 0.45
     });
-
-    // Glowing Neon Goal Trim & Crown Halo Arch
-    if (goal.neon) {
-      var nPulse = 0.9 + Math.sin(this.time * 5.0 + g * Math.PI) * 0.25;
-      var nCol = (goal.team === 0)
-        ? [0.05 * nPulse, 0.85 * nPulse, 1.35 * nPulse]
-        : [1.35 * nPulse, 0.65 * nPulse, 0.05 * nPulse];
-      this.draw(goal.neon, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
-        color: [1.0, 1.0, 1.0],
-        emissive: nCol,
-        spec: 0.95,
-        rim: 0.5
-      });
-    }
   }
 };
 
-// =========================================================================
-// VOLUMETRIC 3D LASER BEAM RENDERER (CORE + GLOWING BLOOM HALO + FLARES)
-// =========================================================================
-Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius, coreRadius) {
-  var dx = p2.x - p1.x;
-  var dy = p2.y - p1.y;
-  var dz = p2.z - p1.z;
-  var len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  if (len < 0.05) return;
-
-  var nx = dx / len;
-  var ny = dy / len;
-  var nz = dz / len;
-
-  // Calculate quaternion rotation from unit vector (0, 0, 1) to (nx, ny, nz)
-  var qRot = _qScratch1;
-  var dot = nz;
-  if (dot > 0.9999) {
-    qRot.identity();
-  } else if (dot < -0.9999) {
-    qRot.fromAxisAngle(1, 0, 0, Math.PI);
-  } else {
-    var cx = -ny;
-    var cy = nx;
-    var cLen = Math.sqrt(cx * cx + cy * cy);
-    if (cLen > 0.0001) {
-      cx /= cLen;
-      cy /= cLen;
-      var angle = Math.acos(clamp(dot, -1, 1));
-      qRot.fromAxisAngle(cx, cy, 0, angle);
-    } else {
-      qRot.identity();
-    }
-  }
-
-  var hR = haloRadius || 0.35;
-  var cR = coreRadius || 0.09;
-
-  // 1. Outer Volumetric Glowing Halo Envelope (Additive blooming cylinder)
-  if (props && props.laserHalo) {
-    _vScale.set(hR, hR, len);
-    this.draw(props.laserHalo, p1, qRot, _vScale, {
-      color: colInfo.halo,
-      emissive: colInfo.haloEmiss,
-      opacity: 0.62,
-      blend: "add",
-      cull: false,
-      spec: 0.0
-    });
-  }
-
-  // 2. High-Energy White-Hot Intense Searing Core (Center laser tube)
-  if (props && props.laserCore) {
-    _vScale.set(cR, cR, len);
-    this.draw(props.laserCore, p1, qRot, _vScale, {
-      color: [1.0, 1.0, 1.0],
-      emissive: colInfo.coreEmiss,
-      opacity: 0.95,
-      blend: "add",
-      cull: false,
-      spec: 0.0
-    });
-  }
-
-  // 3. Projector Optical Lens Flare at Origin Tower
-  if (props && props.laserFlare) {
-    this.draw(props.laserFlare, p1, _qIdentity, _vScale.set(0.65, 0.65, 0.65), {
-      color: [1.0, 1.0, 1.0],
-      emissive: colInfo.flareEmiss,
-      opacity: 0.88,
-      blend: "add",
-      cull: false,
-      spec: 0.0
-    });
-
-    // 4. Ground/Canopy Focal Energy Impact Spot
-    this.draw(props.laserFlare, p2, _qIdentity, _vScale.set(0.85, 0.85, 0.85), {
-      color: colInfo.halo,
-      emissive: colInfo.impactEmiss,
-      opacity: 0.72,
-      blend: "add",
-      cull: false,
-      spec: 0.0
-    });
-  }
-};
-
-Renderer.prototype.drawArenaNet = function (meshes, props, arena) {
+Renderer.prototype.drawArenaNet = function (meshes) {
   if (!meshes) return;
   var flInt = (CFG.gfx && CFG.gfx.floodlightIntensity !== undefined) ? CFG.gfx.floodlightIntensity : 0.20;
-  var p = props || this.props;
 
   // Transparent Net Cage: Walls, Roof Ramps, and Ceiling
   // Drawn with alpha blending and backface culling after vehicles and ball so the car is completely visible on the wall!
@@ -4109,150 +3128,11 @@ Renderer.prototype.drawArenaNet = function (meshes, props, arena) {
       spec: 0.0
     });
   }
-
-  // =========================================================================
-  // DYNAMIC 3D VOLUMETRIC LASER SHOW & SKY SEARCHLIGHTS
-  // =========================================================================
-  if (flInt > 0.01) {
-    var t = this.time;
-    var laserPalettes = [
-      // 1. Electric Cyan Laser (Hot white core -> radiant electric cyan bloom)
-      {
-        halo: [0.0, 0.85, 1.0],
-        haloEmiss: [0.1, 1.8, 3.2],
-        coreEmiss: [3.2, 4.0, 4.0],
-        flareEmiss: [0.4, 2.8, 4.0],
-        impactEmiss: [0.1, 2.0, 3.5]
-      },
-      // 2. Synthwave Cyber-Magenta / Laser Pink (Hot pink-white core -> deep magenta halo)
-      {
-        halo: [1.0, 0.08, 0.70],
-        haloEmiss: [3.2, 0.2, 2.0],
-        coreEmiss: [4.0, 2.5, 3.8],
-        flareEmiss: [4.0, 0.5, 2.8],
-        impactEmiss: [3.5, 0.2, 2.2]
-      },
-      // 3. Radioactive Laser-Lime / Emerald (Bright mint core -> lime aura)
-      {
-        halo: [0.1, 1.0, 0.35],
-        haloEmiss: [0.2, 3.2, 1.0],
-        coreEmiss: [2.5, 4.0, 2.8],
-        flareEmiss: [0.5, 4.0, 1.8],
-        impactEmiss: [0.2, 3.5, 1.2]
-      },
-      // 4. Blazing Solar Gold / Plasma Amber (Solar white-gold core -> deep gold halo)
-      {
-        halo: [1.0, 0.65, 0.0],
-        haloEmiss: [3.5, 2.0, 0.1],
-        coreEmiss: [4.0, 3.8, 2.0],
-        flareEmiss: [4.0, 2.8, 0.3],
-        impactEmiss: [3.8, 2.2, 0.1]
-      },
-      // 5. Cosmic Ultra-Violet / Deep Plasma (Lavender core -> ultraviolet aura)
-      {
-        halo: [0.70, 0.15, 1.0],
-        haloEmiss: [2.5, 0.4, 3.8],
-        coreEmiss: [3.6, 2.8, 4.0],
-        flareEmiss: [3.0, 0.8, 4.0],
-        impactEmiss: [2.8, 0.5, 4.0]
-      },
-      // 6. Electric Hyper-Turquoise / Neon Aqua (Turquoise core -> bright aqua halo)
-      {
-        halo: [0.0, 1.0, 0.85],
-        haloEmiss: [0.1, 2.8, 2.4],
-        coreEmiss: [2.4, 4.0, 3.8],
-        flareEmiss: [0.3, 3.8, 3.2],
-        impactEmiss: [0.1, 3.0, 2.5]
-      }
-    ];
-
-    var hx = (arena && arena.hx) || (CFG.arena && CFG.arena.hx) || 61.5;
-    var hz = (arena && arena.hz) || (CFG.arena && CFG.arena.hz) || 76.8;
-    var arenaHeight = (arena && arena.height) || (CFG.arena && CFG.arena.height) || 30.75;
-
-    var towerOrigins = [
-      { x: -hx * 1.32, y: arenaHeight * 1.05, z: -hz * 1.25 },
-      { x:  hx * 1.32, y: arenaHeight * 1.05, z: -hz * 1.25 },
-      { x: -hx * 1.32, y: arenaHeight * 1.05, z:  hz * 1.25 },
-      { x:  hx * 1.32, y: arenaHeight * 1.05, z:  hz * 1.25 },
-      { x: -hx * 1.38, y: arenaHeight * 1.05, z:   0.0 },
-      { x:  hx * 1.38, y: arenaHeight * 1.05, z:   0.0 }
-    ];
-
-    var hasVolumetric = p && p.laserCore && p.laserHalo;
-
-    for (var li = 0; li < towerOrigins.length; li++) {
-      var orig = towerOrigins[li];
-      var colInfo = laserPalettes[li % laserPalettes.length];
-      var speed = 0.85 + (li * 0.22);
-      var phase = li * 1.05;
-
-      // Irregular, chaotic movement targeting spectator grandstand seats around stadium perimeter
-      var noise1 = Math.sin(t * (1.73 + li * 0.17) + phase * 2.4) * 0.6 + Math.cos(t * 3.41 + li * 0.5) * 0.4;
-      var noise2 = Math.cos(t * (1.37 + li * 0.23) - phase * 1.8) * 0.6 + Math.sin(t * 2.89 + li * 0.8) * 0.4;
-      var noiseJitter = (Math.sin(t * 11.3 + li * 7.1) > 0.6 ? 1 : -1) * (0.5 + Math.cos(t * 19.1 + li) * 0.5);
-
-      var sweepSide = (li % 2 === 0) ? 1 : -1;
-      var sweepX = sweepSide * (hx + 5.5 + noise1 * 18.0);
-      var sweepZ = ((li < 2) ? -1 : (li < 4) ? 1 : (Math.sin(t * 0.85 + phase) > 0 ? 1 : -1)) * (hz * 0.68 + noise2 * 35.0 + noiseJitter * 5.0);
-      var sweepY = 13.0 + Math.abs(noise1 + noise2) * 10.0;
-
-      var pOrig = _vScratch1.set(orig.x, orig.y, orig.z);
-      var pSweep = _vScratch2.set(sweepX, sweepY, sweepZ);
-
-      // Pulsating beam thickness
-      var pulse = 1.0 + Math.sin(t * 10.0 + li * 2.5) * 0.18;
-      var haloR = 0.36 * pulse;
-      var coreR = 0.095 * (1.0 + Math.sin(t * 14.0 + li * 1.5) * 0.10);
-
-      if (hasVolumetric) {
-        // Render 3D Volumetric Field Laser Beam
-        this.drawLaserBeam(pOrig, pSweep, colInfo, p, haloR, coreR);
-      } else if (this.lineCount !== undefined) {
-        this.line(pOrig, pSweep, colInfo.halo);
-      }
-
-      // Sky zenith criss-cross beams (Spectacular canopy light vortex)
-      var skyX = Math.cos(t * speed * 0.5 + phase) * (hx * 1.1);
-      var skyZ = Math.sin(t * speed * 0.4 + phase) * (hz * 1.1);
-      var skyY = arenaHeight * 1.6 + Math.sin(t * 0.8 + phase) * 8.0;
-      var pSky = _vScratch2.set(skyX, skyY, skyZ);
-
-      var colInfoSky = laserPalettes[(li + 3) % laserPalettes.length];
-      var haloRSky = 0.42 * pulse;
-      var coreRSky = 0.11;
-
-      if (hasVolumetric) {
-        // Render 3D Volumetric Sky Zenith Laser Beam
-        this.drawLaserBeam(pOrig, pSky, colInfoSky, p, haloRSky, coreRSky);
-      } else if (this.lineCount !== undefined) {
-        this.line(pOrig, pSky, colInfoSky.halo);
-      }
-    }
-
-    if (!hasVolumetric && this.lineCount !== undefined) {
-      this.flushLines();
-    }
-  }
 };
 
 Renderer.prototype.drawBoostPads = function (props, pads) {
   var perfMode = (CFG.gfx && CFG.gfx.perfMode) || "BALANCED";
   var isUltraFast = perfMode === "ULTRA";
-  var padElev = (CFG.gfx && CFG.gfx.boostPadHeightOffset !== undefined) ? CFG.gfx.boostPadHeightOffset : 0.35;
-  var pHasLaser = props && props.laserCore && props.laserHalo;
-
-  var bigLightningPalette = {
-    halo: [1.0, 0.65, 0.08],     // Golden Sunburst halo
-    haloEmiss: [4.0, 2.2, 0.05],  // Blazing amber glow
-    coreEmiss: [6.0, 5.5, 4.0]    // Brilliant white-gold core
-  };
-
-  var smallLightningPalette = {
-    halo: [0.15, 0.85, 1.0],      // Fresh, high-tech Electric Cyan
-    haloEmiss: [0.8, 3.5, 7.0],
-    coreEmiss: [5.0, 5.0, 5.0]
-  };
 
   for (var i = 0; i < pads.length; i++) {
     var p = pads[i];
@@ -4260,233 +3140,95 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
     var active = p.active;
 
     if (isBig) {
-      // 100% BIG BOOST POWER STATION
-      // 1. Sleek, low-profile cushion base: sits flush on the turf using padElev ground offset
+      // 1. Heavy Launcher Base Pad (Elevated prominently above grass)
       var bigBaseMesh = props.padBigBase || props.padBig;
-      var bBasePos = _vPos.set(p.pos.x, p.pos.y + padElev, p.pos.z); // Elevated correctly above turf
+      var bBasePos = _vPos.set(p.pos.x, p.pos.y + 0.18, p.pos.z);
+      this.draw(bigBaseMesh, bBasePos, _qIdentity, _vOne, {
+        color: active ? [0.28, 0.30, 0.36] : [0.15, 0.16, 0.18],
+        emissive: active ? [0.35, 0.22, 0.04] : [0.03, 0.03, 0.03],
+        spec: active ? 0.7 : 0.2
+      });
 
       if (active) {
-        // Draw highly polished shiny platinum/chrome cushion base
-        this.draw(bigBaseMesh, bBasePos, _qIdentity, _vOne, {
-          color: [0.92, 0.94, 0.98],                                     // Ultra shiny platinum metal
-          emissive: [0.35, 0.28, 0.05],                                  // Under-grid power lanes
-          metallic: 1.0,
-          clearcoat: 1.0,
-          flakes: 1.0,
-          bump: 1.5,                                                     // High-fidelity edge lines on cushion borders
-          spec: 2.0
-        });
-
-        // Draw elegant, low floating height for the sleek compact lightning bolt
-        var bobY = p.pos.y + 0.65 + padElev + Math.sin(p.anim * 2.5) * 0.05;
+        var bobY = p.pos.y + 1.55 + Math.sin(p.anim * 2.5) * 0.08;
         _vScratch1.set(p.pos.x, bobY, p.pos.z);
 
-        // 2. Dual-Layer Rounded 3D Lightning Bolt
-        if (props.padBigOrb && props.padBigOrbOutline) {
-          var swayAngle = Math.sin(p.anim * 0.7) * 0.45;
-          _qTemp.fromAxisAngle(0, 1, 0, swayAngle);
-          var tiltQ = new Quat().fromAxisAngle(1, 0, 0, Math.cos(p.anim * 0.5) * 0.12);
-          _qTemp.mul(_qTemp, tiltQ);
-
-          var glowIntensity = 1.8 + Math.sin(p.anim * 4.5) * 0.45;
-
-          // Inner solid core: Fully colored radiant gold (gorgeous premium metallic paint finish)
-          _vScale.set(0.72, 0.72, 0.72);
-          this.draw(props.padBigOrb, _vScratch1, _qTemp, _vScale, {
-            color: [1.0, 0.70, 0.02], // Highly attractive fully colored liquid gold
-            emissive: [1.5 * glowIntensity, 0.8 * glowIntensity, 0.02 * glowIntensity],
-            metallic: 1.0,
-            clearcoat: 1.0,
-            spec: 2.0,
+        // 2. Spinning Energy Core Orb
+        if (props.padBigOrb) {
+          _qTemp.fromAxisAngle(0, 1, 0, p.anim * 1.8);
+          this.draw(props.padBigOrb, _vScratch1, _qTemp, _vOne, {
+            color: [1.0, 0.88, 0.25],
+            emissive: [1.8, 1.35, 0.3],
+            spec: 1.0,
             rim: 0.8
           });
-
-          // Outer outline: Smooth 3D tubular boundary frame outlining the lightning bolt with perfectly rounded corners!
-          this.draw(props.padBigOrbOutline, _vScratch1, _qTemp, _vScale, {
-            color: [1.0, 0.85, 0.30], // Glowing neon gold boundary frame
-            emissive: [3.0 * glowIntensity, 1.8 * glowIntensity, 0.05 * glowIntensity],
-            metallic: 1.0,
-            clearcoat: 1.0,
-            spec: 2.0
-          });
-
-          // 2.5 Synchronized Halo Ring (3D Floating Ring framing the bolt and moving in unison)
-          if (props.padBigRing) {
-            var spinQ = new Quat().fromAxisAngle(0, 1, 0, p.anim * 1.8);
-            var ringQ = new Quat();
-            ringQ.mul(_qTemp, spinQ); // Sway/tilt and spin together!
-
-            _vScale.set(1.3 * 0.72, 1.3 * 0.72, 1.3 * 0.72);
-            this.draw(props.padBigRing, _vScratch1, ringQ, _vScale, {
-              color: [1.0, 0.80, 0.15],
-              emissive: [3.5 * glowIntensity, 1.8 * glowIntensity, 0.05 * glowIntensity],
-              metallic: 1.0,
-              clearcoat: 1.0,
-              spec: 2.0
-            });
-          }
         }
 
-        // 3. Inclined Orbital Gimbal Rings (Neon Teal & Sunburst Orange)
+        // 3. Inclined Orbital Gimbal Rings
         if (props.padBigRing && !isUltraFast) {
           _qScratch1.fromAxisAngle(0.6, 1, 0.2, p.anim * 2.2);
-          _vScale.set(0.72, 0.72, 0.72);
-          this.draw(props.padBigRing, _vScratch1, _qScratch1, _vScale, {
-            color: [0.0, 0.85, 1.0], // Electric Sky Blue
-            emissive: [0.2, 2.5, 5.0],
+          this.draw(props.padBigRing, _vScratch1, _qScratch1, _vOne, {
+            color: [1.0, 0.92, 0.45],
+            emissive: [1.5, 1.1, 0.2],
             spec: 0.9
           });
 
           // 4. Counter-rotating Orbital Gimbal Ring 2
           _qScratch2.fromAxisAngle(-0.6, 1, -0.2, -p.anim * 1.6);
-          _vScale.set(1.18 * 0.72, 1.18 * 0.72, 1.18 * 0.72);
+          _vScale.set(1.18, 1.18, 1.18);
           this.draw(props.padBigRing, _vScratch1, _qScratch2, _vScale, {
-            color: [1.0, 0.45, 0.0], // Solar Fire Orange
-            emissive: [3.0, 1.2, 0.0],
+            color: [1.0, 0.78, 0.15],
+            emissive: [1.2, 0.85, 0.15],
             spec: 0.9
           });
         }
 
-        // 5. 3D High-Voltage Lightning Discharge Arcs
-        if (pHasLaser && !isUltraFast) {
-          for (var arc = 0; arc < 3; arc++) {
-            var pAngle = (arc * (TAU / 3)) + p.anim * 1.5;
-            var px = p.pos.x + Math.cos(pAngle) * 1.4;
-            var pz = p.pos.z + Math.sin(pAngle) * 1.4;
-            var py = p.pos.y + 0.15 + padElev; // Low flare ground positions
-
-            var pStart = _vScratch2.set(px, py, pz);
-            var jitX = (Math.random() - 0.5) * 0.15;
-            var jitZ = (Math.random() - 0.5) * 0.15;
-            var pEnd = _vPos.set(p.pos.x + jitX, bobY, p.pos.z + jitZ);
-
-            this.drawLaserBeam(pStart, pEnd, bigLightningPalette, props, 0.15, 0.04);
-          }
-        }
-
-        // 6. Ground Pulse Rune
-        var rScale = 1.75 + Math.sin(p.anim * 3.0) * 0.08;
+        // 5. Floor Pulse Rune (Hovering above grass on launcher deck)
+        var rScale = 2.45 + Math.sin(p.anim * 3.0) * 0.12;
         _vScale.set(rScale, 1, rScale);
-        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.04 + padElev, p.pos.z), _qIdentity, _vScale, {
+        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.32, p.pos.z), _qIdentity, _vScale, {
           tex: this.texBoostGlow,
-          color: [1.0, 0.78, 0.1],
-          emissive: [1.8, 1.1, 0.1],
+          color: [1.0, 0.85, 0.25],
+          emissive: [1.2, 0.9, 0.2],
           blend: "add",
           opacity: 0.85 + Math.sin(p.anim * 3) * 0.15
         });
-      } else {
-        // Used / Inactive Big Pad: Premium dark-luxury carved carbon/leather cushion with breathing amber embers
-        var pulse = 0.50 + Math.sin(p.anim * 1.8) * 0.40;
-        this.draw(bigBaseMesh, bBasePos, _qIdentity, _vOne, {
-          color: [0.11, 0.13, 0.15],                                     // Deep luxury carbon-leather texture shell
-          emissive: [0.55 * pulse, 0.22 * pulse, 0.05 * pulse],          // Breathing amber power core ring
-          metallic: 0.8,
-          clearcoat: 1.0,
-          bump: 1.5,                                                     // High-fidelity seam and stitch detail lines
-          spec: 1.5
-        });
       }
     } else {
-      // SMALL BOOST FIELD PAD (12% Boost - Sleek, Compact Micro Pad)
+      // Small Boost Pad
+      // 1. Chamfered Hex Plate on Turf (Elevated above grass)
       var smallBaseMesh = props.padSmallBase || props.padSmall;
-      var sBasePos = _vPos.set(p.pos.x, p.pos.y + padElev, p.pos.z); // Elevated correctly above turf
+      var sBasePos = _vPos.set(p.pos.x, p.pos.y + 0.14, p.pos.z);
+      this.draw(smallBaseMesh, sBasePos, _qIdentity, _vOne, {
+        color: active ? [0.25, 0.27, 0.32] : [0.14, 0.15, 0.17],
+        emissive: active ? [0.22, 0.15, 0.02] : [0.02, 0.02, 0.02],
+        spec: active ? 0.6 : 0.15
+      });
 
       if (active) {
-        // Active platinum alloy cushion base
-        this.draw(smallBaseMesh, sBasePos, _qIdentity, _vOne, {
-          color: [0.88, 0.92, 0.96],                                     // Premium polished chrome alloy
-          emissive: [0.02, 0.45, 0.90],                                  // Under-grid power lanes
-          metallic: 1.0,
-          clearcoat: 1.0,
-          bump: 1.2,                                                     // High-fidelity edge highlights
-          spec: 1.8
-        });
-
-        var sBobY = p.pos.y + 0.35 + padElev + Math.sin(p.anim * 3.2) * 0.025;
+        var sBobY = p.pos.y + 0.85 + Math.sin(p.anim * 3.2) * 0.045;
         _vScratch1.set(p.pos.x, sBobY, p.pos.z);
 
-        // 2. Dual-Layer Rounded Micro Lightning Bolt
-        if (props.padSmallCore && props.padSmallCoreOutline) {
-          var sSwayAngle = Math.sin(p.anim * 0.8) * 0.38;
-          _qTemp.fromAxisAngle(0, 1, 0, sSwayAngle);
-          var sTiltQ = new Quat().fromAxisAngle(1, 0, 0, Math.cos(p.anim * 0.6) * 0.10);
-          _qTemp.mul(_qTemp, sTiltQ);
-
-          var sGlow = 1.6 + Math.sin(p.anim * 4.8) * 0.35;
-          var sColor = [0.0, 0.82, 1.0];
-
-          // Inner solid core: Fully colored radiant cyber cyan-teal
-          _vScale.set(0.80, 0.80, 0.80);
-          this.draw(props.padSmallCore, _vScratch1, _qTemp, _vScale, {
-            color: sColor,
-            emissive: [0.1 * sGlow, 2.5 * sGlow, 5.0 * sGlow],
-            metallic: 1.0,
-            clearcoat: 1.0,
-            spec: 1.8,
-            rim: 0.8
+        // 2. Floating Rotating Diamond Crystal
+        if (props.padSmallCore) {
+          _qTemp.fromAxisAngle(0, 1, 0, p.anim * 2.0);
+          this.draw(props.padSmallCore, _vScratch1, _qTemp, _vOne, {
+            color: [1.0, 0.85, 0.2],
+            emissive: [1.6, 1.2, 0.25],
+            spec: 1.0,
+            rim: 0.7
           });
-
-          // Outer outline: Smooth 3D tubular boundary frame outlining the lightning bolt with perfectly rounded corners!
-          this.draw(props.padSmallCoreOutline, _vScratch1, _qTemp, _vScale, {
-            color: [0.40, 0.90, 1.0], // Neon cyber-cyan boundary frame
-            emissive: [0.2 * sGlow, 3.5 * sGlow, 7.5 * sGlow],
-            metallic: 1.0,
-            clearcoat: 1.0,
-            spec: 2.0
-          });
-
-          // 2.5 Synchronized Halo Ring (3D Floating Ring framing the bolt and moving in unison)
-          if (props.padBigRing) {
-            var sSpinQ = new Quat().fromAxisAngle(0, 1, 0, -p.anim * 2.2);
-            var sRingQ = new Quat();
-            sRingQ.mul(_qTemp, sSpinQ); // Sway/tilt and spin together!
-
-            _vScale.set(0.60, 0.60, 0.60); // Sized to fit around the micro bolt
-            this.draw(props.padBigRing, _vScratch1, sRingQ, _vScale, {
-              color: [0.20, 0.85, 1.0],
-              emissive: [0.2 * sGlow, 3.5 * sGlow, 7.0 * sGlow],
-              metallic: 1.0,
-              clearcoat: 1.0,
-              spec: 2.0
-            });
-          }
         }
 
-        // 3. Mini Vertical Electric Spark Lightning Arcs
-        if (pHasLaser && !isUltraFast) {
-          for (var sArc = 0; sArc < 2; sArc++) {
-            var sAngle = (sArc * PI) + p.anim * 3.0;
-            var spx = p.pos.x + Math.cos(sAngle) * 0.20;
-            var spz = p.pos.z + Math.sin(sAngle) * 0.20;
-            var spy = p.pos.y + 0.05 + padElev;
-
-            var pMStart = _vScratch2.set(spx, spy, spz);
-            var pMEnd = _vPos.set(p.pos.x, sBobY, p.pos.z);
-
-            this.drawLaserBeam(pMStart, pMEnd, smallLightningPalette, props, 0.06, 0.02);
-          }
-        }
-
-        // 4. Ground Glow Ring
-        var sScale = 0.60 + Math.sin(p.anim * 2.5) * 0.04;
+        // 3. Ground Glow Ring
+        var sScale = 1.35 + Math.sin(p.anim * 2.5) * 0.08;
         _vScale.set(sScale, 1, sScale);
-        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.02 + padElev, p.pos.z), _qIdentity, _vScale, {
+        this.draw(props.ring, _vPos.set(p.pos.x, p.pos.y + 0.25, p.pos.z), _qIdentity, _vScale, {
           tex: this.texBoostGlow,
-          color: [0.0, 0.82, 1.0],
-          emissive: [0.1, 1.2, 2.5],
+          color: [1.0, 0.82, 0.2],
+          emissive: [1.0, 0.75, 0.15],
           blend: "add",
           opacity: 0.75 + Math.sin(p.anim * 2.5) * 0.15
-        });
-      } else {
-        // Used / Inactive Small Pad: Premium dark-luxury carved carbon/leather cushion with breathing blue embers
-        var sPulse = 0.50 + Math.sin(p.anim * 2.2) * 0.40;
-        this.draw(smallBaseMesh, sBasePos, _qIdentity, _vOne, {
-          color: [0.08, 0.10, 0.12],                                     // Charcoal carbon-leather shell
-          emissive: [0.02 * sPulse, 0.22 * sPulse, 0.55 * sPulse],       // Breathing cyan recharging embers
-          metallic: 0.8,
-          clearcoat: 1.0,
-          bump: 1.2,
-          spec: 1.5
         });
       }
     }
@@ -4501,248 +3243,105 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   var V = CFG.vehicle;
   var groundRestHeight = V.wheel.radius + V.wheel.rest - V.wheel.attachY;
   var upOffset = (CAR_SCALE - 1.0) * groundRestHeight;
-  var carDrawPos = _vCarDrawPos.set(B.pos.x + B.up.x * upOffset, B.pos.y + B.up.y * upOffset, B.pos.z + B.up.z * upOffset);
+  var carDrawPos = _vScratch2.set(B.pos.x + B.up.x * upOffset, B.pos.y + B.up.y * upOffset, B.pos.z + B.up.z * upOffset);
 
   _vScale.set(CAR_SCALE, CAR_SCALE, CAR_SCALE);
 
-  var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM'];
-  var BOT_WHEELS = ['SPORT', 'TURBINE', 'MESH', 'OFFROAD', 'DISH', 'AERO', 'STEEL'];
-
-  var isPlayer = !!car.isPlayer;
-  var cust = CFG.customization || {};
-
-  var modelId = isPlayer
-    ? (cust.model || 'OCTANE')
-    : (BOT_MODELS[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % BOT_MODELS.length] || 'OCTANE');
-  var wheelId = isPlayer
-    ? (cust.wheel || 'SPORT')
-    : (BOT_WHEELS[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % BOT_WHEELS.length] || 'SPORT');
-
-  var kitM = (props.carKit && props.carKit.models && props.carKit.models[modelId]) || null;
-  var kitW = (props.carKit && props.carKit.wheels && props.carKit.wheels[wheelId]) || null;
-
-  var meshBody = (kitM && kitM.body) || props.body;
-  var meshAccent = (kitM && kitM.accent) || props.accent;
-  var meshGlass = (kitM && kitM.glass) || props.glass;
-  var meshLights = (kitM && kitM.lights) || props.lights;
-  var meshThruster = (kitM && kitM.thruster) || props.thruster;
-  var meshTrim = (kitM && kitM.trim) || props.trim;
-  var meshWheel = (kitW && kitW.wheel) || props.wheel;
-  var meshHub = (kitW && kitW.hub) || props.hub;
-
-  // Default colors
-  var bodyCol = col;
-  var accentCol = [0.15, 0.16, 0.19];
-  var trimCol = [0.94, 0.95, 0.96];
-  var glassCol = [0.04, 0.07, 0.12];
-  var lightsCol = team === 0 ? [0.4, 0.7, 1.0] : [1.0, 0.6, 0.2];
-  var thrusterCol = boostActive ? [1.0, 0.8, 0.2] : [0.4, 0.2, 0.1];
-  var wheelCol = [0.10, 0.10, 0.12];
-  var hubCol = col;
-
+  // 1. Main Body Shell (Vibrant automotive lacquer + high-gloss clearcoat + metallic flakes + AO)
   var carGloss = (CFG.gfx && CFG.gfx.carGloss !== undefined) ? CFG.gfx.carGloss : 0.95;
   var carClearcoat = (CFG.gfx && CFG.gfx.carClearcoat !== undefined) ? CFG.gfx.carClearcoat : 0.85;
   var carMetallic = (CFG.gfx && CFG.gfx.carMetallic !== undefined) ? CFG.gfx.carMetallic : 0.50;
   var carFlakes = (CFG.gfx && CFG.gfx.carFlakes !== undefined) ? CFG.gfx.carFlakes : 0.80;
-  var carBump = (CFG.gfx && CFG.gfx.carBump !== undefined) ? CFG.gfx.carBump : 0.90;
   var carAO = (CFG.gfx && CFG.gfx.carAmbientOcclusion !== undefined) ? CFG.gfx.carAmbientOcclusion : 0.80;
 
-  if (isPlayer && cust.useCustomPaint) {
-    if (cust.bodyColor) bodyCol = parseHex(cust.bodyColor, bodyCol);
-    if (cust.accentColor) accentCol = parseHex(cust.accentColor, accentCol);
-    if (cust.trimColor) trimCol = parseHex(cust.trimColor, trimCol);
-    if (cust.glassColor) glassCol = parseHex(cust.glassColor, glassCol);
-    if (cust.lightsColor) lightsCol = parseHex(cust.lightsColor, lightsCol);
-    if (cust.thrusterColor) thrusterCol = parseHex(cust.thrusterColor, thrusterCol);
-    if (cust.hubColor) hubCol = parseHex(cust.hubColor, hubCol);
-    if (cust.wheelColor) wheelCol = parseHex(cust.wheelColor, wheelCol);
+  this.draw(props.body, carDrawPos, B.quat, _vScale, {
+    color: col,
+    spec: carGloss,
+    clearcoat: carClearcoat,
+    metallic: carMetallic,
+    flakes: carFlakes,
+    ao: carAO,
+    rim: 0.35
+  });
 
-    if (cust.metallic !== undefined) carMetallic = cust.metallic;
-    if (cust.gloss !== undefined) carGloss = cust.gloss;
-    if (cust.flakes !== undefined) carFlakes = cust.flakes;
-    if (cust.clearcoat !== undefined) carClearcoat = cust.clearcoat;
-    if (cust.bump !== undefined) carBump = cust.bump;
+  // 3. Trim / Accent & Roll Cage & Engine (Titanium/Carbon with AO)
+  if (boostActive) {
+    _trimEmissive[0] = col[0] * 0.9;
+    _trimEmissive[1] = col[1] * 0.9;
+    _trimEmissive[2] = col[2] * 0.9;
+  } else {
+    _trimEmissive[0] = 0.08;
+    _trimEmissive[1] = 0.08;
+    _trimEmissive[2] = 0.10;
   }
+  this.draw(props.accent, carDrawPos, B.quat, _vScale, {
+    color: [0.15, 0.16, 0.19],
+    emissive: _trimEmissive,
+    spec: carGloss * 0.9,
+    clearcoat: carClearcoat * 0.5,
+    ao: carAO,
+    rim: 0.25
+  });
 
-  // 1. Main Body Shell (Realistic 3D Embossed Panel Relief & Aerodynamic Louvers)
-  if (meshBody) {
-    this.draw(meshBody, carDrawPos, B.quat, _vScale, {
-      color: bodyCol,
-      tex: this.texCarBody,
-      bump: carBump,
-      spec: carGloss,
-      clearcoat: carClearcoat,
-      metallic: carMetallic,
-      flakes: carFlakes,
-      ao: carAO,
-      rim: 0.35
-    });
-  }
-
-  // 2. Racing Stripes / Livery Trim
-  if (meshTrim) {
-    this.draw(meshTrim, carDrawPos, B.quat, _vScale, {
-      color: trimCol,
-      tex: this.texCarTrim,
-      bump: carBump * 0.75,
-      spec: carGloss * 0.9,
-      clearcoat: carClearcoat * 0.8,
-      ao: carAO,
-      rim: 0.30
-    });
-  }
-
-  // 3. Trim / Accent & Roll Cage & Engine
-  if (meshAccent) {
-    if (boostActive) {
-      _trimEmissive[0] = accentCol[0] * 0.9;
-      _trimEmissive[1] = accentCol[1] * 0.9;
-      _trimEmissive[2] = accentCol[2] * 0.9;
-    } else {
-      _trimEmissive[0] = accentCol[0] * 0.2;
-      _trimEmissive[1] = accentCol[1] * 0.2;
-      _trimEmissive[2] = accentCol[2] * 0.2;
-    }
-    this.draw(meshAccent, carDrawPos, B.quat, _vScale, {
-      color: accentCol,
-      tex: this.texCarAccent,
-      bump: carBump * 0.85,
-      emissive: _trimEmissive,
-      spec: carGloss * 0.85,
-      clearcoat: carClearcoat * 0.5,
-      ao: carAO,
-      rim: 0.25
-    });
-  }
-
-  // 4. Glass cockpit
-  if (meshGlass) {
-    this.draw(meshGlass, carDrawPos, B.quat, _vScale, {
-      color: glassCol,
-      emissive: [glassCol[0] * 0.15, glassCol[1] * 0.15, glassCol[2] * 0.15],
-      spec: 0.98,
-      clearcoat: 1.0,
-      rim: 0.85
-    });
-  }
+  // 4. Glass cockpit (Dark tinted racing canopy)
+  this.draw(props.glass, carDrawPos, B.quat, _vScale, {
+    color: [0.04, 0.07, 0.12],
+    emissive: [0.02, 0.03, 0.05],
+    spec: 0.98,
+    clearcoat: 1.0,
+    rim: 0.85
+  });
 
   // 5. Glowing Headlights & Taillights
-  if (meshLights) {
-    this.draw(meshLights, carDrawPos, B.quat, _vScale, {
-      color: lightsCol,
-      emissive: [lightsCol[0] * 2.2, lightsCol[1] * 2.2, lightsCol[2] * 2.2],
+  if (props.lights) {
+    this.draw(props.lights, carDrawPos, B.quat, _vScale, {
+      color: [1.0, 1.0, 1.0],
+      emissive: [1.8, 1.9, 2.1],
       spec: 1.0
     });
   }
 
-  // 6. Rocket Thruster Exhaust Core
-  if (meshThruster) {
+  // 6. Rocket Thruster Exhaust Core (Intense glow on Boost!)
+  if (props.thruster) {
     var thrusterEmissive = boostActive
-      ? [thrusterCol[0] * 3.5, thrusterCol[1] * 2.5, thrusterCol[2] * 1.5]
-      : [thrusterCol[0] * 0.45, thrusterCol[1] * 0.35, thrusterCol[2] * 0.2];
-    this.draw(meshThruster, carDrawPos, B.quat, _vScale, {
-      color: boostActive ? [1.0, 0.8, 0.2] : thrusterCol,
+      ? [2.8, 1.4, 0.3]
+      : [0.35, 0.18, 0.04];
+    this.draw(props.thruster, carDrawPos, B.quat, _vScale, {
+      color: boostActive ? [1.0, 0.8, 0.2] : [0.4, 0.2, 0.1],
       emissive: thrusterEmissive,
       spec: 1.0
     });
   }
 
-  // 7. Four Wheels & Rims
+  // 7. Four Wheels & Rims (Zero heap allocation in wheel loop)
   for (var w = 0; w < 4; w++) {
     var wheel = car.wheels[w];
-    if (!wheel) continue;
-    var curR = wheel.radius || V.wheel.radius;
+    var curR = (wheel && wheel.radius) ? wheel.radius : V.wheel.radius;
     _wheelScale.set(CAR_SCALE * curR, CAR_SCALE * curR, CAR_SCALE * curR);
-
-    var relX, relY, relZ;
-    var dx = wheel.center ? wheel.center.x - B.pos.x : 999;
-    var dy = wheel.center ? wheel.center.y - B.pos.y : 999;
-    var dz = wheel.center ? wheel.center.z - B.pos.z : 999;
-    var distSq = dx * dx + dy * dy + dz * dz;
-
-    // If wheel center is valid and close to car body (within 3 meters unscaled)
-    if (wheel.center && distSq < 9.0) {
-      relX = dx * CAR_SCALE;
-      relY = dy * CAR_SCALE;
-      relZ = dz * CAR_SCALE;
-    } else {
-      // Direct reliable calculation from car body orientation + wheel local attachment
-      var attachRot = B.quat.rotate(wheel.local, _vScratch3);
-      var comp = wheel.compression || 0;
-      var restTravel = V.wheel.rest - comp;
-      relX = attachRot.x * CAR_SCALE;
-      relY = (attachRot.y - restTravel) * CAR_SCALE;
-      relZ = attachRot.z * CAR_SCALE;
-    }
+    var relX = (wheel.center.x - B.pos.x) * CAR_SCALE;
+    var relY = (wheel.center.y - B.pos.y) * CAR_SCALE;
+    var relZ = (wheel.center.z - B.pos.z) * CAR_SCALE;
     _vScratch1.set(carDrawPos.x + relX, carDrawPos.y + relY, carDrawPos.z + relZ);
 
     // Rotate wheel around steer (Y) and rolling spin (X)
-    _qScratch1.fromAxisAngle(0, 1, 0, wheel.steer || 0);
-    _qScratch2.fromAxisAngle(1, 0, 0, wheel.spin || 0);
+    _qScratch1.fromAxisAngle(0, 1, 0, wheel.steer);
+    _qScratch2.fromAxisAngle(1, 0, 0, wheel.spin);
     _qScratch3.mul(B.quat, _qScratch1).mul(_qScratch3, _qScratch2);
 
-    if (meshWheel) {
-      this.draw(meshWheel, _vScratch1, _qScratch3, _wheelScale, {
-        color: wheelCol,
-        tex: this.texCarWheel,
-        bump: carBump * 0.90,
-        spec: 0.30,
-        ao: 0.95
-      });
-    }
+    this.draw(props.wheel, _vScratch1, _qScratch3, _wheelScale, {
+      color: [0.10, 0.10, 0.12],
+      spec: 0.30,
+      ao: 0.95
+    });
 
-    if (meshHub) {
-      this.draw(meshHub, _vScratch1, _qScratch3, _wheelScale, {
-        color: hubCol,
-        tex: this.texCarWheel,
-        bump: carBump * 0.65,
-        emissive: [hubCol[0] * 0.25, hubCol[1] * 0.25, hubCol[2] * 0.25],
-        spec: 0.95,
-        clearcoat: 0.85,
-        metallic: 0.80,
-        rim: 0.45
-      });
-    }
-
-    // 7.1 Four corner fenders / wheel bumpers (fender arches and brake calipers)
-    // Rendered relative to the body but offset along the suspension travel (restTravel)
-    if (kitM && kitM.fenders && kitM.fenders[w]) {
-      var f = kitM.fenders[w];
-      var comp = wheel.compression || 0;
-      var restTravel = V.wheel.rest - comp;
-      var fPos = _vScratch2.set(
-        carDrawPos.x - B.up.x * restTravel * CAR_SCALE,
-        carDrawPos.y - B.up.y * restTravel * CAR_SCALE,
-        carDrawPos.z - B.up.z * restTravel * CAR_SCALE
-      );
-
-      if (f.body) {
-        this.draw(f.body, fPos, B.quat, _vScale, {
-          color: bodyCol,
-          tex: this.texCarBody,
-          bump: carBump,
-          spec: carGloss,
-          clearcoat: carClearcoat,
-          metallic: carMetallic,
-          flakes: carFlakes,
-          ao: carAO,
-          rim: 0.35
-        });
-      }
-
-      if (f.accent) {
-        this.draw(f.accent, fPos, B.quat, _vScale, {
-          color: accentCol,
-          tex: this.texCarAccent,
-          bump: carBump * 0.85,
-          emissive: _trimEmissive,
-          spec: carGloss * 0.85,
-          clearcoat: carClearcoat * 0.5,
-          ao: carAO,
-          rim: 0.25
-        });
-      }
-    }
+    this.draw(props.hub, _vScratch1, _qScratch3, _wheelScale, {
+      color: col,
+      emissive: [col[0] * 0.25, col[1] * 0.25, col[2] * 0.25],
+      spec: 0.95,
+      clearcoat: 0.85,
+      metallic: 0.80,
+      rim: 0.45
+    });
   }
 };
 

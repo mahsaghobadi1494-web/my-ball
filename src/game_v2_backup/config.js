@@ -15,22 +15,22 @@ export var CFG = {
     hx: 0.42, hy: 0.18, hz: 0.59,
     comOffsetY: -0.045,
     inertiaScale: 0.72,
-    driveAccel: 24.0,
-    driveSpeedCap: 18.5,
-    reverseAccel: 15.0,
-    reverseSpeedCap: 10.5,
-    brakeAccel: 30.0,
+    driveAccel: 21.0,
+    driveSpeedCap: 17.5,
+    reverseAccel: 14.0,
+    reverseSpeedCap: 10.0,
+    brakeAccel: 28.0,
     coastDecel: 2.8,
     steerMax: 0.65,
     steerMin: 0.18,
     steerRate: 14.0,
-    grip: 32.0,
-    gripSlide: 6.0,
+    grip: 30.0,
+    gripSlide: 5.5,
     slideRecover: 7.5,
-    frictionCircle: 4.0,
+    frictionCircle: 3.8,
     airDrag: 0.015,
-    groundDrag: 0.005,
-    stickAccel: 22.0,
+    groundDrag: 0.006,
+    stickAccel: 10.5,
     stickSpeedRef: 9.0,
     ballHitboxScaleX: 1.25,
     ballHitboxScaleY: 1.20,
@@ -70,14 +70,14 @@ export var CFG = {
     carPushBack: 0.02
   },
   arena: {
-    hx: 61.5,
-    hz: 76.8,
-    height: 30.75,
-    fillet: 3.9,
-    cornerFillet: 12.3,
-    goalHalfW: 13.395,
-    goalHeight: 9.63,
-    goalDepth: 9.6,
+    hx: 41.0,
+    hz: 51.2,
+    height: 20.5,
+    fillet: 2.6,
+    cornerFillet: 8.2,
+    goalHalfW: 8.93,
+    goalHeight: 6.42,
+    goalDepth: 6.4,
     wallFriction: 0.55,
     wallRestitution: 0.30
   },
@@ -89,9 +89,8 @@ export var CFG = {
     overtime: true
   },
   camera: {
-    fov: 100, distance: 9.0, height: 2.45, stiffness: 1.0, pitch: 12,
+    fov: 100, distance: 9.0, height: 2.45, stiffness: 1.0,
     ballcamHeight: 3.1, ballcamDistance: 9.6, shake: 1.0, speedZoom: 2.6, fovSpeed: 10,
-    swivelSpeed: 2.5, transitionSpeed: 1.5,
     startBallcam: true
   },
   ai: {
@@ -122,8 +121,6 @@ export var CFG = {
     carClearcoat: 0.95,
     carMetallic: 0.08,
     carFlakes: 0.00, // Zero brushed noise for pure mirror-smooth lacquer
-    carBump: 0.90, // Procedural 3D surface relief, panel seams, hood vents, and carbon fiber micro-relief
-    carBumpStyle: "SPORTS_PANELS", // "SPORTS_PANELS" | "AERO_LOUVERS" | "CARBON_WEAVE" | "ARMOR_PLATES"
     carAmbientOcclusion: 0.85, // Cavity & chassis contact self-shadowing
     carReflection: 0.80,
     shadowMapping: true, // Real-time directional sun shadow map (WebGL2 native PCF)
@@ -146,29 +143,11 @@ export var CFG = {
     grassTremble: 0.80, // flutter jitter
     grassTipCreaminess: 1.00, // Velvety creamy warm sunlight tips (soft rounded edges)
     grassSubsurface: 0.80, // Soft light translucency
-    boostPadHeightOffset: 0.35, // Elevation above turf/grass (in meters)
     // Animated Stadium Spectator Crowds & Mexican Wave
     crowdAnimation: true,
     crowdEnergy: 1.0 // Cheering wave and jump height intensity
   },
-  customization: {
-    model: "OCTANE", // "OCTANE" | "VORTEX" | "STRIKER" | "TITAN" | "RAPTOR" | "PHANTOM"
-    wheel: "SPORT",  // "SPORT" | "TURBINE" | "MESH" | "OFFROAD" | "DISH" | "AERO" | "STEEL"
-    useCustomPaint: true, // If true, player uses custom paint instead of pure team color
-    bodyColor: "#e0468c",       // Primary body paint hex
-    accentColor: "#181c23",     // Roll cage, sills, carbon trim hex
-    trimColor: "#f0f2f5",       // Racing stripes, roof accents hex
-    glassColor: "#0a0e14",      // Canopy tint hex
-    lightsColor: "#4ca5ff",     // Headlights & LED glow hex
-    thrusterColor: "#ff7700",   // Jet nozzle & flame hex
-    hubColor: "#d6dade",        // Rim face & alloy spokes hex
-    wheelColor: "#121418",      // Tyre rubber hex
-    metallic: 0.65,
-    gloss: 0.95,
-    flakes: 0.30,
-    clearcoat: 0.90
-  },
-  input: { steerSens: 1.0, airSens: 1.0, deadzone: 0.16 },
+  input: { steerSens: 1.0, airSens: 1.0, deadzone: 0.15 },
   debug: { showHitboxes: false }
 };
 
@@ -244,42 +223,6 @@ export var STADIUM_THEMES = {
     shellColor: [0.45, 0.25, 0.52],
     crowdEmissive: [0.38, 0.12, 0.48],
     lightsEmissive: [2.2, 1.4, 2.2]
-  },
-  CYBER_SUNSET: {
-    id: "CYBER_SUNSET",
-    name: "Cyber Sunset Colosseum",
-    subName: "Synthwave Golden Hour",
-    badge: "FANTASY",
-    turfBase: "#1e1428",
-    turfStripe1: "#2c1c3c",
-    turfStripe2: "#241632",
-    lineColor: "#ffd166",
-    team0Grad: "rgba(255,42,109,0.28)",
-    team1Grad: "rgba(255,170,0,0.28)",
-    particleColor: "rgba(255,210,120,",
-    fogColor: [0.22, 0.08, 0.18],
-    skyColor: [0.35, 0.10, 0.28],
-    shellColor: [0.65, 0.35, 0.55],
-    crowdEmissive: [0.55, 0.25, 0.45],
-    lightsEmissive: [2.5, 1.8, 1.2]
-  },
-  COSMIC_AURORA: {
-    id: "COSMIC_AURORA",
-    name: "Cosmic Aurora Arena",
-    subName: "Starlight & Celestial Aurora",
-    badge: "COSMIC",
-    turfBase: "#0b1f24",
-    turfStripe1: "#122e36",
-    turfStripe2: "#0e262c",
-    lineColor: "#05ffa1",
-    team0Grad: "rgba(5,255,161,0.26)",
-    team1Grad: "rgba(185,43,255,0.26)",
-    particleColor: "rgba(160,255,230,",
-    fogColor: [0.03, 0.08, 0.12],
-    skyColor: [0.05, 0.14, 0.22],
-    shellColor: [0.25, 0.65, 0.55],
-    crowdEmissive: [0.25, 0.55, 0.50],
-    lightsEmissive: [1.6, 2.4, 2.2]
   }
 };
 
@@ -353,141 +296,3 @@ export var TEAM = { PULSE: 0, VOLT: 1 };
 export var TEAM_NAME = ["Pulse", "Volt"];
 export var TEAM_COLOR = [[1.0, 0.20, 0.52], [0.60, 0.98, 0.28]];
 export var BOT_NAMES = [["Kestrel", "Mako"], ["Vector", "Onyx", "Halcyon"]];
-
-export var CAR_BODY_DEFS = [
-  { id: 'OCTANE', name: 'Octane', nameFa: 'اکتان (Octane)', sub: 'باگی کلاسیک', icon: 'buggy', desc: 'باگی نمادین مسابقات با گلگیرهای برجسته، اسکوپ روی سقف و بال آیرودینامیک بلند' },
-  { id: 'VORTEX', name: 'Vortex', nameFa: 'ورتکس (Vortex)', sub: 'GT سوپراسپرت', icon: 'car', desc: 'بدنه پهن و ارتفاع کم، کابین فست‌بک و ورودی‌های هوای جانبی فیبر کربنی' },
-  { id: 'STRIKER', name: 'Striker', nameFa: 'استرایکر (Striker)', sub: 'ماسل کار کلاسیک', icon: 'zap', desc: 'کاپوت کشیده و عضلانی، کابین عقب‌رفته و اسپویلر دم‌اردکی مسابقه‌ای' },
-  { id: 'TITAN', name: 'Titan', nameFa: 'تایتان (Titan)', sub: 'ون آفرود قدرتی', icon: 'shield', desc: 'شاسی بلند و بدنه تقویت‌شده با شیشه‌های مرتفع و لایت‌بار نئونی روی سقف' },
-  { id: 'RAPTOR', name: 'Raptor', nameFa: 'رپتور (Raptor)', sub: 'پیکاپ ترافی ترک', icon: 'truck', desc: 'اتاق باربند باز با ریل‌های محافظ استیل، گارد جلو و بدنه مقاوم در برابر ضربه' },
-  { id: 'PHANTOM', name: 'Phantom', nameFa: 'فانتوم (Phantom)', sub: 'فرمول اپن‌ویل', icon: 'flame', desc: 'چرخ‌های باز و رها، بال جلو سه‌تکه، سایدپادهای آیرودینامیک و هیلو ایمنی راننده' }
-];
-
-export var CAR_WHEEL_DEFS = [
-  { id: 'SPORT', name: 'Sport 5', nameFa: 'اسپرت ۵ پره', sub: 'پنج‌پره اسپرت', desc: '۵ پره پهن و مخروطی با لبه‌های تراش‌خورده و صیقلی' },
-  { id: 'TURBINE', name: 'Turbine', nameFa: 'توربینی', sub: 'توربینی ریسینگ', desc: '۱۲ پره باریک با زاویه مایل جهت خنک‌کاری بهینه دیسک ترمز' },
-  { id: 'MESH', name: 'Mesh Lock', nameFa: 'مش قفل‌دار', sub: 'شبکه‌ای سنترلاک', desc: '۱۰ پره متقاطع مشبک مسابقه‌ای با ۶ مهره تیتانیومی سنترلاک' },
-  { id: 'OFFROAD', name: 'Offroad', nameFa: 'آفرود بولد', sub: 'عضلانی بیابانی', desc: '۶ پره ضخیم فوق‌العاده مستحکم با تایرهای بالونی عاج‌دار' },
-  { id: 'DISH', name: 'Deep Dish', nameFa: 'دیپ دیش', sub: 'لبه عمیق', desc: 'پره‌های فرورفته در عمق رینگ با لبه خارجی براق و برجسته' },
-  { id: 'AERO', name: 'Aero Cover', nameFa: 'کاور آیرو', sub: 'دیسک آیرودینامیک', desc: 'صفحه بسته آیرودینامیک ضد تلاطم هوا با ۵ شیار تخلیه گرما' },
-  { id: 'STEEL', name: 'Rally Steel', nameFa: 'استیل رالی', sub: 'رالی مسابقه‌ای', desc: '۸ پره باریک با رینگ فشرده و تایر با دیواره بلند مخصوص رالی' }
-];
-
-export var CAR_PRESETS = [
-  {
-    id: "neonCyberpunk",
-    name: "Cyberpunk 2077",
-    nameFa: "سایبرپانک نئونی",
-    model: "VORTEX",
-    wheel: "TURBINE",
-    bodyColor: "#ff007f",
-    accentColor: "#00f0ff",
-    trimColor: "#ffe600",
-    glassColor: "#050d1a",
-    lightsColor: "#00f0ff",
-    thrusterColor: "#ff0055",
-    hubColor: "#ffe600",
-    wheelColor: "#0a0c10",
-    metallic: 0.85,
-    gloss: 0.98,
-    flakes: 0.50,
-    clearcoat: 0.95
-  },
-  {
-    id: "stealthCarbon",
-    name: "Stealth Carbon",
-    nameFa: "کربن سیاه مخفی‌کار",
-    model: "PHANTOM",
-    wheel: "AERO",
-    bodyColor: "#15181e",
-    accentColor: "#0d0f12",
-    trimColor: "#ff2233",
-    glassColor: "#050608",
-    lightsColor: "#ff1122",
-    thrusterColor: "#ff3300",
-    hubColor: "#22252a",
-    wheelColor: "#08090b",
-    metallic: 0.20,
-    gloss: 0.90,
-    flakes: 0.10,
-    clearcoat: 0.90
-  },
-  {
-    id: "scuderiaRacing",
-    name: "Scuderia Corsa",
-    nameFa: "اسکودریا کورسا مسابقه‌ای",
-    model: "OCTANE",
-    wheel: "SPORT",
-    bodyColor: "#d91424",
-    accentColor: "#14171d",
-    trimColor: "#ffffff",
-    glassColor: "#0b1220",
-    lightsColor: "#ffffff",
-    thrusterColor: "#ff7700",
-    hubColor: "#d5dadf",
-    wheelColor: "#111317",
-    metallic: 0.45,
-    gloss: 0.96,
-    flakes: 0.20,
-    clearcoat: 0.95
-  },
-  {
-    id: "goldenImperial",
-    name: "Royal 24K Gold",
-    nameFa: "طلای سلطنتی ۲۴ عیار",
-    model: "STRIKER",
-    wheel: "DISH",
-    bodyColor: "#d4af37",
-    accentColor: "#1a160d",
-    trimColor: "#f7e7a6",
-    glassColor: "#151105",
-    lightsColor: "#ffe899",
-    thrusterColor: "#ffaa00",
-    hubColor: "#ffd700",
-    wheelColor: "#12110e",
-    metallic: 0.95,
-    gloss: 0.98,
-    flakes: 0.70,
-    clearcoat: 1.00
-  },
-  {
-    id: "toxicAcid",
-    name: "Toxic Radioactive",
-    nameFa: "سمی رادیواکتیو نئونی",
-    model: "TITAN",
-    wheel: "OFFROAD",
-    bodyColor: "#55ff00",
-    accentColor: "#15220c",
-    trimColor: "#111111",
-    glassColor: "#0b1a05",
-    lightsColor: "#88ff33",
-    thrusterColor: "#44ff00",
-    hubColor: "#66ff11",
-    wheelColor: "#0f120e",
-    metallic: 0.70,
-    gloss: 0.95,
-    flakes: 0.40,
-    clearcoat: 0.90
-  },
-  {
-    id: "gulfHeritage",
-    name: "Gulf Heritage",
-    nameFa: "گلف هریتیج کلاسیک",
-    model: "RAPTOR",
-    wheel: "MESH",
-    bodyColor: "#6ec6e6",
-    accentColor: "#13212b",
-    trimColor: "#ff6600",
-    glassColor: "#08131d",
-    lightsColor: "#ffffff",
-    thrusterColor: "#ff5500",
-    hubColor: "#ff7711",
-    wheelColor: "#101316",
-    metallic: 0.35,
-    gloss: 0.94,
-    flakes: 0.15,
-    clearcoat: 0.90
-  }
-];
-
-

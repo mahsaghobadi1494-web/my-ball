@@ -32,117 +32,52 @@ Arena.prototype.region = function (p) {
   }
   return 0;
 };
-Arena.prototype.dist = function (p, forCar) {
+Arena.prototype.dist = function (p) {
   var d_shell = -this.sdShell(p);
 
   var s = p.z >= 0 ? 1 : -1;
   var absZ = s * p.z;
   var absX = Math.abs(p.x);
   var gw = this.goalHalfW, gh = this.goalHeight, gd = this.goalDepth, hz = this.hz;
-  var Rg = 2.0;
 
-  if (absZ > hz - 3.5) {
-    var d_floor = p.y;
-    var d_ceil = gh - p.y;
-    var d_back = (hz + gd) - absZ;
-    var d_side = gw - absX;
+  if (absZ > hz - 4.0) {
+    var margin = 0.6;
+    var factorX = clamp((gw - absX) / margin, 0, 1);
+    var factorY = clamp((gh - p.y) / margin, 0, 1);
+    var mouthFactor = factorX * factorY;
 
-    if (forCar) {
-      // 1. Goal posts and crossbar complete pass-through for car
-      if (Math.abs(absZ - hz) < 3.5) {
-        if (absX <= gw + 2.5 && p.y <= gh + 2.5) {
-          // Open air between pitch and goal
-          var d_open = Math.min(p.y, Math.min(this.h - p.y, (hz + gd) - absZ));
-          return d_open;
-        }
-      }
-
-      // 2. Goal roof driving surface: if car is driving on top of the goal net
-      if (absZ >= hz && absZ <= hz + gd + 0.6 && absX <= gw + 0.6 && p.y >= gh - 0.2) {
-        var d_roof_floor = p.y - gh;
-        var d_roof_ceil = this.h - p.y;
-        var d_roof_side = this.hx - absX;
-        return Math.min(d_roof_floor, Math.min(d_roof_ceil, d_roof_side));
-      }
-
-      // 3. Inside goal cavity
+    if (mouthFactor > 0) {
       if (absZ >= hz) {
-        if (absX <= gw + 2.5 && p.y <= gh + 2.5) {
-          var d_fb = (d_floor < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_floor, Rg - d_back) : Math.min(d_floor, d_back);
-          var d_cb = (d_ceil < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_ceil, Rg - d_back) : Math.min(d_ceil, d_back);
-          var d_cs = (d_ceil < Rg && d_side < Rg) ? Rg - Math.hypot(Rg - d_ceil, Rg - d_side) : Math.min(d_ceil, d_side);
-          var d_fs = (d_floor < Rg && d_side < Rg) ? Rg - Math.hypot(Rg - d_floor, Rg - d_side) : Math.min(d_floor, d_side);
+        var Rg = 2.0;
+        var d_floor = p.y;
+        var d_ceil = gh - p.y;
+        var d_back = (hz + gd) - absZ;
+        var d_side = gw - absX;
 
-          return Math.min(d_fb, Math.min(d_cb, Math.min(d_cs, d_fs)));
-        } else {
-          return d_shell;
-        }
+        var d_fb = (d_floor < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_floor, Rg - d_back) : Math.min(d_floor, d_back);
+        var d_cb = (d_ceil < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_ceil, Rg - d_back) : Math.min(d_ceil, d_back);
+        var d_sb = (d_side < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_side, Rg - d_back) : Math.min(d_side, d_back);
+        var d_cavity = Math.min(d_fb, Math.min(d_cb, d_sb));
+
+        return lerp(d_shell, d_cavity, mouthFactor);
       } else {
-        // Pitch side entering mouth
-        if (absX <= gw + 2.5 && p.y <= gh + 2.5) {
-          var d_pitch_open = Math.min(p.y, Math.min(this.h - p.y, this.hx - absX));
-          return d_pitch_open;
-        } else {
-          return d_shell;
-        }
-      }
-    }
-
-    // Ball physics: tubular posts and crossbar with pipe radius 0.22
-    var pipeR = 0.22;
-    var d_post = Math.hypot(absX - gw, absZ - hz) - pipeR;
-    var d_bar = Math.hypot(p.y - gh, absZ - hz) - pipeR;
-
-    if (absZ >= hz) {
-      if (absX <= gw && p.y <= gh) {
-        var d_fb_b = (d_floor < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_floor, Rg - d_back) : Math.min(d_floor, d_back);
-        var d_cb_b = (d_ceil < Rg && d_back < Rg) ? Rg - Math.hypot(Rg - d_ceil, Rg - d_back) : Math.min(d_ceil, d_back);
-        var d_cs_b = (d_ceil < Rg && d_side < Rg) ? Rg - Math.hypot(Rg - d_ceil, Rg - d_side) : Math.min(d_ceil, d_side);
-        var d_fs_b = (d_floor < Rg && d_side < Rg) ? Rg - Math.hypot(Rg - d_floor, Rg - d_side) : Math.min(d_floor, d_side);
-
-        return Math.min(d_fb_b, Math.min(d_cb_b, Math.min(d_cs_b, d_fs_b)));
-      } else {
-        if (p.y <= gh && Math.abs(absZ - hz) < pipeR * 2.0 && Math.abs(absX - gw) < pipeR * 2.0) {
-          return d_post;
-        }
-        if (absX <= gw && Math.abs(absZ - hz) < pipeR * 2.0 && Math.abs(p.y - gh) < pipeR * 2.0) {
-          return d_bar;
-        }
-        return d_shell;
-      }
-    } else {
-      if (absX <= gw && p.y <= gh) {
-        if (Math.abs(p.y - gh) < pipeR * 2.0 && Math.abs(absZ - hz) < pipeR * 2.0) {
-          return d_bar;
-        }
-        if (Math.abs(absX - gw) < pipeR * 2.0 && Math.abs(absZ - hz) < pipeR * 2.0) {
-          return d_post;
-        }
-        var d_pitch_open_b = Math.min(p.y, Math.min(this.h - p.y, this.hx - absX));
-        return d_pitch_open_b;
-      } else {
-        if (p.y <= gh && Math.abs(absZ - hz) < pipeR * 2.0 && Math.abs(absX - gw) < pipeR * 2.0) {
-          return d_post;
-        }
-        if (absX <= gw && Math.abs(absZ - hz) < pipeR * 2.0 && Math.abs(p.y - gh) < pipeR * 2.0) {
-          return d_bar;
-        }
-        return d_shell;
+        var d_pitch_open = Math.min(p.y, Math.min(this.h - p.y, this.hx - absX));
+        return lerp(d_shell, d_pitch_open, mouthFactor);
       }
     }
   }
 
   return d_shell;
 };
-Arena.prototype.normal = function (p, out, forCar) {
+Arena.prototype.normal = function (p, out) {
   out = out || tv();
   var e = this.gradEps, a = tv();
-  a.set(p.x + e, p.y, p.z); var dx1 = this.dist(a, forCar);
-  a.set(p.x - e, p.y, p.z); var dx2 = this.dist(a, forCar);
-  a.set(p.x, p.y + e, p.z); var dy1 = this.dist(a, forCar);
-  a.set(p.x, p.y - e, p.z); var dy2 = this.dist(a, forCar);
-  a.set(p.x, p.y, p.z + e); var dz1 = this.dist(a, forCar);
-  a.set(p.x, p.y, p.z - e); var dz2 = this.dist(a, forCar);
+  a.set(p.x + e, p.y, p.z); var dx1 = this.dist(a);
+  a.set(p.x - e, p.y, p.z); var dx2 = this.dist(a);
+  a.set(p.x, p.y + e, p.z); var dy1 = this.dist(a);
+  a.set(p.x, p.y - e, p.z); var dy2 = this.dist(a);
+  a.set(p.x, p.y, p.z + e); var dz1 = this.dist(a);
+  a.set(p.x, p.y, p.z - e); var dz2 = this.dist(a);
 
   var nx = dx1 - dx2;
   var ny = dy1 - dy2;
@@ -158,15 +93,15 @@ Arena.prototype.normal = function (p, out, forCar) {
   out.set(0, 1, 0);
   return out;
 };
-Arena.prototype.ray = function (origin, dir, maxDist, out, forCar) {
+Arena.prototype.ray = function (origin, dir, maxDist, out) {
   var t = 0, p = tv(), d = 0;
   for (var i = 0; i < 28; i++) {
     p.set(origin.x + dir.x * t, origin.y + dir.y * t, origin.z + dir.z * t);
-    d = this.dist(p, forCar);
+    d = this.dist(p);
     if (d < 0.006) {
       if (out) {
         if (out.point && typeof out.point.set === "function") out.point.set(p.x, p.y, p.z);
-        if (out.normal) this.normal(p, out.normal, forCar);
+        if (out.normal) this.normal(p, out.normal);
         out.dist = t;
       }
       return t;
@@ -577,112 +512,10 @@ Arena.prototype.build = function (R) {
     else bScreens.quadN(i0, i3, i2, i1);
   }
 
-  // =========================================================================
-  // SUSPENDED 4-SIDED CENTER 3D HALO JUMBOTRON & HOLOGRAPHIC SCOREBOARD
-  // =========================================================================
-  var bJumbotronTruss = new Builder();
-  var bJumbotronScreens = new Builder();
-  var jCenterY = h - 2.8; // Hanging just below ceiling trusses
-  var jHalfW = 4.8, jHalfD = 4.8, jH = 2.8;
-
-  // 1. Heavy Suspended Steel Frame & Gantry Catwalk
-  bJumbotronTruss.box(jHalfW * 1.05, 0.22, jHalfD * 1.05, new V3(0, jCenterY + jH * 0.52, 0), null, 0.5);
-  bJumbotronTruss.box(jHalfW * 0.95, 0.22, jHalfD * 0.95, new V3(0, jCenterY - jH * 0.52, 0), null, 0.5);
-  // 4 Corner Truss Columns
-  for (var jcx = -1; jcx <= 1; jcx += 2) {
-    for (var jcz = -1; jcz <= 1; jcz += 2) {
-      bJumbotronTruss.box(0.25, jH * 0.52, 0.25, new V3(jcx * jHalfW, jCenterY, jcz * jHalfD), null, 0.3);
-      // Suspension Steel Cables connecting to roof trusses
-      bJumbotronTruss.tube(
-        new V3(jcx * jHalfW, jCenterY + jH * 0.52, jcz * jHalfD),
-        new V3(jcx * (this.hx * 0.45), h - 0.1, jcz * (this.hz * 0.35)),
-        0.06, 6
-      );
-    }
-  }
-  // Undercarriage Central Glowing Hologram Emitter Ring
-  for (var jhr = 0; jhr < 12; jhr++) {
-    var ja0 = (jhr / 12) * TAU, ja1 = ((jhr + 1) / 12) * TAU;
-    var jr = 2.2;
-    bJumbotronTruss.tube(
-      new V3(Math.cos(ja0) * jr, jCenterY - jH * 0.56, Math.sin(ja0) * jr),
-      new V3(Math.cos(ja1) * jr, jCenterY - jH * 0.56, Math.sin(ja1) * jr),
-      0.12, 6
-    );
-  }
-
-  // 2. 4 Angled High-Def LED Screens (Facing North, South, East, West)
-  // North Screen (facing -Z)
-  var jn0 = bJumbotronScreens.vert(-jHalfW * 0.92, jCenterY - jH * 0.45, -jHalfD * 0.96, 0, 0, -1, 0, 1);
-  var jn1 = bJumbotronScreens.vert( jHalfW * 0.92, jCenterY - jH * 0.45, -jHalfD * 0.96, 0, 0, -1, 1, 1);
-  var jn2 = bJumbotronScreens.vert( jHalfW * 0.92, jCenterY + jH * 0.45, -jHalfD * 0.96, 0, 0, -1, 1, 0);
-  var jn3 = bJumbotronScreens.vert(-jHalfW * 0.92, jCenterY + jH * 0.45, -jHalfD * 0.96, 0, 0, -1, 0, 0);
-  bJumbotronScreens.quadN(jn0, jn3, jn2, jn1);
-
-  // South Screen (facing +Z)
-  var js0 = bJumbotronScreens.vert( jHalfW * 0.92, jCenterY - jH * 0.45,  jHalfD * 0.96, 0, 0, 1, 0, 1);
-  var js1 = bJumbotronScreens.vert(-jHalfW * 0.92, jCenterY - jH * 0.45,  jHalfD * 0.96, 0, 0, 1, 1, 1);
-  var js2 = bJumbotronScreens.vert(-jHalfW * 0.92, jCenterY + jH * 0.45,  jHalfD * 0.96, 0, 0, 1, 1, 0);
-  var js3 = bJumbotronScreens.vert( jHalfW * 0.92, jCenterY + jH * 0.45,  jHalfD * 0.96, 0, 0, 1, 0, 0);
-  bJumbotronScreens.quadN(js0, js3, js2, js1);
-
-  // East Screen (facing +X)
-  var je0 = bJumbotronScreens.vert( jHalfW * 0.96, jCenterY - jH * 0.45, -jHalfD * 0.92, 1, 0, 0, 0, 1);
-  var je1 = bJumbotronScreens.vert( jHalfW * 0.96, jCenterY - jH * 0.45,  jHalfD * 0.92, 1, 0, 0, 1, 1);
-  var je2 = bJumbotronScreens.vert( jHalfW * 0.96, jCenterY + jH * 0.45,  jHalfD * 0.92, 1, 0, 0, 1, 0);
-  var je3 = bJumbotronScreens.vert( jHalfW * 0.96, jCenterY + jH * 0.45, -jHalfD * 0.92, 1, 0, 0, 0, 0);
-  bJumbotronScreens.quadN(je0, je3, je2, je1);
-
-  // West Screen (facing -X)
-  var jw0 = bJumbotronScreens.vert(-jHalfW * 0.96, jCenterY - jH * 0.45,  jHalfD * 0.92, -1, 0, 0, 0, 1);
-  var jw1 = bJumbotronScreens.vert(-jHalfW * 0.96, jCenterY - jH * 0.45, -jHalfD * 0.92, -1, 0, 0, 1, 1);
-  var jw2 = bJumbotronScreens.vert(-jHalfW * 0.96, jCenterY + jH * 0.45, -jHalfD * 0.92, -1, 0, 0, 1, 0);
-  var jw3 = bJumbotronScreens.vert(-jHalfW * 0.96, jCenterY + jH * 0.45,  jHalfD * 0.92, -1, 0, 0, 0, 0);
-  bJumbotronScreens.quadN(jw0, jw3, jw2, jw1);
-
-  // =========================================================================
-  // CORNER PITCH FLAG POLES WITH WAVING PENNANTS
-  // =========================================================================
-  var bCornerFlags = new Builder();
-  var cMarginX = 3.6, cMarginZ = 4.2;
-  var cCorners = [
-    { x: -this.hx + cMarginX, z: -this.hz + cMarginZ, dir: 1, team: 0 },
-    { x:  this.hx - cMarginX, z: -this.hz + cMarginZ, dir: -1, team: 0 },
-    { x:  this.hx - cMarginX, z:  this.hz - cMarginZ, dir: -1, team: 1 },
-    { x: -this.hx + cMarginX, z:  this.hz - cMarginZ, dir: 1, team: 1 }
-  ];
-  for (var cfi = 0; cfi < cCorners.length; cfi++) {
-    var CF = cCorners[cfi];
-    // Flagpole vertical shaft
-    bCornerFlags.tube(new V3(CF.x, 0, CF.z), new V3(CF.x, 1.85, CF.z), 0.035, 8);
-    // Gold finial ball on top
-    bCornerFlags.sphere(0.065, 8, 8, new V3(CF.x, 1.88, CF.z));
-    // Triangular waving pennant flag
-    var fTop = 1.82, fBot = 1.35, fLen = 0.55 * CF.dir;
-    var f0 = bCornerFlags.vert(CF.x, fTop, CF.z, 0, 0, 1, 0, 0);
-    var f1 = bCornerFlags.vert(CF.x + fLen, (fTop + fBot) * 0.5, CF.z + 0.08, 0, 0, 1, 1, 0.5);
-    var f2 = bCornerFlags.vert(CF.x, fBot, CF.z, 0, 0, 1, 0, 1);
-    bCornerFlags.tri(f0, f1, f2);
-    bCornerFlags.tri(f0, f2, f1); // Double-sided
-  }
-
-  // =========================================================================
-  // ARENA PERIMETER NEON ENERGY RUNNERS
-  // =========================================================================
-  var bNeonPerimeter = new Builder();
-  var rimH = h - 0.15;
-  for (var rpi = 0; rpi < nPts; rpi++) {
-    var rpiNext = (rpi + 1) % nPts;
-    var pA_rim = rings[rings.length - 1][rpi];
-    var pB_rim = rings[rings.length - 1][rpiNext];
-    // Upper roof neon perimeter tube
-    bNeonPerimeter.tube(new V3(pA_rim.x, rimH, pA_rim.z), new V3(pB_rim.x, rimH, pB_rim.z), 0.08, 6);
-  }
-
   var goals = [];
   for (var g = 0; g < 2; g++) {
     var s = g === 0 ? -1 : 1;
-    var bg = new Builder(), bn = new Builder(), bf = new Builder(), bgn = new Builder();
+    var bg = new Builder(), bn = new Builder(), bf = new Builder();
     var gw2 = this.goalHalfW, gh = this.goalHeight, gd = this.goalDepth;
     var z0 = s * this.hz;
     var z1 = s * (this.hz + gd);
@@ -806,33 +639,8 @@ Arena.prototype.build = function (R) {
     bf.tube(new V3(-gw2, 0, postZ), new V3(-gw2, 0, z1), pipeR * 0.7, 10);
     bf.tube(new V3(gw2, 0, postZ), new V3(gw2, 0, z1), pipeR * 0.7, 10);
 
-    // =======================================================================
-    // GLOWING 3D NEON GOAL POST TRIMS & OVERHEAD HALO CROWN ARCH
-    // =======================================================================
-    var neonOffset = 0.09;
-    var nZ = postZ - s * neonOffset;
-    // Left & Right Outer Neon Accent Strips
-    bgn.tube(new V3(-gw2 - neonOffset, 0, nZ), new V3(-gw2 - neonOffset, gh + 0.1, nZ), 0.07, 6);
-    bgn.tube(new V3(gw2 + neonOffset, 0, nZ), new V3(gw2 + neonOffset, gh + 0.1, nZ), 0.07, 6);
-    // Top Glowing Neon Crossbar Strip
-    bgn.tube(new V3(-gw2 - neonOffset, gh + neonOffset, nZ), new V3(gw2 + neonOffset, gh + neonOffset, nZ), 0.07, 6);
-
-    // Overhead Glowing Crown Team Halo Arch above Goal
-    var archR = gw2 * 0.85, archCY = gh + 0.45;
-    var nArchSegs = 12;
-    for (var ai = 0; ai < nArchSegs; ai++) {
-      var aa0 = (ai / nArchSegs) * PI, aa1 = ((ai + 1) / nArchSegs) * PI;
-      var ax0 = Math.cos(aa0) * archR, ay0 = archCY + Math.sin(aa0) * 1.35;
-      var ax1 = Math.cos(aa1) * archR, ay1 = archCY + Math.sin(aa1) * 1.35;
-      bgn.tube(new V3(ax0, ay0, nZ), new V3(ax1, ay1, nZ), 0.08, 6);
-    }
-    // Glowing Goal Corner Flare Nodes
-    bgn.sphere(0.18, 8, 8, new V3(-gw2, gh, nZ));
-    bgn.sphere(0.18, 8, 8, new V3(gw2, gh, nZ));
-
     goals.push({
       team: g, side: s, cavity: R.mesh(bg), net: R.mesh(bn), frame: R.mesh(bf),
-      neon: R.mesh(bgn),
       center: new V3(0, gh * 0.35, s * (this.hz + gd * 0.5)),
       mouth: new V3(0, gh * 0.4, s * this.hz)
     });
@@ -844,8 +652,6 @@ Arena.prototype.build = function (R) {
     ceiling: R.mesh(bCeil), skyDome: R.mesh(bSkyDome), lights: R.mesh(bLights), goals: goals,
     adBoards: R.mesh(bAdBoards), ribbons: R.mesh(bRibbons),
     trusses: R.mesh(bTrusses), screens: R.mesh(bScreens),
-    jumbotron: R.mesh(bJumbotronTruss), jumbotronScreens: R.mesh(bJumbotronScreens),
-    neonPerimeter: R.mesh(bNeonPerimeter), cornerFlags: R.mesh(bCornerFlags),
     beams: R.mesh(bBeams)
   };
 };
@@ -1136,21 +942,9 @@ export function Vehicle(index, team, isPlayer, name) {
   this.surfaceNormal = new V3(0, 1, 0);
   this.stats = { goals: 0, touches: 0, boostUsed: 0, saves: 0 };
   this.debug = { contact: null, normal: null, impulse: 0, relVel: 0, surface: "-" };
-  this.updateWheelCenters();
 }
 Vehicle.prototype.speed = function () { return this.body.vel.len(); };
 Vehicle.prototype.forwardSpeed = function () { return this.body.vel.dot(this.body.fwd); };
-Vehicle.prototype.updateWheelCenters = function () {
-  var B = this.body, V = CFG.vehicle, W = V.wheel;
-  var down = tv(-B.up.x, -B.up.y, -B.up.z);
-  for (var i = 0; i < 4; i++) {
-    var w = this.wheels[i];
-    var attach = B.quat.rotate(w.local, tv());
-    attach.add(B.pos);
-    var restTravel = W.rest - (w.compression || 0);
-    w.center.copy(attach).addS(down, Math.max(0.01, restTravel));
-  }
-};
 Vehicle.prototype.resetState = function (pos, quat, boost) {
   this.body.teleport(pos, quat);
   this.boost = boost === undefined ? 33 : boost;
@@ -1166,7 +960,6 @@ Vehicle.prototype.resetState = function (pos, quat, boost) {
     var w = this.wheels[i];
     w.compression = 0; w.prevCompression = 0; w.grounded = false; w.steer = 0; w.spin = 0; w.load = 0; w.slip = 0; w.contactTime = 0;
   }
-  this.updateWheelCenters();
   this.input.throttle = 0; this.input.steer = 0; this.input.pitch = 0; this.input.yaw = 0; this.input.roll = 0;
   this.input.jump = false; this.input.jumpEdge = false; this.input.boost = false; this.input.slide = false;
   this.input.rollLeft = false; this.input.rollRight = false;
@@ -1181,7 +974,7 @@ Vehicle.prototype.castWheels = function (arena) {
     var attach = B.quat.rotate(w.local, tv());
     attach.add(B.pos);
     var hit = { point: new V3(), normal: new V3(), dist: 0 };
-    var t = arena.ray(attach, down, W.maxRay, hit, true);
+    var t = arena.ray(attach, down, W.maxRay, hit);
     w.prevCompression = w.compression;
     if (t < 0) {
       w.grounded = false;
@@ -1265,27 +1058,12 @@ Vehicle.prototype.applyWheelForces = function (dt) {
     var maxLat = latMu * fn + 24;
     fs = clamp(fs, -maxLat, maxLat);
     var F = tv(n.x * fn + f.x * fl, n.y * fn + f.y * fl, n.z * fn + f.z * fl);
-
-    // Ceiling release: Never allow driving throttle force to stick car upwards into ceiling
-    var isCeiling = (n.y < -0.15 || (B.pos.y > (CFG.arena.height || 20) - 3.2 && B.up.y < -0.15));
-    if (isCeiling) {
-      if (F.y > 0) F.y = 0;
-      F.x *= 0.35;
-      F.z *= 0.35;
-    }
-
     B.addForceAt(F, w.contact);
     var lift = tv(B.pos.x - w.contact.x, B.pos.y - w.contact.y, B.pos.z - w.contact.z).dot(n) * 0.92;
     var latPoint = tv(w.contact.x + n.x * lift, w.contact.y + n.y * lift, w.contact.z + n.z * lift);
-    if (isCeiling) fs *= 0.2;
     B.addForceAt(tv(s.x * fs, s.y * fs, s.z * fs), latPoint);
     var stick = V.stickAccel * clamp(this.speed() / V.stickSpeedRef, 0.28, 1.35);
-    if (n.y < -0.15 || isCeiling) {
-      stick = 0; // On ceiling: do not force wheels into ceiling, allow gravity to pull car down
-    }
-    if (stick > 0) {
-      B.addForceAt(tv(-n.x, -n.y, -n.z).scale(stick * B.mass * 0.25), w.contact);
-    }
+    B.addForceAt(tv(-n.x, -n.y, -n.z).scale(stick * B.mass * 0.25), w.contact);
   }
   if (this.wheelsDown >= 2) {
     var yl = B.quat.rotateInv(B.angVel, tv());
@@ -1295,7 +1073,7 @@ Vehicle.prototype.applyWheelForces = function (dt) {
       B.addAngAccel(B.quat.rotate(damp, tv()), dt);
     }
   }
-  if (this.wheelsDown >= 2 && this.surfaceNormal.y > -0.2) {
+  if (this.wheelsDown >= 2) {
     var axis = tv().cross(B.up, this.surfaceNormal);
     var align = tv(axis.x * 9.5, axis.y * 9.5, axis.z * 9.5);
     var wLocalUpComp = tv(B.angVel.x, B.angVel.y, B.angVel.z);
@@ -1649,20 +1427,7 @@ Vehicle.prototype.step = function (dt, arena, world) {
     B.vel.scale(Math.exp(-V.airDrag * dt * 6));
   }
   this.applyBoost(dt, world);
-  var gravY = -CFG.physics.gravity;
-  var isCeilingActive = (this.surfaceNormal.y < -0.15 || (B.pos.y > (CFG.arena.height || 20) - 3.2 && B.up.y < -0.15));
-  if (this.grounded) {
-    if (this.surfaceNormal.y > 0 && this.surfaceNormal.y < 0.88 && this.input.throttle > 0) {
-      // Slope / Wall climb: Compensate gravity drag on ramps so climbing ramps is fast and smooth
-      var rampAssist = CFG.physics.gravity * 0.65 * (1 - Math.max(0, this.surfaceNormal.y));
-      gravY += rampAssist;
-    }
-    if (isCeilingActive) {
-      // On ceiling: Ensure strong downward gravity pulls car off ceiling even when throttle is held
-      gravY = -CFG.physics.gravity * 1.35;
-    }
-  }
-  B.addAccel(tv(0, gravY, 0));
+  B.addAccel(tv(0, -CFG.physics.gravity, 0));
   this.updateJumpState(dt, world);
   this.recover(dt, world);
   this.ballCooldown = Math.max(0, this.ballCooldown - dt);
@@ -1704,19 +1469,9 @@ export function collideCarArena(car, arena, world) {
   for (var i = 0; i < pts.length; i++) {
     var p = B.quat.rotate(pts[i], tv());
     p.add(carCenter);
-
-    // Goal posts and crossbar clearance: the car never collides with posts or crossbar
-    var absZ = Math.abs(p.z);
-    var absX = Math.abs(p.x);
-    if (Math.abs(absZ - arena.hz) < 3.5) {
-      if (absX <= arena.goalHalfW + 2.5 && p.y >= -0.2 && p.y <= arena.goalHeight + 2.5) {
-        continue;
-      }
-    }
-
-    var d = arena.dist(p, true);
+    var d = arena.dist(p);
     if (d >= 0) continue;
-    var n = arena.normal(p, tv(), true);
+    var n = arena.normal(p, tv());
     var pen = -d;
     hits++;
     var pre = B.pointVel(p, tv()).dot(n);

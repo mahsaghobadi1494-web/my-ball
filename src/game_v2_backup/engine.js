@@ -2,7 +2,7 @@
 import { clamp, lerp, V3, Quat, tv, tc } from './math.js';
 import { CFG, TEAM } from './config.js';
 import { Renderer, buildProps } from './renderer.js';
-import { Arena, Vehicle } from './physics.js';
+import { Arena } from './physics.js';
 import { AudioManager } from './audio.js';
 import { Effects } from './effects.js';
 import { ReplayManager } from './replay.js';
@@ -17,11 +17,6 @@ export function Camera() {
   this.shakeMag = 0;
   this.curDist = CFG.camera.distance;
   this.curHeight = CFG.camera.height;
-  this.customizerMode = false;
-  this.customizerOrbit = Math.PI * 0.35;
-  this.customizerPitch = 0.28;
-  this.customizerDist = 4.5;
-  this.isDraggingOrbit = false;
 }
 
 Camera.prototype.update = function (dt, playerCar, ball, arena) {
@@ -29,7 +24,7 @@ Camera.prototype.update = function (dt, playerCar, ball, arena) {
 
   var B = playerCar.body;
   var speed = playerCar.speed();
-  var speedZoom = clamp(speed / (CFG.physics.maxCarSpeed || 23.0), 0, 1) * (CFG.camera.speedZoom !== undefined ? CFG.camera.speedZoom : 2.6);
+  var speedZoom = clamp(speed / CFG.physics.maxCarSpeed, 0, 1) * CFG.camera.speedZoom;
 
   if (this.shakeMag > 0) {
     this.shakeMag = Math.max(0, this.shakeMag - dt * 4.5);
@@ -38,58 +33,36 @@ Camera.prototype.update = function (dt, playerCar, ball, arena) {
   var targetPos = new V3();
   var targetLook = new V3();
 
-  if (this.customizerMode) {
-    // 360-degree turntable orbit around player car
-    if (!this.isDraggingOrbit) {
-      this.customizerOrbit = (this.customizerOrbit || (Math.PI * 0.35)) + dt * 0.3;
-    }
-    var cDist = this.customizerDist || 4.5;
-    var pitch = clamp(this.customizerPitch || 0.28, 0.05, 1.1);
-    var cHeight = 0.4 + Math.sin(pitch) * cDist;
-    var horizDist = Math.cos(pitch) * cDist;
-    var ox = Math.sin(this.customizerOrbit) * horizDist;
-    var oz = Math.cos(this.customizerOrbit) * horizDist;
-    targetPos.set(B.pos.x + ox, B.pos.y + cHeight, B.pos.z + oz);
-    targetLook.set(B.pos.x, B.pos.y + 0.35, B.pos.z);
-  } else if (this.ballcam && ball) {
-    // Ballcam mode: responsive to Distance, Height & Pitch settings
+  if (this.ballcam && ball) {
+    // Ballcam mode
     var toBall = tv(ball.body.pos.x - B.pos.x, ball.body.pos.y - B.pos.y, ball.body.pos.z - B.pos.z);
     var ballDist = Math.max(toBall.len(), 0.001);
     var flatBall = tv(toBall.x / ballDist, 0, toBall.z / ballDist);
 
-    var baseDist = (CFG.camera.distance !== undefined ? CFG.camera.distance : 9.0);
-    var dist = baseDist * 1.06 + speedZoom;
-    var baseH = (CFG.camera.height !== undefined ? CFG.camera.height : 2.45);
-    var h = baseH + 0.65 + Math.min(ball.body.pos.y * 0.18, 3.5);
-    var pitchAngle = (CFG.camera.pitch !== undefined ? CFG.camera.pitch : 12) * (Math.PI / 180);
+    var dist = (CFG.camera.ballcamDistance + speedZoom) * CFG.camera.stiffness;
+    var h = CFG.camera.ballcamHeight + Math.min(ball.body.pos.y * 0.18, 3.5);
 
     targetPos.set(
       B.pos.x - flatBall.x * dist,
       B.pos.y + h,
       B.pos.z - flatBall.z * dist
     );
-    // Tilt look target with pitch angle
-    var lookY = ball.body.pos.y - Math.sin(pitchAngle) * 1.6;
-    targetLook.set(ball.body.pos.x, lookY, ball.body.pos.z);
+    targetLook.copy(ball.body.pos);
   } else {
-    // Rear Chase Cam: responsive to Distance, Height & Pitch settings
+    // Rear Chase Cam
     var fwd = B.fwd;
-    var dist2 = (CFG.camera.distance !== undefined ? CFG.camera.distance : 9.0) + speedZoom;
-    var h2 = (CFG.camera.height !== undefined ? CFG.camera.height : 2.45);
-    var pitchAngle = (CFG.camera.pitch !== undefined ? CFG.camera.pitch : 12) * (Math.PI / 180);
+    var dist2 = (CFG.camera.distance + speedZoom) * CFG.camera.stiffness;
+    var h2 = CFG.camera.height;
 
     targetPos.set(
       B.pos.x - fwd.x * dist2,
       B.pos.y + h2,
       B.pos.z - fwd.z * dist2
     );
-    // Look ahead with pitch tilt angle
-    var lookDistance = 6.0;
-    var lookY = B.pos.y + 0.5 - Math.tan(pitchAngle) * lookDistance * 0.45;
     targetLook.set(
-      B.pos.x + fwd.x * lookDistance,
-      lookY,
-      B.pos.z + fwd.z * lookDistance
+      B.pos.x + fwd.x * 6.0,
+      B.pos.y + 0.8,
+      B.pos.z + fwd.z * 6.0
     );
   }
 
@@ -103,21 +76,20 @@ Camera.prototype.update = function (dt, playerCar, ball, arena) {
     }
   }
 
-  // Smooth interpolation with stiffness response
-  var stiff = clamp(CFG.camera.stiffness || 1.0, 0.2, 2.5);
-  var lerpK = 1 - Math.exp(-18 * stiff * dt);
+  // Smooth interpolation
+  var lerpK = 1 - Math.exp(-14 * dt);
   this.pos.x = lerp(this.pos.x, targetPos.x, lerpK);
   this.pos.y = lerp(this.pos.y, targetPos.y, lerpK);
   this.pos.z = lerp(this.pos.z, targetPos.z, lerpK);
 
-  var lookK = 1 - Math.exp(-24 * stiff * dt);
+  var lookK = 1 - Math.exp(-22 * dt);
   this.target.x = lerp(this.target.x, targetLook.x, lookK);
   this.target.y = lerp(this.target.y, targetLook.y, lookK);
   this.target.z = lerp(this.target.z, targetLook.z, lookK);
 
-  // Dynamic FOV based on speed and user setting
-  var targetFov = (CFG.camera.fov || 100) + speedZoom * (CFG.camera.fovSpeed || 10);
-  this.fov = lerp(this.fov || targetFov, targetFov, 1 - Math.exp(-24 * dt));
+  // Dynamic FOV based on speed
+  var targetFov = CFG.camera.fov + speedZoom * (CFG.camera.fovSpeed || 10);
+  this.fov = lerp(this.fov, targetFov, 1 - Math.exp(-6 * dt));
 };
 
 export function InputHandler() {
@@ -370,57 +342,6 @@ GameEngine.prototype.init = function () {
     this.meshes = this.world.arena.build(this.renderer);
     this.props = buildProps(this.renderer);
     this.input.attach();
-
-    // Spawn a showcase player car for the Main Menu and Car Customizer Garage
-    if (this.world.cars.length === 0) {
-      var menuCar = new Vehicle(0, TEAM.PULSE, true, "Player (You)");
-      menuCar.body.pos.set(0, 0.35, 0);
-      menuCar.body.quat.fromAxisAngle(0, 1, 0, Math.PI * 0.25);
-      menuCar.body.vel.zero();
-      menuCar.body.angVel.zero();
-      this.world.cars.push(menuCar);
-    }
-
-    // Pointer orbit and zoom controls when Car Customizer / Garage is active
-    var self = this;
-    var isPointerDown = false;
-    var lastPointerX = 0;
-    var lastPointerY = 0;
-
-    this.canvas.addEventListener("pointerdown", function (e) {
-      if (self.camera.customizerMode) {
-        isPointerDown = true;
-        lastPointerX = e.clientX;
-        lastPointerY = e.clientY;
-        self.camera.isDraggingOrbit = true;
-      }
-    });
-
-    window.addEventListener("pointermove", function (e) {
-      if (isPointerDown && self.camera.customizerMode) {
-        var dx = e.clientX - lastPointerX;
-        var dy = e.clientY - lastPointerY;
-        lastPointerX = e.clientX;
-        lastPointerY = e.clientY;
-        self.camera.customizerOrbit = (self.camera.customizerOrbit || 0) - dx * 0.008;
-        self.camera.customizerPitch = clamp((self.camera.customizerPitch || 0.28) - dy * 0.006, 0.05, 1.1);
-      }
-    });
-
-    window.addEventListener("pointerup", function () {
-      if (isPointerDown) {
-        isPointerDown = false;
-        self.camera.isDraggingOrbit = false;
-      }
-    });
-
-    this.canvas.addEventListener("wheel", function (e) {
-      if (self.camera.customizerMode) {
-        e.preventDefault();
-        self.camera.customizerDist = clamp((self.camera.customizerDist || 4.5) + e.deltaY * 0.005, 2.2, 8.5);
-      }
-    }, { passive: false });
-
     this.start();
     return true;
   } catch (err) {
@@ -494,12 +415,8 @@ GameEngine.prototype.update = function (dt) {
     this.audio.updateEngine(dt, playerCar, this.world.state === "PLAYING" || this.world.state === "COUNTDOWN");
   }
 
-  // Dispatch state update to UI callback (throttled to 20 FPS or immediate on state change)
-  this.uiTimer = (this.uiTimer || 0) + dt;
-  var stateChanged = this.lastNotifiedState !== this.world.state;
-  if (this.onStateChange && (this.uiTimer >= 0.05 || stateChanged)) {
-    this.uiTimer = 0;
-    this.lastNotifiedState = this.world.state;
+  // Dispatch state update to UI callback
+  if (this.onStateChange) {
     this.onStateChange({
       state: this.world.state,
       score: this.world.score,
@@ -561,7 +478,7 @@ GameEngine.prototype.render = function (dt) {
 
   // 5. Draw Transparent Arena Net Cage & Volumetric Beams (AFTER vehicles so cars on walls/ceiling are 100% visible!)
   if (typeof R.drawArenaNet === "function") {
-    R.drawArenaNet(this.meshes, this.props, W.arena);
+    R.drawArenaNet(this.meshes);
   }
 
   // 6. Draw Particles

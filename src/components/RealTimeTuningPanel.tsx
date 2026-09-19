@@ -26,7 +26,8 @@ import {
   Lightbulb,
   Palette,
   Activity,
-  Shield
+  Shield,
+  Camera
 } from "lucide-react";
 import { CFG, DEFAULT_CFG, saveCurrentConfig, deepMerge, STADIUM_THEMES } from "../game/config.js";
 
@@ -62,6 +63,14 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     ballRestitutionCar: CFG.ball.restitutionCar || 0.62,
     ballCarReaction: CFG.ball.carReaction !== undefined ? CFG.ball.carReaction : 0.04,
     ballCarAngularReaction: CFG.ball.carAngularReaction !== undefined ? CFG.ball.carAngularReaction : 0.02,
+
+    // Camera Settings
+    cameraFov: CFG.camera.fov || 100,
+    cameraDistance: CFG.camera.distance || 9.0,
+    cameraHeight: CFG.camera.height || 2.45,
+    cameraPitch: CFG.camera.pitch !== undefined ? CFG.camera.pitch : 12,
+    cameraStiffness: CFG.camera.stiffness || 1.0,
+    cameraSpeedZoom: CFG.camera.speedZoom !== undefined ? CFG.camera.speedZoom : 2.6,
 
     // 1. Wheels & Suspension
     wheelRadius: CFG.vehicle.wheel.radius,
@@ -116,6 +125,8 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     carClearcoat: (CFG.gfx && CFG.gfx.carClearcoat !== undefined) ? CFG.gfx.carClearcoat : 0.80,
     carMetallic: (CFG.gfx && CFG.gfx.carMetallic !== undefined) ? CFG.gfx.carMetallic : 0.40,
     carFlakes: (CFG.gfx && CFG.gfx.carFlakes !== undefined) ? CFG.gfx.carFlakes : 0.85,
+    carBump: (CFG.gfx && CFG.gfx.carBump !== undefined) ? CFG.gfx.carBump : 0.90,
+    carBumpStyle: (CFG.gfx && CFG.gfx.carBumpStyle) || "SPORTS_PANELS",
     carAmbientOcclusion: (CFG.gfx && CFG.gfx.carAmbientOcclusion !== undefined) ? CFG.gfx.carAmbientOcclusion : 0.85,
     shadowMapping: (CFG.gfx && CFG.gfx.shadowMapping !== undefined) ? CFG.gfx.shadowMapping : true,
     shadowSoftness: (CFG.gfx && CFG.gfx.shadowSoftness !== undefined) ? CFG.gfx.shadowSoftness : 1.0,
@@ -129,15 +140,16 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
 
     // 7. Dynamic 3D Grass & Crowd Atmosphere
     grassEnabled: (CFG.gfx && CFG.gfx.grassEnabled !== undefined) ? CFG.gfx.grassEnabled : true,
-    grassDensity: (CFG.gfx && CFG.gfx.grassDensity) || "HIGH",
-    grassBladeCount: (CFG.gfx && CFG.gfx.grassBladeCount) || 150000,
-    grassBladeWidth: (CFG.gfx && CFG.gfx.grassBladeWidth !== undefined) ? CFG.gfx.grassBladeWidth : 1.0,
+    grassDensity: (CFG.gfx && CFG.gfx.grassDensity) || "ULTRA_DENSE",
+    grassBladeCount: (CFG.gfx && CFG.gfx.grassBladeCount) || 750000,
+    grassBladeWidth: (CFG.gfx && CFG.gfx.grassBladeWidth !== undefined) ? CFG.gfx.grassBladeWidth : 1.25,
     grassHeight: (CFG.gfx && CFG.gfx.grassHeight !== undefined) ? CFG.gfx.grassHeight : 0.65,
     grassWindSpeed: (CFG.gfx && CFG.gfx.grassWindSpeed !== undefined) ? CFG.gfx.grassWindSpeed : 1.4,
     grassWaveStrength: (CFG.gfx && CFG.gfx.grassWaveStrength !== undefined) ? CFG.gfx.grassWaveStrength : 0.85,
     grassTremble: (CFG.gfx && CFG.gfx.grassTremble !== undefined) ? CFG.gfx.grassTremble : 0.80,
-    grassTipCreaminess: (CFG.gfx && CFG.gfx.grassTipCreaminess !== undefined) ? CFG.gfx.grassTipCreaminess : 0.95,
-    grassSubsurface: (CFG.gfx && CFG.gfx.grassSubsurface !== undefined) ? CFG.gfx.grassSubsurface : 0.75,
+    grassTipCreaminess: (CFG.gfx && CFG.gfx.grassTipCreaminess !== undefined) ? CFG.gfx.grassTipCreaminess : 1.00,
+    grassSubsurface: (CFG.gfx && CFG.gfx.grassSubsurface !== undefined) ? CFG.gfx.grassSubsurface : 0.80,
+    boostPadHeightOffset: (CFG.gfx && CFG.gfx.boostPadHeightOffset !== undefined) ? CFG.gfx.boostPadHeightOffset : 0.35,
     crowdAnimation: (CFG.gfx && CFG.gfx.crowdAnimation !== undefined) ? CFG.gfx.crowdAnimation : true,
     crowdEnergy: (CFG.gfx && CFG.gfx.crowdEnergy !== undefined) ? CFG.gfx.crowdEnergy : 1.0
   });
@@ -154,6 +166,80 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     setValues(prev => ({ ...prev, [key]: val }));
     if (updater) {
       updater(val);
+    }
+
+    if (!CFG.gfx) CFG.gfx = {};
+    if (!CFG.camera) CFG.camera = {};
+
+    // Direct CFG Synchronization for instant visual reactivity
+    if (key === "stadiumTheme") {
+      CFG.gfx.stadiumTheme = val;
+      if (engineRef?.current?.renderer) {
+        engineRef.current.renderer.initTextures(engineRef.current.world?.arena);
+      }
+    }
+    if (key === "ballType") {
+      CFG.gfx.ballType = val;
+      if (engineRef?.current?.renderer) {
+        engineRef.current.renderer.initTextures(engineRef.current.world?.arena);
+      }
+    }
+    if (key === "perfMode") CFG.gfx.perfMode = val;
+    if (key === "floodlightIntensity") CFG.gfx.floodlightIntensity = val;
+    if (key === "sunIntensity") CFG.gfx.sunIntensity = val;
+    if (key === "ambientLight") CFG.gfx.ambientLight = val;
+    if (key === "pitchBrightness") CFG.gfx.pitchBrightness = val;
+    if (key === "pitchContrast") CFG.gfx.pitchContrast = val;
+    if (key === "pitchRoughness") CFG.gfx.pitchRoughness = val;
+    if (key === "shadowMapping") CFG.gfx.shadowMapping = val;
+    if (key === "shadowSoftness") CFG.gfx.shadowSoftness = val;
+    if (key === "grassEnabled") CFG.gfx.grassEnabled = val;
+    if (key === "grassBladeCount") CFG.gfx.grassBladeCount = val;
+    if (key === "grassBladeWidth") CFG.gfx.grassBladeWidth = val;
+    if (key === "grassHeight") CFG.gfx.grassHeight = val;
+    if (key === "grassDensity") CFG.gfx.grassDensity = val;
+    if (key === "grassWindSpeed") CFG.gfx.grassWindSpeed = val;
+    if (key === "grassWaveStrength") CFG.gfx.grassWaveStrength = val;
+    if (key === "grassTipCreaminess") CFG.gfx.grassTipCreaminess = val;
+    if (key === "grassSubsurface") CFG.gfx.grassSubsurface = val;
+    if (key === "crowdAnimation") CFG.gfx.crowdAnimation = val;
+    if (key === "crowdEnergy") CFG.gfx.crowdEnergy = val;
+
+    if (key === "ballBrightness") CFG.gfx.ballBrightness = val;
+    if (key === "ballBumpIntensity") CFG.gfx.ballBumpIntensity = val;
+    if (key === "ballMetallic") CFG.gfx.ballMetallic = val;
+    if (key === "ballGloss") CFG.gfx.ballGloss = val;
+    if (key === "ballEmissiveGlow") CFG.gfx.ballEmissiveGlow = val;
+
+    if (key === "carGloss") CFG.gfx.carGloss = val;
+    if (key === "carClearcoat") CFG.gfx.carClearcoat = val;
+    if (key === "carMetallic") CFG.gfx.carMetallic = val;
+    if (key === "carFlakes") CFG.gfx.carFlakes = val;
+    if (key === "carBump") CFG.gfx.carBump = val;
+    if (key === "carBumpStyle") CFG.gfx.carBumpStyle = val;
+    if (key === "carAmbientOcclusion") CFG.gfx.carAmbientOcclusion = val;
+
+    // Camera Real-Time parameters
+    if (key === "cameraFov") {
+      CFG.camera.fov = val;
+      if (engineRef?.current?.camera) engineRef.current.camera.fov = val;
+    }
+    if (key === "cameraDistance") {
+      CFG.camera.distance = val;
+      CFG.camera.ballcamDistance = val * 1.06;
+    }
+    if (key === "cameraHeight") {
+      CFG.camera.height = val;
+      CFG.camera.ballcamHeight = val + 0.65;
+    }
+    if (key === "cameraPitch") {
+      CFG.camera.pitch = val;
+    }
+    if (key === "cameraStiffness") {
+      CFG.camera.stiffness = val;
+    }
+    if (key === "cameraSpeedZoom") {
+      CFG.camera.speedZoom = val;
     }
 
     // Sync with compiled Three.js engine objects if they exist
@@ -331,6 +417,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
   };
 
   const tabs = [
+    { id: "camera", label: "دوربین (Camera)", icon: Camera, color: "text-cyan-400" },
     { id: "graphics", label: "گرافیک و نور (GFX)", icon: Sun, color: "text-amber-300" },
     { id: "hitbox", label: "هیت‌باکس‌ها (Boxes)", icon: Box, color: "text-amber-400" },
     { id: "wheels", label: "چرخ‌ها (Wheels)", icon: Disc, color: "text-emerald-400" },
@@ -1734,17 +1821,264 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                     />
                   </div>
 
-                  {/* Shortcut to Graphics Tab */}
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("graphics")}
-                    className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-neutral-900 to-neutral-900 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold flex items-center justify-between hover:bg-amber-500/30 transition shadow-sm"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Sun className="w-3.5 h-3.5 text-amber-400" /> رفتن به تنظیمات گرافیک، نور و استادیوم
-                    </span>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
-                  </button>
+                  {/* Shortcut to Camera / Graphics Tab */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("camera")}
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-500/20 via-neutral-900 to-neutral-900 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold flex items-center justify-between hover:bg-cyan-500/30 transition shadow-sm"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-cyan-400" /> زاویه دید و دوربین
+                      </span>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-cyan-400" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("graphics")}
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-neutral-900 to-neutral-900 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold flex items-center justify-between hover:bg-amber-500/30 transition shadow-sm"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Sun className="w-3.5 h-3.5 text-amber-400" /> استادیوم و نور
+                      </span>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* TAB 8: CAMERA & VIEW ANGLE (تنظیمات زاویه دید و دوربین) */}
+              {/* ======================================================== */}
+              {activeTab === "camera" && (
+                <div className="space-y-3">
+                  {/* FOV Slider */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-950/60 via-neutral-900/90 to-neutral-900/90 border border-cyan-500/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-300 font-mono flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-cyan-400" /> میدان دید (Field of View - FOV)
+                      </span>
+                      <span className="text-xs font-mono text-cyan-400 font-bold">
+                        {Math.round(values.cameraFov || 100)}°
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="60"
+                      max="115"
+                      step="1"
+                      value={values.cameraFov || 100}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraFov", v, val => {
+                          CFG.camera.fov = val;
+                          if (engineRef?.current?.camera) engineRef.current.camera.fov = val;
+                        });
+                      }}
+                      className="w-full accent-cyan-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                    <div className="flex items-center justify-between text-[10px] text-neutral-400 font-mono">
+                      <span>۶۰° (بسته)</span>
+                      <span className="text-cyan-400 font-bold">۱۰۰° (استاندارد)</span>
+                      <span>۱۱۵° (دید واید)</span>
+                    </div>
+                  </div>
+
+                  {/* Camera Distance */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-200 font-mono">
+                        فاصله دوربین (Camera Distance)
+                      </span>
+                      <span className="text-xs font-mono text-amber-400 font-bold">
+                        {(values.cameraDistance !== undefined ? values.cameraDistance : 9.0).toFixed(1)}m
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.8"
+                      max="16.0"
+                      step="0.1"
+                      value={values.cameraDistance !== undefined ? values.cameraDistance : 9.0}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraDistance", v, val => {
+                          CFG.camera.distance = val;
+                          CFG.camera.ballcamDistance = val * 1.06;
+                        });
+                      }}
+                      className="w-full accent-amber-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+                      <span>0.8m (خیلی نزدیک)</span>
+                      <span>9.0m (پیش‌فرض)</span>
+                      <span>16.0m (دور)</span>
+                    </div>
+                  </div>
+
+                  {/* Camera Height */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-200 font-mono">
+                        ارتفاع دوربین (Camera Height)
+                      </span>
+                      <span className="text-xs font-mono text-emerald-400 font-bold">
+                        {(values.cameraHeight !== undefined ? values.cameraHeight : 2.45).toFixed(2)}m
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.3"
+                      max="6.0"
+                      step="0.05"
+                      value={values.cameraHeight !== undefined ? values.cameraHeight : 2.45}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraHeight", v, val => {
+                          CFG.camera.height = val;
+                          CFG.camera.ballcamHeight = val + 0.65;
+                        });
+                      }}
+                      className="w-full accent-emerald-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Camera Pitch Angle */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-200 font-mono">
+                        زاویه شیب به پایین (Pitch Angle)
+                      </span>
+                      <span className="text-xs font-mono text-cyan-400 font-bold">
+                        {Math.round(values.cameraPitch !== undefined ? values.cameraPitch : 12)}°
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-5"
+                      max="28"
+                      step="1"
+                      value={values.cameraPitch !== undefined ? values.cameraPitch : 12}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraPitch", v, val => {
+                          CFG.camera.pitch = val;
+                        });
+                      }}
+                      className="w-full accent-cyan-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Camera Follow Stiffness */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-200 font-mono">
+                        سفتی و واکنش تعقیب (Stiffness)
+                      </span>
+                      <span className="text-xs font-mono text-purple-400 font-bold">
+                        {(values.cameraStiffness || 1.0).toFixed(2)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.3"
+                      max="2.2"
+                      step="0.05"
+                      value={values.cameraStiffness || 1.0}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraStiffness", v, val => {
+                          CFG.camera.stiffness = val;
+                        });
+                      }}
+                      className="w-full accent-purple-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Speed Zoom Scale */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-200 font-mono">
+                        زوم دینامیک سرعت و بوست
+                      </span>
+                      <span className="text-xs font-mono text-amber-400 font-bold">
+                        {(values.cameraSpeedZoom !== undefined ? values.cameraSpeedZoom : 2.6).toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="5.0"
+                      step="0.2"
+                      value={values.cameraSpeedZoom !== undefined ? values.cameraSpeedZoom : 2.6}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        updateParam("cameraSpeedZoom", v, val => {
+                          CFG.camera.speedZoom = val;
+                        });
+                      }}
+                      className="w-full accent-amber-400 bg-neutral-800 h-1.5 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Pro Camera Presets */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-950/50 via-neutral-900/90 to-neutral-900/90 border border-purple-500/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-300 font-mono flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-400" /> پریست‌های حرفه‌ای دوربین (Pro Presets)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {[
+                        { id: "ultraClose", name: "Ultra-Close Bumper (فوق‌العاده نزدیک ۱ متری)", fov: 92, dist: 1.0, height: 0.85, pitch: 6, stiff: 1.8, sub: "فاصله ۱ متری چسبیده به ماشین برای اوج هیجان، سرعت و دقت" },
+                        { id: "closeChaser", name: "Close Chaser (زاویه نزدیک)", fov: 95, dist: 5.5, height: 1.8, pitch: 8, stiff: 1.4, sub: "نمای ریسینگ نزدیک و متمرکز روی خودرو" },
+                        { id: "rocketPro", name: "Rocket Pro (استاندارد مسابقات)", fov: 105, dist: 9.2, height: 2.4, pitch: 12, stiff: 1.1, sub: "بهترین تعادل و تسلط روی توپ و ماشین" },
+                        { id: "dynamicAction", name: "Dynamic Action (اکشن و سرعت)", fov: 108, dist: 7.8, height: 2.1, pitch: 10, stiff: 1.3, sub: "دید نزدیک‌تر با حس هیجان و شتاب بالا" },
+                        { id: "aerialMaster", name: "Aerial Master (هوایی و تسلط)", fov: 110, dist: 10.5, height: 2.9, pitch: 15, stiff: 1.0, sub: "زاویه باز برای تسلط کامل به هوا و پروازها" },
+                        { id: "arcadeWide", name: "Arcade Wide (آرکید واید)", fov: 112, dist: 11.2, height: 3.4, pitch: 18, stiff: 0.9, sub: "نمای عریض کلاسیک بازی‌های آرکید" }
+                      ].map(preset => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            updateParam("cameraFov", preset.fov, val => { CFG.camera.fov = val; if (engineRef?.current?.camera) engineRef.current.camera.fov = val; });
+                            updateParam("cameraDistance", preset.dist, val => { CFG.camera.distance = val; CFG.camera.ballcamDistance = val * 1.06; });
+                            updateParam("cameraHeight", preset.height, val => { CFG.camera.height = val; CFG.camera.ballcamHeight = val + 0.65; });
+                            updateParam("cameraPitch", preset.pitch, val => { CFG.camera.pitch = val; });
+                            updateParam("cameraStiffness", preset.stiff, val => { CFG.camera.stiffness = val; });
+                          }}
+                          className="p-2 rounded-lg border border-purple-500/20 bg-neutral-900/60 hover:bg-purple-900/30 hover:border-purple-500/50 text-right transition flex items-center justify-between group"
+                        >
+                          <div>
+                            <div className="text-xs font-bold font-mono text-purple-200 group-hover:text-purple-100">{preset.name}</div>
+                            <div className="text-[10px] text-neutral-400 font-sans">{preset.sub}</div>
+                          </div>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            FOV {preset.fov}°
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Ballcam Live Toggle */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white font-mono">دوربین تعقیب توپ (Ball Cam)</div>
+                      <div className="text-[10px] text-neutral-400">سوئیچ میان دید به توپ و دید از پشت ماشین [SPACE]</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (engineRef?.current) {
+                          engineRef.current.toggleBallcam();
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/30 text-xs font-mono font-bold transition shadow-sm"
+                    >
+                      تغییر دوربین [SPACE]
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2037,8 +2371,10 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                               { id: "ULTRA", count: 350000, label: "اولترا (350k)" },
                               { id: "ULTRA_DENSE", count: 750000, label: "فوق متراکم (750k)" },
                               { id: "EXTREME", count: 1500000, label: "اکستریم (1.5M)" },
+                              { id: "OPTIMIZED_2M", count: 2000000, label: "بهینه (2M) ⚡" },
+                              { id: "OPTIMIZED_2_5M", count: 2500000, label: "ایده‌آل (2.5M) ⚡" },
                               { id: "CINEMATIC_MAX", count: 3000000, label: "سینماتیک (3M)" },
-                              { id: "HYPER_DENSE", count: 5000000, label: "هایپر تراکم (5M)" }
+                              { id: "HYPER_DENSE", count: 5000000, label: "هایپر (5M)" }
                             ].map(d => {
                               const isCur = (values.grassBladeCount === d.count) || (values.grassDensity === d.id);
                               return (
@@ -2063,6 +2399,15 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                                 </button>
                               );
                             })}
+                          </div>
+
+                          {/* Grass Engine Optimization Status */}
+                          <div className="bg-emerald-950/40 border border-emerald-500/30 rounded px-2.5 py-1.5 flex items-center justify-between text-[11px] text-emerald-300">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                              بهینه‌ساز فضایی Frustum + LOD فعال
+                            </span>
+                            <span className="text-[10px] text-emerald-400/80 font-mono">۶۰ فریم پایدار در ۲.۵ میلیون</span>
                           </div>
 
                           {/* Continuous Blade Count Slider */}
@@ -2102,7 +2447,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                           <input
                             type="range"
                             min="0.2"
-                            max="4.0"
+                            max="8.0"
                             step="0.05"
                             value={values.grassBladeWidth !== undefined ? values.grassBladeWidth : 1.0}
                             onChange={e => {
@@ -2116,10 +2461,10 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                           />
                           <div className="grid grid-cols-4 gap-1 pt-0.5">
                             {[
-                              { label: "نازک (0.5x)", val: 0.5 },
                               { label: "معمولی (1.0x)", val: 1.0 },
-                              { label: "ضخیم (1.8x)", val: 1.8 },
-                              { label: "فرش توپر (3.0x)", val: 3.0 }
+                              { label: "ضخیم (2.0x)", val: 2.0 },
+                              { label: "فرш (4.0x)", val: 4.0 },
+                              { label: "فوق ضخیم (8.0x)", val: 8.0 }
                             ].map(p => (
                               <button
                                 key={p.label}
@@ -2141,7 +2486,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                             ))}
                           </div>
                           <div className="text-[10px] text-neutral-400">
-                            امکان تنظیم از حالت چمن سوزنی ریز تا چمن ضخیم و پوشاننده به همراه تراکم فوق‌العاده
+                            امکان تنظیم کلفتی و کثرت تیغه‌ها از چمن سوزنی تا حالت‌های فوق‌العاده متراکم و پوشیده
                           </div>
                         </div>
 
@@ -2167,6 +2512,31 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                               });
                             }}
                             className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                        </div>
+
+                        {/* Boost Pad Height Offset */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300">ارتفاع پایه‌های بوست‌پد (Pad Elevation)</span>
+                            <span className="text-amber-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {(values.boostPadHeightOffset !== undefined ? values.boostPadHeightOffset : 0.35).toFixed(2)}m
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.0"
+                            max="1.2"
+                            step="0.05"
+                            value={values.boostPadHeightOffset !== undefined ? values.boostPadHeightOffset : 0.35}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("boostPadHeightOffset", v, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.boostPadHeightOffset = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-amber-400"
                           />
                         </div>
 
@@ -2342,12 +2712,14 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                     </div>
 
                     {/* Ball Types Button Selector */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                       {[
-                        { id: "soccer", name: "توپ فوتبال (Soccer)", desc: "پنج‌ضلعی‌های کلاسیک چرمی" },
-                        { id: "volleyball", name: "توپ والیبال (Volleyball)", desc: "طرح ۳ رنگ Mikasa نئونی" },
-                        { id: "basketball", name: "بسکتبال (Basketball)", desc: "شیارهای مشکی عمیق با عاج" },
-                        { id: "tennis", name: "توپ تنیس (Tennis Ball)", desc: "روکش نمدی لیمویی با درز سفید" }
+                        { id: "soccer", name: "توپ فوتبال (Soccer)", desc: "پنج‌ضلعی‌های کلاسیک سیاه‌وسفید" },
+                        { id: "volleyball", name: "توپ والیبال (Volleyball)", desc: "طرح ۱۸ پنله المپیک Mikasa" },
+                        { id: "basketball", name: "توپ بسکتبال (Basketball)", desc: "چرم عاج‌دار ۸ پنله NBA با شیار مشکی" },
+                        { id: "rocketleague", name: "توپ راکت لیگ (Rocket League)", desc: "بدنه سایبر فیبر کربن با LED درخشان" },
+                        { id: "tennis", name: "توپ تنیس (Tennis Ball)", desc: "روکش نمدی لیمویی با درز سفید" },
+                        { id: "curvy", name: "توپ منحنی (Curvy Swirl)", desc: "پنل‌های پیچی آئرودینامیک Mikasa" }
                       ].map(ballOpt => {
                         const isCur = (CFG.gfx && CFG.gfx.ballType) === ballOpt.id;
                         return (
@@ -2678,6 +3050,64 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                       />
                       <div className="text-[10px] text-neutral-400">
                         عمق‌بخشی به شیارها، زیر چرخ‌ها و حفره‌های آیرودینامیک ماشین
+                      </div>
+                    </div>
+
+                    {/* 3D Surface Relief & Bump Mapping (برجستگی و پستی‌بلندی‌های سه‌بعدی بدنه) */}
+                    <div className="space-y-2 p-2.5 rounded-xl bg-purple-950/20 border border-purple-500/30">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-purple-300 font-bold flex items-center gap-1">
+                          ⚡ پستی‌بلندی و بامپ‌مپ بدنه (3D Surface Relief)
+                        </span>
+                        <span className="text-purple-400 font-mono font-bold text-[11px] bg-black/60 px-1.5 py-0.5 rounded border border-purple-500/30">
+                          {Math.round((values.carBump !== undefined ? values.carBump : 0.90) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.0"
+                        max="2.0"
+                        step="0.05"
+                        value={values.carBump !== undefined ? values.carBump : 0.90}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("carBump", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.carBump = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                      <div className="text-[10px] text-neutral-400">
+                        ایجاد خطوط واقعی درز درها، شیارهای خنک‌کننده کاپوت، ورودی‌های هوا و برجستگی صفحات متالیک
+                      </div>
+
+                      {/* Bump Pattern Styles */}
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        {[
+                          { id: "SPORTS_PANELS", label: "🏎️ پنل‌های اسپرت", desc: "درز کاپوت و گریل" },
+                          { id: "AERO_LOUVERS", label: "💨 شیار آیرودینامیک", desc: "شیارهای خنک‌کننده" },
+                          { id: "CARBON_WEAVE", label: "🏁 بافت کربن‌فایبر", desc: "تاروپود برجسته" },
+                          { id: "ARMOR_PLATES", label: "🛡️ صفحات زره‌پوش", desc: "صفحات تیتانیومی" }
+                        ].map(st => (
+                          <button
+                            key={st.id}
+                            onClick={() => {
+                              updateParam("carBumpStyle", st.id, val => {
+                                if (!CFG.gfx) CFG.gfx = {};
+                                CFG.gfx.carBumpStyle = val;
+                              });
+                            }}
+                            className={`p-1.5 rounded-lg border text-right transition ${
+                              (values.carBumpStyle || "SPORTS_PANELS") === st.id
+                                ? "bg-purple-600/30 border-purple-400 text-purple-200"
+                                : "bg-black/30 border-white/10 text-neutral-400 hover:bg-white/5"
+                            }`}
+                          >
+                            <div className="text-[11px] font-bold">{st.label}</div>
+                            <div className="text-[9px] opacity-70">{st.desc}</div>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>

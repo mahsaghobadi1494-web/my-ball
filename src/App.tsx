@@ -4,11 +4,12 @@ import {
   Trophy, Play, Settings, HelpCircle, Activity,
   Volume2, VolumeX, Eye, RotateCcw, Pause, Sparkles,
   Zap, Disc, ChevronRight, Check, X, Shield, FastForward,
-  Sliders, Smartphone, Sun, Monitor
+  Sliders, Smartphone, Sun, Monitor, Car, Palette, Camera
 } from "lucide-react";
-import { CFG, DEFAULT_CFG, TEAM, TEAM_NAME, TEAM_COLOR, STADIUM_THEMES } from "./game/config.js";
+import { CFG, DEFAULT_CFG, TEAM, TEAM_NAME, TEAM_COLOR, STADIUM_THEMES, CAR_WHEEL_DEFS } from "./game/config.js";
 import { GameEngine } from "./game/engine.js";
 import { RealTimeTuningPanel } from "./components/RealTimeTuningPanel";
+import { CarCustomizerDrawer } from "./components/CarCustomizerDrawer";
 import { TouchControls } from "./components/TouchControls";
 import { TelemetryHUD } from "./components/TelemetryHUD";
 
@@ -22,6 +23,7 @@ export default function App() {
   const [playerTeam, setPlayerTeam] = useState(TEAM.PULSE);
   const [botSkill, setBotSkill] = useState(2); // 0=Rookie, 1=Semi-Pro, 2=All-Star
   const [stadiumTheme, setStadiumTheme] = useState(CFG.gfx.stadiumTheme || "NEON_CHAMPIONSHIP");
+  const [showCarCustomizer, setShowCarCustomizer] = useState(false);
 
   // In-Game Live HUD stats
   const [score, setScore] = useState([0, 0]);
@@ -45,6 +47,7 @@ export default function App() {
     return false;
   });
   const [lastMatchResult, setLastMatchResult] = useState(null);
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Settings State
   const [cfgState, setCfgState] = useState({
@@ -83,25 +86,41 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const engine = new GameEngine(canvas, (data) => {
-      setGameState(data.state);
-      setScore([...data.score]);
-      setMatchTime(data.matchTime);
-      setIsOvertime(data.overtime);
-      setCountdown(data.countdown);
-      setBallcam(data.ballcam);
-      setFps(data.fps);
-      if (data.playerCar) {
-        setPlayerStats(data.playerCar);
-      }
-      if (data.goalEvent) {
-        setGoalEvent(data.goalEvent);
-      }
-    });
+    try {
+      const engine = new GameEngine(canvas, (data) => {
+        setGameState(prev => prev === data.state ? prev : data.state);
+        setScore(prev => (prev[0] === data.score[0] && prev[1] === data.score[1]) ? prev : [...data.score]);
+        setMatchTime(prev => Math.abs(prev - data.matchTime) < 0.2 ? prev : data.matchTime);
+        setIsOvertime(prev => prev === data.overtime ? prev : data.overtime);
+        setCountdown(prev => prev === data.countdown ? prev : data.countdown);
+        setBallcam(prev => prev === data.ballcam ? prev : data.ballcam);
+        setFps(prev => prev === data.fps ? prev : data.fps);
+        if (data.playerCar) {
+          setPlayerStats(prev => {
+            if (prev &&
+                prev.boost === data.playerCar.boost &&
+                prev.speed === data.playerCar.speed &&
+                prev.isGrounded === data.playerCar.isGrounded) {
+              return prev;
+            }
+            return data.playerCar;
+          });
+        }
+        if (data.goalEvent) {
+          setGoalEvent(data.goalEvent);
+        }
+      });
 
-    const ok = engine.init();
-    if (ok) {
-      engineRef.current = engine;
+      const ok = engine.init();
+      if (ok) {
+        engineRef.current = engine;
+        setInitError(null);
+      } else {
+        setInitError("خطا در بارگذاری موتور سه بعدی بازی.");
+      }
+    } catch (err: any) {
+      console.error("GameEngine init caught error:", err);
+      setInitError(err?.message || "مرورگر شما از WebGL2 پشتیبانی نمیکند یا شتاب‌دهنده گرافیکی غیرفعال است.");
     }
 
     const handleKeyDown = (e) => {
@@ -112,7 +131,13 @@ export default function App() {
       } else if (e.code === "Backquote") {
         setShowDebug(prev => !prev);
       } else if (e.code === "KeyT" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setTuningPanelTab("graphics");
         setShowTuningPanel(prev => !prev);
+      } else if ((e.code === "KeyV" || e.code === "KeyK") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setTuningPanelTab("camera");
+        setShowTuningPanel(prev => !prev);
+      } else if ((e.code === "KeyG" || e.code === "KeyM") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setShowCarCustomizer(prev => !prev);
       }
     };
 
@@ -126,38 +151,43 @@ export default function App() {
     };
   }, []);
 
+  // Camera showcase mode when customizer drawer is open
+  useEffect(() => {
+    if (engineRef.current && engineRef.current.camera) {
+      engineRef.current.camera.customizerMode = showCarCustomizer;
+    }
+  }, [showCarCustomizer]);
+
   // Sync announcements with game state
   useEffect(() => {
+    let nextTitle = "";
+    let nextSub = "";
+
     if (gameState === "COUNTDOWN") {
-      setAnnounceText({
-        title: countdown > 0 ? `${countdown}` : "GO!",
-        sub: countdown > 0 ? "GET READY" : "KICKOFF"
-      });
+      nextTitle = countdown > 0 ? `${countdown}` : "GO!";
+      nextSub = countdown > 0 ? "GET READY" : "KICKOFF";
     } else if (gameState === "GOAL" && goalEvent) {
-      setAnnounceText({
-        title: "GOAL!",
-        sub: `${goalEvent.scorer.toUpperCase()} SCORED`
-      });
+      nextTitle = "GOAL!";
+      nextSub = `${goalEvent.scorer.toUpperCase()} SCORED`;
     } else if (gameState === "REPLAY") {
-      setAnnounceText({
-        title: "INSTANT REPLAY",
-        sub: "GOAL PLAYBACK"
-      });
+      nextTitle = "INSTANT REPLAY";
+      nextSub = "GOAL PLAYBACK";
     } else if (gameState === "GAMEOVER") {
       const winner = score[0] > score[1] ? 0 : (score[1] > score[0] ? 1 : -1);
-      setAnnounceText({
-        title: winner >= 0 ? `${TEAM_NAME[winner].toUpperCase()} WINS!` : "MATCH DRAW",
-        sub: `FINAL SCORE: ${score[0]} - ${score[1]}`
-      });
+      nextTitle = winner >= 0 ? `${TEAM_NAME[winner].toUpperCase()} WINS!` : "MATCH DRAW";
+      nextSub = `FINAL SCORE: ${score[0]} - ${score[1]}`;
       setLastMatchResult({
         winner,
-        score: [...score],
+        score: [score[0], score[1]],
         playerGoals: playerStats.stats ? playerStats.stats.goals : 0
       });
-    } else {
-      setAnnounceText({ title: "", sub: "" });
     }
-  }, [gameState, countdown, goalEvent, score]);
+
+    setAnnounceText(prev => {
+      if (prev.title === nextTitle && prev.sub === nextSub) return prev;
+      return { title: nextTitle, sub: nextSub };
+    });
+  }, [gameState, countdown, goalEvent, score[0], score[1]]);
 
   const handleStartGame = (mode) => {
     if (!engineRef.current) return;
@@ -180,6 +210,14 @@ export default function App() {
     if (engineRef.current) {
       engineRef.current.world.state = "MENU";
       setGameState("MENU");
+      const cars = engineRef.current.world.cars;
+      const player = (cars && cars.find(c => c.isPlayer)) || (cars && cars[0]);
+      if (player) {
+        player.body.pos.set(0, 0.35, 0);
+        player.body.quat.fromAxisAngle(0, 1, 0, Math.PI * 0.25);
+        player.body.vel.zero();
+        player.body.angVel.zero();
+      }
     }
   };
 
@@ -287,6 +325,30 @@ export default function App() {
       {/* 3D WebGL2 Canvas */}
       <canvas id="scene" ref={canvasRef} className="fixed inset-0 w-full h-full block touch-none z-0" />
 
+      {/* Fallback alert if WebGL2 / graphics context failed */}
+      {initError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-neutral-950/95 backdrop-blur-md">
+          <div className="max-w-md w-full bg-neutral-900 border border-red-500/40 rounded-2xl p-6 shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
+              <Shield className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-white">پشتیبانی گرافیکی WebGL2 یافت نشد</h2>
+            <p className="text-xs text-neutral-300 leading-relaxed text-center">
+              {initError}
+            </p>
+            <p className="text-[11px] text-neutral-400">
+              لطفاً اطمینان حاصل کنید که شتاب‌دهنده سخت‌افزاری (Hardware Acceleration) در تنظیمات مرورگر شما فعال است.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-sm transition-all shadow-lg cursor-pointer"
+            >
+              بارگذاری مجدد بازی (Reload)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Floating Options & Tuning Dialog Button (Always Visible in Top Right) */}
       <div className="fixed top-4 right-4 sm:top-5 sm:right-6 z-40 pointer-events-auto flex items-center gap-2">
         {/* Quick Mobile Controls Toggle Button */}
@@ -312,21 +374,41 @@ export default function App() {
         </button>
 
         <button
+          id="btn-floating-camera"
+          onClick={() => {
+            setTuningPanelTab("camera");
+            setShowTuningPanel(prev => (tuningPanelTab === "camera" && prev ? false : true));
+          }}
+          className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
+            showTuningPanel && tuningPanelTab === "camera"
+              ? "bg-cyan-400 text-neutral-950 border-cyan-400 shadow-[0_0_25px_rgba(34,211,238,0.5)] scale-105"
+              : "bg-neutral-950/90 hover:bg-neutral-900 border-cyan-500/40 text-white hover:border-cyan-400 hover:text-cyan-300 shadow-[0_10px_30px_rgba(0,0,0,0.7)]"
+          }`}
+          title="تنظیمات پیشرفته دوربین و زاویه دید [کلید V]"
+        >
+          <Camera className={`w-4 h-4 transition-transform group-hover:scale-110 ${showTuningPanel && tuningPanelTab === "camera" ? 'text-neutral-950' : 'text-cyan-400'}`} />
+          <span className="font-bold text-xs">دوربین [V]</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${showTuningPanel && tuningPanelTab === "camera" ? 'bg-neutral-950/20 text-neutral-950' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'}`}>
+            CAM
+          </span>
+        </button>
+
+        <button
           id="btn-floating-options"
           onClick={() => {
             setTuningPanelTab("graphics");
-            setShowTuningPanel(prev => !prev);
+            setShowTuningPanel(prev => (tuningPanelTab === "graphics" && prev ? false : true));
           }}
           className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
-            showTuningPanel
+            showTuningPanel && tuningPanelTab === "graphics"
               ? "bg-[#99fa47] text-neutral-950 border-[#99fa47] shadow-[0_0_25px_rgba(153,250,71,0.5)] scale-105"
               : "bg-neutral-950/90 hover:bg-neutral-900 border-amber-400/40 text-white hover:border-amber-400 hover:text-amber-300 shadow-[0_10px_30px_rgba(0,0,0,0.7)]"
           }`}
           title="تنظیمات گرافیک، سایه‌زنی و نورپردازی بازی [کلید T]"
         >
-          <Sun className={`w-4 h-4 transition-transform group-hover:rotate-45 ${showTuningPanel ? 'text-neutral-950' : 'text-amber-400'}`} />
+          <Sun className={`w-4 h-4 transition-transform group-hover:rotate-45 ${showTuningPanel && tuningPanelTab === "graphics" ? 'text-neutral-950' : 'text-amber-400'}`} />
           <span className="font-bold text-xs">تنظیمات گرافیک [T]</span>
-          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${showTuningPanel ? 'bg-neutral-950/20 text-neutral-950' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}`}>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${showTuningPanel && tuningPanelTab === "graphics" ? 'bg-neutral-950/20 text-neutral-950' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}`}>
             GFX
           </span>
         </button>
@@ -377,6 +459,29 @@ export default function App() {
               <span className="hidden sm:inline">BALLCAM:</span>
               <span>{ballcam ? "ON" : "OFF"}</span>
               <span className="hidden sm:inline text-[10px] text-neutral-500">[C]</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setTuningPanelTab("camera");
+                setShowTuningPanel(prev => (tuningPanelTab === "camera" && prev ? false : true));
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 rounded-xl text-xs font-mono tracking-wider bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-900/90 hover:text-white transition backdrop-blur-md shadow-[0_0_12px_rgba(34,211,238,0.3)]"
+              title="دوربین و زاویه دید [V]"
+            >
+              <Camera className="w-3.5 h-3.5 text-cyan-400" />
+              <span>CAMERA</span>
+              <span className="hidden sm:inline text-[10px] text-cyan-400/80">[V]</span>
+            </button>
+
+            <button
+              onClick={() => setShowCarCustomizer(prev => !prev)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 rounded-xl text-xs font-mono tracking-wider bg-pink-950/80 border border-pink-500/50 text-pink-300 hover:bg-pink-900/90 hover:text-white transition backdrop-blur-md shadow-[0_0_12px_rgba(236,72,153,0.3)]"
+              title="گاراژ و رنگ‌آمیزی ماشین [G]"
+            >
+              <Car className="w-3.5 h-3.5 text-pink-400" />
+              <span>GARAGE</span>
+              <span className="hidden sm:inline text-[10px] text-pink-400/80">[G]</span>
             </button>
 
             <button
@@ -446,7 +551,12 @@ export default function App() {
       {/* MAIN MENU SCREEN */}
       {/* ============================================================ */}
       {gameState === "MENU" && (
-        <div id="menu" className="screen z-20 flex flex-col justify-between p-6 sm:p-10 lg:p-16 overflow-y-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#173a63] via-[#0b1b2d] to-[#06101b]">
+        <div
+          id="menu"
+          className={`screen z-20 flex flex-col justify-between p-6 sm:p-10 lg:p-16 overflow-y-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#173a63]/95 via-[#0b1b2d]/98 to-[#06101b] transition-all duration-300 ${
+            showCarCustomizer ? "opacity-0 pointer-events-none -translate-x-12" : "opacity-100 pointer-events-auto translate-x-0"
+          }`}
+        >
           {/* Header */}
           <header className="flex items-start justify-between gap-6 flex-wrap">
             <div>
@@ -498,6 +608,14 @@ export default function App() {
 
               {/* Utility Buttons */}
               <div className="flex gap-3 mt-6 flex-wrap">
+                <button
+                  onClick={() => setShowCarCustomizer(prev => !prev)}
+                  className="btn flex items-center gap-2 px-4 py-2.5 rounded bg-gradient-to-r from-pink-600/30 via-pink-700/40 to-purple-600/30 hover:from-pink-600/50 hover:to-purple-600/50 border border-pink-400/60 text-xs font-mono font-bold uppercase tracking-wider text-white shadow-[0_0_20px_rgba(236,72,153,0.35)] transition"
+                  title="تغییر مدل ماشین و رنگ‌آمیزی تک‌تک قطعات"
+                >
+                  <Car className="w-4 h-4 text-pink-300 animate-pulse" />
+                  <span>گاراژ و نقاشی ماشین (Paint Shop) [G]</span>
+                </button>
                 <button
                   onClick={() => {
                     setTuningPanelTab("graphics");
@@ -1184,6 +1302,65 @@ export default function App() {
           <div>TOGGLE OVERLAY: [~] | TUNING: [T]</div>
         </div>
       )}
+
+      {/* Left Floating Trigger Button for Car Garage & Customizer */}
+      {!showCarCustomizer && (
+        <button
+          id="car-customizer-left-btn"
+          onClick={() => setShowCarCustomizer(true)}
+          className="fixed top-1/2 -translate-y-1/2 left-0 z-40 flex items-center gap-2 px-3 py-2.5 rounded-r-2xl bg-neutral-950/90 hover:bg-neutral-900 border-y border-r border-pink-500/40 hover:border-pink-500/80 text-pink-300 hover:text-white shadow-[10px_0_30px_rgba(0,0,0,0.85)] backdrop-blur-xl transition-all duration-200 group cursor-pointer"
+          title="گاراژ ماشین و نقاشی قطعات [G]"
+        >
+          <div className="w-7 h-7 rounded-xl bg-pink-500/20 border border-pink-500/40 flex items-center justify-center text-pink-400 group-hover:scale-110 shadow-[0_0_12px_rgba(236,72,153,0.3)] transition">
+            <Car className="w-4 h-4 stroke-[2.2]" />
+          </div>
+          <div className="hidden sm:flex flex-col text-right pr-1">
+            <span className="text-xs font-bold text-white leading-tight flex items-center gap-1.5">
+              گاراژ و نقاشی
+              <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-pulse" />
+            </span>
+            <span className="text-[9px] text-pink-300/80 font-mono">CAR & PAINT [G]</span>
+          </div>
+        </button>
+      )}
+
+      {/* Floating 360-degree Garage Preview Banner */}
+      {showCarCustomizer && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto bg-[#0b1b2d]/85 backdrop-blur-md border border-pink-500/40 rounded-full px-5 py-2 shadow-[0_0_25px_rgba(236,72,153,0.35)] flex items-center gap-3 animate-fade-in text-xs font-mono">
+          <span className="w-2 h-2 rounded-full bg-pink-400 animate-ping" />
+          <span className="text-white font-bold">پیش‌نمایش گاراژ ۳۶۰ درجه ماشین</span>
+          <span className="text-neutral-400 hidden sm:inline">| برای چرخش موس را بکشید یا اسکرول کنید</span>
+          <button
+            onClick={() => setShowCarCustomizer(false)}
+            className="ml-2 px-2.5 py-0.5 rounded bg-pink-600/70 hover:bg-pink-500 text-white text-[11px] font-bold transition"
+          >
+            {gameState === "MENU" ? "بازگشت به منو" : "بستن گاراژ"}
+          </button>
+        </div>
+      )}
+
+      {/* Car Customizer Drawer on Left Side */}
+      <CarCustomizerDrawer
+        isOpen={showCarCustomizer}
+        onClose={() => setShowCarCustomizer(false)}
+        engineRef={engineRef}
+        onCustomizationChange={(key, val) => {
+          // Live feedback: sync wheel radius if defined in CAR_WHEEL_DEFS
+          if (key === "wheel" && CAR_WHEEL_DEFS[val]) {
+            const r = CAR_WHEEL_DEFS[val].radius || 0.38;
+            CFG.vehicle.wheel.radius = r;
+            if (engineRef.current && engineRef.current.world && engineRef.current.world.cars) {
+              engineRef.current.world.cars.forEach(car => {
+                if (car.wheels) {
+                  car.wheels.forEach(w => {
+                    w.radius = r;
+                  });
+                }
+              });
+            }
+          }
+        }}
+      />
 
       {/* Real-Time Live Tuning Panel Overlay */}
       <RealTimeTuningPanel

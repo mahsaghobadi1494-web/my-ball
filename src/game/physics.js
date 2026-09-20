@@ -679,6 +679,85 @@ Arena.prototype.build = function (R) {
     bNeonPerimeter.tube(new V3(pA_rim.x, rimH, pA_rim.z), new V3(pB_rim.x, rimH, pB_rim.z), 0.08, 6);
   }
 
+  // =========================================================================
+  // MAJESTIC 3D STADIUM ROOF SPACE-TRUSS ARCHITECTURE & CANOPY DOME
+  // =========================================================================
+  var bRoofTruss = new Builder();
+  var bRoofNeon = new Builder();
+  var roofPeakY = h + 4.5;
+  var roofBaseY = h + 0.2;
+
+  // 1. Longitudinal Arched Spine Girders (Center keel + 2 lateral arched spines)
+  var spineXs = [-this.hx * 0.55, 0, this.hx * 0.55];
+  for (var spi = 0; spi < spineXs.length; spi++) {
+    var spX = spineXs[spi];
+    var isCenterSpine = (spX === 0);
+    var spSegs = 20;
+    for (var seg = 0; seg < spSegs; seg++) {
+      var sz0 = -this.hz + (seg / spSegs) * (2 * this.hz);
+      var sz1 = -this.hz + ((seg + 1) / spSegs) * (2 * this.hz);
+      var sNorm0 = sz0 / this.hz, sNorm1 = sz1 / this.hz;
+      var sy0 = roofBaseY + (1.0 - sNorm0 * sNorm0) * (isCenterSpine ? 3.8 : 2.5);
+      var sy1 = roofBaseY + (1.0 - sNorm1 * sNorm1) * (isCenterSpine ? 3.8 : 2.5);
+
+      // Heavy upper tubular cord
+      bRoofTruss.tube(new V3(spX, sy0 + 0.6, sz0), new V3(spX, sy1 + 0.6, sz1), 0.18, 8);
+      // Lower tension cord
+      bRoofTruss.tube(new V3(spX, sy0, sz0), new V3(spX, sy1, sz1), 0.14, 8);
+      // Vertical and diagonal truss web braces
+      bRoofTruss.tube(new V3(spX, sy0, sz0), new V3(spX, sy0 + 0.6, sz0), 0.09, 6);
+      bRoofTruss.tube(new V3(spX, sy0, sz0), new V3(spX, sy1 + 0.6, sz1), 0.08, 6);
+    }
+  }
+
+  // 2. Transverse Cantilever Arch Ribs (Curving across the stadium width every 16m)
+  for (var rz = -this.hz + 12; rz <= this.hz - 12; rz += 16) {
+    var zRatio = rz / this.hz;
+    var archH = roofBaseY + (1.0 - zRatio * zRatio) * 3.8;
+    var nRibSegs = 18;
+    for (var rbi = 0; rbi < nRibSegs; rbi++) {
+      var ru0 = (rbi / nRibSegs) * 2.0 - 1.0;
+      var ru1 = ((rbi + 1) / nRibSegs) * 2.0 - 1.0;
+      var rx0 = ru0 * (this.hx * 0.98), rx1 = ru1 * (this.hx * 0.98);
+      var ry0 = archH - (ru0 * ru0) * 2.2;
+      var ry1 = archH - (ru1 * ru1) * 2.2;
+
+      // Heavy Structural Arch Rib Tube
+      bRoofTruss.tube(new V3(rx0, ry0, rz), new V3(rx1, ry1, rz), 0.15, 8);
+      bRoofTruss.tube(new V3(rx0, ry0 - 0.45, rz), new V3(rx1, ry1 - 0.45, rz), 0.10, 6);
+      // Cross truss web
+      bRoofTruss.tube(new V3(rx0, ry0, rz), new V3(rx1, ry1 - 0.45, rz), 0.07, 6);
+
+      // Team-colored Glowing Neon Light Strips along the underside of each rib!
+      // Blue neon on North side (rz < -4), Red neon on South side (rz > 4), Gold in center
+      if (Math.abs(ru0) < 0.92) {
+        bRoofNeon.tube(new V3(rx0, ry0 - 0.48, rz), new V3(rx1, ry1 - 0.48, rz), 0.08, 6);
+      }
+    }
+  }
+
+  // 3. Giant Suspended Celestial Energy Halo Ring above Center Field
+  var haloRadius = 15.5;
+  var haloY = roofBaseY + 3.2;
+  var haloSegs = 24;
+  for (var hsi = 0; hsi < haloSegs; hsi++) {
+    var ha0 = (hsi / haloSegs) * TAU, ha1 = ((hsi + 1) / haloSegs) * TAU;
+    var hx0 = Math.cos(ha0) * haloRadius, hz0 = Math.sin(ha0) * haloRadius;
+    var hx1 = Math.cos(ha1) * haloRadius, hz1 = Math.sin(ha1) * haloRadius;
+
+    // Outer structural ring
+    bRoofTruss.tube(new V3(hx0, haloY, hz0), new V3(hx1, haloY, hz1), 0.22, 8);
+    // Inner glowing neon crown ring
+    bRoofNeon.tube(new V3(hx0 * 0.94, haloY - 0.15, hz0 * 0.94), new V3(hx1 * 0.94, haloY - 0.15, hz1 * 0.94), 0.12, 6);
+
+    // Radial suspension cables to arena perimeter towers
+    if (hsi % 4 === 0) {
+      var towerX = (hx0 > 0 ? 1 : -1) * (this.hx * 0.92);
+      var towerZ = (hz0 > 0 ? 1 : -1) * (this.hz * 0.88);
+      bRoofTruss.tube(new V3(hx0, haloY + 0.1, hz0), new V3(towerX, h + 0.5, towerZ), 0.07, 6);
+    }
+  }
+
   var goals = [];
   for (var g = 0; g < 2; g++) {
     var s = g === 0 ? -1 : 1;
@@ -846,6 +925,7 @@ Arena.prototype.build = function (R) {
     trusses: R.mesh(bTrusses), screens: R.mesh(bScreens),
     jumbotron: R.mesh(bJumbotronTruss), jumbotronScreens: R.mesh(bJumbotronScreens),
     neonPerimeter: R.mesh(bNeonPerimeter), cornerFlags: R.mesh(bCornerFlags),
+    roofTruss: R.mesh(bRoofTruss), roofNeon: R.mesh(bRoofNeon),
     beams: R.mesh(bBeams)
   };
 };
@@ -1221,7 +1301,7 @@ Vehicle.prototype.applyWheelForces = function (dt) {
   this.slideAmount = this.input.slide
     ? Math.min(1, this.slideAmount + dt * 8)
     : Math.max(0, this.slideAmount - dt * V.slideRecover);
-  var slideF = this.slideAmount * 0.45, slideR = this.slideAmount;
+  var slideF = this.slideAmount * 0.35, slideR = this.slideAmount * 0.85;
 
   for (var i = 0; i < 4; i++) {
     var w = this.wheels[i];
@@ -1229,8 +1309,8 @@ Vehicle.prototype.applyWheelForces = function (dt) {
     if (!w.grounded) { w.load = 0; w.slip = 0; w.spin *= Math.exp(-1.5 * dt); continue; }
     w.contactTime += dt;
     var slide = w.front ? slideF : slideR;
-    var latMu = V.frictionCircle * lerp(1, 0.34, slide);
-    var gripK = lerp(V.grip, V.gripSlide, slide);
+    var latMu = V.frictionCircle * lerp(1, 0.44, slide);
+    var gripK = lerp(V.grip, Math.max(V.gripSlide, 10.5), slide);
     var n = w.normal;
     var vc = B.pointVel(w.contact, tv());
     var vn = vc.dot(n);
@@ -1287,11 +1367,28 @@ Vehicle.prototype.applyWheelForces = function (dt) {
       B.addForceAt(tv(-n.x, -n.y, -n.z).scale(stick * B.mass * 0.25), w.contact);
     }
   }
+
+  // Aerodynamic downforce: applies downward force to keep the car planted, distributed front-heavy (55/45) to prevent front wheel lifting/wheelies during hard acceleration
+  if (this.grounded && W.downforce && W.downforce > 0) {
+    var speedScale = clamp(this.speed() / 15.0, 0.25, 1.50);
+    var totalDf = W.downforce * B.mass * speedScale;
+
+    // Front downforce (55%)
+    var frontPos = tv(B.pos.x + B.fwd.x * 0.3, B.pos.y + B.fwd.y * 0.3, B.pos.z + B.fwd.z * 0.3);
+    B.addForceAt(tv(-B.up.x * totalDf * 0.55, -B.up.y * totalDf * 0.55, -B.up.z * totalDf * 0.55), frontPos);
+
+    // Rear downforce (45%)
+    var rearPos = tv(B.pos.x - B.fwd.x * 0.3, B.pos.y - B.fwd.y * 0.3, B.pos.z - B.fwd.z * 0.3);
+    B.addForceAt(tv(-B.up.x * totalDf * 0.45, -B.up.y * totalDf * 0.45, -B.up.z * totalDf * 0.45), rearPos);
+  }
+
   if (this.wheelsDown >= 2) {
     var yl = B.quat.rotateInv(B.angVel, tv());
-    var excess = Math.abs(yl.y) - 2.6;
+    var driftDampScale = 1.0 + this.slideAmount * (V.driftYawDamp !== undefined ? V.driftYawDamp : 7.5);
+    var maxYawRate = lerp(2.6, 1.85, this.slideAmount);
+    var excess = Math.abs(yl.y) - maxYawRate;
     if (excess > 0) {
-      var damp = tv(0, -sgn(yl.y) * excess * 3.4, 0);
+      var damp = tv(0, -sgn(yl.y) * excess * 3.4 * driftDampScale, 0);
       B.addAngAccel(B.quat.rotate(damp, tv()), dt);
     }
   }

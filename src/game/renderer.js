@@ -37,9 +37,9 @@ export function texField(A, themeKey) {
     g.fillRect(Math.random() * S, Math.random() * S, 2, 2);
   }
 
-  // 2. Main Soccer Pitch Area (Spaced safely inside arena walls)
-  var marginX = 3.6; // 3.6m margin between sideline and arena wall
-  var marginZ = 4.2; // 4.2m margin between goal line and end wall
+  // 2. Main Soccer Pitch Area (Covering full playable arena up to perimeter glass walls)
+  var marginX = 0.4; // Extends right up to arena curved walls
+  var marginZ = 0.4;
   var pLeft = (-A.hx + marginX + A.hx) * px;
   var pRight = (A.hx - marginX + A.hx) * px;
   var pTop = (-A.hz + marginZ + A.hz) * pz;
@@ -47,14 +47,9 @@ export function texField(A, themeKey) {
   var pWidth = pRight - pLeft;
   var pHeight = pBottom - pTop;
 
-  // Outer safety kerb line bordering the pitch
-  g.strokeStyle = "rgba(255, 255, 255, 0.14)";
-  g.lineWidth = 1.4 * px;
-  g.strokeRect(pLeft - 1.2 * px, pTop - 1.2 * pz, pWidth + 2.4 * px, pHeight + 2.4 * pz);
-
-  // High quality manicured pitch grass (Clip to pitch rectangle with rounded corners)
+  // High quality manicured pitch grass (Clip to arena floor with rounded corners)
   g.save();
-  var pitchCornerRadius = 2.4 * px;
+  var pitchCornerRadius = (A.cornerFillet ? A.cornerFillet * 0.95 : 11.5) * px;
   g.beginPath();
   if (typeof g.roundRect === "function") {
     g.roundRect(pLeft, pTop, pWidth, pHeight, pitchCornerRadius);
@@ -2279,6 +2274,7 @@ var VS_MAIN = [
   "uniform float uTime; uniform float uCrowd;",
   "uniform vec2 uUVScroll;",
   "out vec3 vN; out vec3 vW; out vec2 vUV; out vec4 vShadowCoord;",
+  "out vec3 vLocalPos; out vec3 vLocalN;",
   "void main(){",
   "  vec4 w = uModel * vec4(aPos, 1.0);",
   "  if (uCrowd > 0.5 && aPos.y > 1.8) {",
@@ -2287,6 +2283,8 @@ var VS_MAIN = [
   "    float cheer = pow(wave, 3.5) * 0.55 + pow(bounce, 3.0) * 0.20;",
   "    w.y += cheer * clamp((aPos.y - 1.8) * 0.16, 0.0, 1.0);",
   "  }",
+  "  vLocalPos = aPos;",
+  "  vLocalN = aNormal;",
   "  vW = w.xyz; vN = uNM * aNormal; vUV = aUV + uUVScroll;",
   "  vShadowCoord = uShadowVP * w;",
   "  gl_Position = uVP * w;",
@@ -2298,6 +2296,7 @@ var FS_MAIN = [
   "precision highp sampler2D;",
   "precision highp sampler2DShadow;",
   "in vec3 vN; in vec3 vW; in vec2 vUV; in vec4 vShadowCoord;",
+  "in vec3 vLocalPos; in vec3 vLocalN;",
   "uniform vec3 uColor; uniform vec3 uEmissive; uniform vec3 uCam; uniform vec3 uFogCol;",
   "uniform float uOpacity; uniform float uSpec; uniform float uUseTex; uniform float uFog;",
   "uniform float uAlphaTest; uniform float uRim;",
@@ -2305,6 +2304,7 @@ var FS_MAIN = [
   "uniform float uClearcoat; uniform float uMetallic; uniform float uAO; uniform float uFlakes;",
   "uniform float uShadowEnable; uniform float uShadowSoftness;",
   "uniform float uTime; uniform float uCrowd;",
+  "uniform float uVinylId; uniform vec3 uVinylColor; uniform float uVinylEmissive; uniform float uVinylScale; uniform float uVinylAnimated;",
   "uniform highp sampler2D uTex;",
   "uniform highp sampler2DShadow uShadowMap;",
   "out vec4 outColor;",
@@ -2341,6 +2341,270 @@ var FS_MAIN = [
   "  if (uUseTex > 0.5) tex = texture(uTex, vUV);",
   "  if (uAlphaTest > 0.5 && tex.a < 0.20) discard;",
   "  vec3 base = uColor * tex.rgb;",
+  // =========================================================================
+  // HIGH-PRECISION 3D SURFACE PROCEDURAL CAR VINYL DECALS
+  // Uses vLocalPos (x=width, y=height, z=length) & vLocalN for distortion-free mapping!
+  // =========================================================================
+  "  float vMask = 0.0;",
+  "  float vGlow = 0.0;",
+  "  if (uVinylId > 0.5) {",
+  "    float vScale = max(uVinylScale, 0.1);",
+  "    float distCenter = abs(vLocalPos.x); // Exact 0.0 at Hood/Roof center line",
+  "    float zPos = vLocalPos.z;           // +1.2 at Hood Nose, -1.2 at Rear Bumper",
+  "    float yPos = vLocalPos.y;           // +0.6 at Roof Top, -0.2 at Side Skirt",
+  "",
+  "    // Hood / Roof Projection (Centered at Hood x=0.0)",
+  "    vec2 hUV = vec2(vLocalPos.x / (0.65 * vScale), (zPos + 1.2) / 2.4);",
+  "",
+  "    // Side Door Projection",
+  "    vec2 sUV = vec2((zPos + 1.2) / 2.4, (yPos + 0.2) / 0.8);",
+  "",
+  "    float isTop = smoothstep(0.10, 0.45, vLocalN.y);",
+  "    float isSide = smoothstep(0.10, 0.45, abs(vLocalN.x));",
+  "",
+  "    // 1. RACING_STRIPES (Twin GT Center Stripes)",
+  "    if (uVinylId > 0.5 && uVinylId < 1.5) {",
+  "      float s1 = smoothstep(0.015, 0.005, abs(distCenter - 0.08 * vScale) - 0.035 * vScale);",
+  "      float p1 = smoothstep(0.008, 0.002, abs(distCenter - 0.140 * vScale) - 0.006 * vScale);",
+  "      vMask = max(s1, p1) * isTop;",
+  "    }",
+  "    // 2. CYBER_GRID (Matrix Pulse Grid)",
+  "    else if (uVinylId >= 1.5 && uVinylId < 2.5) {",
+  "      vec2 gUV = vLocalPos.xz * 12.0 * vScale;",
+  "      if (uVinylAnimated > 0.5) gUV.y -= uTime * 2.2;",
+  "      vec2 gGrid = abs(fract(gUV - 0.5) - 0.5) / (fwidth(gUV) + 0.001);",
+  "      float gLine = 1.0 - min(min(gGrid.x, gGrid.y), 1.0);",
+  "      float pulse = sin(zPos * 10.0 - uTime * 6.0) * 0.5 + 0.5;",
+  "      vMask = clamp(gLine, 0.0, 1.0) * (0.6 + 0.4 * pulse);",
+  "      vGlow = vMask * (1.5 + 1.5 * pulse);",
+  "    }",
+  "    // 3. FLAME_SURGE (Dynamic Flowing Flames)",
+  "    else if (uVinylId >= 2.5 && uVinylId < 3.5) {",
+  "      float animY = uVinylAnimated > 0.5 ? uTime * 3.5 : 0.0;",
+  "      float wave1 = sin(distCenter * 25.0 - animY + zPos * 8.0) * 0.08;",
+  "      float wave2 = cos(distCenter * 45.0 + animY * 1.5 - zPos * 12.0) * 0.04;",
+  "      float flameLimit = 0.50 - (distCenter * 1.2) + wave1 + wave2;",
+  "      float fMask = smoothstep(flameLimit - 0.05, flameLimit + 0.02, hUV.y);",
+  "      vMask = (1.0 - fMask) * max(isTop, isSide * 0.8);",
+  "      vGlow = vMask * (1.8 + sin(uTime * 10.0 + distCenter * 20.0) * 0.6);",
+  "    }",
+  "    // 4. LIGHTNING_STORM (Electric Plasma Bolts)",
+  "    else if (uVinylId >= 3.5 && uVinylId < 4.5) {",
+  "      float tE = uVinylAnimated > 0.5 ? uTime * 9.0 : 0.0;",
+  "      float jag1 = sin(zPos * 25.0 + floor(tE) * 17.13) * 0.10 + sin(zPos * 50.0 - tE * 2.0) * 0.04;",
+  "      float bolt1 = smoothstep(0.020, 0.003, abs(distCenter - 0.12 - jag1));",
+  "      float jag2 = cos(zPos * 35.0 + floor(tE * 1.3) * 23.41) * 0.08;",
+  "      float bolt2 = smoothstep(0.016, 0.002, abs(distCenter - 0.26 - jag2));",
+  "      vMask = max(bolt1, bolt2);",
+  "      vGlow = vMask * (2.2 + sin(uTime * 20.0) * 0.8);",
+  "    }",
+  "    // 5. WAVE_FLOW (Holo Wave Stream)",
+  "    else if (uVinylId >= 4.5 && uVinylId < 5.5) {",
+  "      float tW = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
+  "      float wSin = sin(zPos * 18.0 - tW + sin(distCenter * 12.0) * 2.5);",
+  "      float wCos = cos(distCenter * 20.0 + zPos * 10.0 - tW * 0.8);",
+  "      vMask = smoothstep(0.4, 0.9, wSin * 0.5 + wCos * 0.5);",
+  "      vGlow = pow(vMask, 2.0) * (1.4 + sin(tW * 1.5) * 0.4);",
+  "    }",
+  "    // 6. CARBON_HEX (Hex Honeycomb Carbon)",
+  "    else if (uVinylId >= 5.5 && uVinylId < 6.5) {",
+  "      vec2 cUV = vLocalPos.xz * 18.0 * vScale;",
+  "      vec2 hFract = abs(fract(cUV) - 0.5);",
+  "      float hexDist = max(hFract.x * 0.866025 + hFract.y * 0.5, hFract.y);",
+  "      vMask = smoothstep(0.40, 0.48, hexDist);",
+  "    }",
+  "    // 7. CAMO_TACTICAL (Urban Tactical Camo)",
+  "    else if (uVinylId >= 6.5 && uVinylId < 7.5) {",
+  "      vec2 cUV = floor(vLocalPos.xz * 10.0 * vScale);",
+  "      float cHash = fract(sin(dot(cUV, vec2(127.1, 311.7))) * 43758.5453);",
+  "      vMask = smoothstep(0.45, 0.55, cHash);",
+  "    }",
+  "    // 8. DIGITAL_MATRIX (Digital Rain Matrix)",
+  "    else if (uVinylId >= 7.5 && uVinylId < 8.5) {",
+  "      float tM = uVinylAnimated > 0.5 ? uTime * 5.0 : 0.0;",
+  "      vec2 mUV = vec2(vLocalPos.x * 15.0, zPos * 10.0) * vScale;",
+  "      float colSpeed = fract(sin(floor(mUV.x) * 45.13) * 912.4) * 2.0 + 1.0;",
+  "      float drop = fract(mUV.y * 0.15 - tM * 0.3 * colSpeed);",
+  "      float charHash = fract(sin(dot(floor(vec2(mUV.x, mUV.y - tM * 3.0)), vec2(13.1, 71.7))) * 31415.9);",
+  "      if (charHash > 0.55) vMask = pow(1.0 - drop, 3.0);",
+  "      vGlow = vMask * 2.4;",
+  "    }",
+  "    // 9. SPEED_APEX (Apex Wings)",
+  "    else if (uVinylId >= 8.5 && uVinylId < 9.5) {",
+  "      float aZ = (zPos + 0.8) * 1.2 * vScale;",
+  "      float apex1 = smoothstep(0.025, 0.005, abs(distCenter - aZ * 0.4) - 0.03);",
+  "      float apex2 = smoothstep(0.025, 0.005, abs(distCenter - (aZ - 0.3) * 0.5) - 0.025);",
+  "      vMask = max(apex1, apex2) * isTop;",
+  "    }",
+  "    // 10. SUNBURST_RAYS (Sunburst Rays)",
+  "    else if (uVinylId >= 9.5 && uVinylId < 10.5) {",
+  "      float angle = atan(zPos - 0.3, distCenter);",
+  "      float rays = sin(angle * 16.0 * vScale);",
+  "      vMask = smoothstep(0.3, 0.7, rays) * isTop;",
+  "    }",
+  "    // 11. DRAGON_FIRE (Mythic Dragon Breath & Animated Blazing Fire Streams)",
+  "    else if (uVinylId >= 10.5 && uVinylId < 11.5) {",
+  "      float tD = uVinylAnimated > 0.5 ? uTime * 8.0 : 0.0;",
+  "      vec2 dHeadP = vec2(distCenter * 2.2, (zPos - 0.4) * 1.8);",
+  "      float dHead = smoothstep(0.22, 0.15, length(dHeadP));",
+  "      float hornL = smoothstep(0.025, 0.005, abs(distCenter - (zPos - 0.2) * 0.5 - 0.08) - 0.02) * step(0.2, zPos) * step(zPos, 0.7);",
+  "      float fSpread = (zPos - 0.3) * 0.8;",
+  "      float fTurb = sin(zPos * 25.0 - tD * 2.0 + distCenter * 20.0) * 0.05;",
+  "      float flameBreath = smoothstep(fSpread + 0.08 + fTurb, fSpread - 0.02 + fTurb, distCenter) * step(0.3, zPos);",
+  "      vMask = clamp(dHead + hornL + flameBreath, 0.0, 1.0) * max(isTop, isSide * 0.8);",
+  "      vGlow = (flameBreath * 2.8 + dHead * 1.5) * (1.0 + 0.3 * sin(tD * 1.5));",
+  "    }",
+  "    // 12. PHOENIX_BLAZE (Immortal Phoenix Wing Crest & Solar Flares)",
+  "    else if (uVinylId >= 11.5 && uVinylId < 12.5) {",
+  "      float tP = uVinylAnimated > 0.5 ? uTime * 6.0 : 0.0;",
+  "      float wingZ = abs(zPos - 0.3);",
+  "      float wingSpan = sin(distCenter * 10.0 * vScale + tP * 0.4) * 0.08;",
+  "      float wingArch = smoothstep(0.035, 0.008, abs(wingZ - (distCenter * 0.7 + wingSpan)) - 0.025);",
+  "      float crestCore = smoothstep(0.18, 0.04, length(vec2(distCenter * 2.5, (zPos - 0.3) * 2.0)));",
+  "      vMask = clamp(max(wingArch, crestCore), 0.0, 1.0) * isTop;",
+  "      vGlow = vMask * (2.2 + sin(tP + distCenter * 10.0) * 0.8);",
+  "    }",
+  "    // 13. HERO_SPIDER_WEB (Superhero Spider-Web Suit & Neon Spider Emblem)",
+  "    else if (uVinylId >= 12.5 && uVinylId < 13.5) {",
+  "      vec2 centerP = vec2(0.0, 0.4);",
+  "      vec2 toC = vec2(distCenter, zPos - centerP.y);",
+  "      float dC = length(toC);",
+  "      float webRings = smoothstep(0.015, 0.003, abs(fract(dC * 12.0 * vScale) - 0.5) - 0.42);",
+  "      float webAngle = atan(toC.y, toC.x);",
+  "      float webSpokes = smoothstep(0.018, 0.004, abs(sin(webAngle * 10.0)) - 0.92);",
+  "      float spiderBody = smoothstep(0.08, 0.02, dC);",
+  "      vMask = clamp(max(webRings * webSpokes, spiderBody), 0.0, 1.0) * max(isTop, isSide * 0.6);",
+  "      vGlow = spiderBody * 2.5 + webRings * 0.6;",
+  "    }",
+  "    // 14. HERO_LIGHTNING_BOLT (Superhero Thunderbolt & Electric Shockwaves)",
+  "    else if (uVinylId >= 13.5 && uVinylId < 14.5) {",
+  "      float tZ = uVinylAnimated > 0.5 ? uTime * 10.0 : 0.0;",
+  "      float boltPath = (zPos > 0.3) ? (zPos - 0.3) * 0.3 - 0.05 : (0.3 - zPos) * 0.4 + 0.04;",
+  "      float boltMain = smoothstep(0.035 * vScale, 0.005, abs(distCenter - abs(boltPath)) - 0.025 * vScale);",
+  "      float crackle = sin(zPos * 40.0 + floor(tZ) * 23.1) * 0.05;",
+  "      float boltArc = smoothstep(0.02, 0.002, abs(distCenter - 0.22 - crackle));",
+  "      vMask = max(boltMain, boltArc);",
+  "      vGlow = vMask * (2.8 + sin(uTime * 25.0) * 0.8);",
+  "    }",
+  "    // 15. HERO_COSMIC_STAR (Cosmic Star Shield & Orbital Rings)",
+  "    else if (uVinylId >= 14.5 && uVinylId < 15.5) {",
+  "      float tS = uVinylAnimated > 0.5 ? uTime * 3.0 : 0.0;",
+  "      vec2 sP = vec2(distCenter, zPos - 0.4);",
+  "      float sDist = length(sP);",
+  "      float sAng = atan(sP.y, sP.x) + tS * 0.3;",
+  "      float starR = 0.16 + sin(sAng * 5.0) * 0.07;",
+  "      float star = smoothstep(starR + 0.01, starR - 0.01, sDist);",
+  "      float orbRing = smoothstep(0.018, 0.004, abs(sDist - 0.32) - 0.012);",
+  "      vMask = clamp(max(star, orbRing), 0.0, 1.0) * isTop;",
+  "      vGlow = star * 2.5 + orbRing * 1.6;",
+  "    }",
+  "    // 16. HERO_BAT_WING (Dark Knight Bat Wings Emblem)",
+  "    else if (uVinylId >= 15.5 && uVinylId < 16.5) {",
+  "      float bZ = (zPos - 0.4) * 2.0;",
+  "      float bX = distCenter * 2.2;",
+  "      float topEdge = 0.12 - bX * 0.2 + (bX < 0.15 ? (0.15 - bX) * 0.8 : 0.0);",
+  "      float botEdge = -0.15 + sin(bX * 20.0) * 0.06 + bX * 0.3;",
+  "      float batWing = step(botEdge, bZ) * step(bZ, topEdge) * step(bX, 0.65);",
+  "      vMask = batWing * isTop;",
+  "      vGlow = batWing * 1.8;",
+  "    }",
+  "    // 17. CUTE_STARS_GALAXY (Kawaii Twinkling Stars & Rainbow Sparkle Stream)",
+  "    else if (uVinylId >= 16.5 && uVinylId < 17.5) {",
+  "      float tK = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
+  "      vec2 kGrid = vLocalPos.xz * 12.0 * vScale;",
+  "      vec2 kLocal = fract(kGrid) - 0.5;",
+  "      float kHash = fract(sin(dot(floor(kGrid), vec2(12.9898, 78.233))) * 43758.5453);",
+  "      float kStarDist = abs(kLocal.x) + abs(kLocal.y);",
+  "      float twinkle = sin(tK * 3.0 + kHash * 20.0) * 0.5 + 0.5;",
+  "      float kStar = (kHash > 0.40) ? smoothstep(0.28 * twinkle, 0.05, kStarDist) : 0.0;",
+  "      vMask = kStar;",
+  "      vGlow = kStar * 2.5 * (0.8 + 0.4 * twinkle);",
+  "    }",
+  "    // 18. CUTE_MONSTER_SMILE (Playful Cartoon Monster Teeth & Eyes)",
+  "    else if (uVinylId >= 17.5 && uVinylId < 18.5) {",
+  "      float mouthZ = zPos - 0.7 + pow(distCenter * 1.5, 2.0) * 0.2;",
+  "      float mouthOpen = smoothstep(0.08, 0.05, abs(mouthZ) - 0.04) * step(distCenter, 0.35);",
+  "      float teeth = abs(sin(distCenter * 40.0)) * mouthOpen;",
+  "      vec2 eyeL = vec2(distCenter - 0.16, (zPos - 0.4) * 1.5);",
+  "      float eyeOut = smoothstep(0.08, 0.05, length(eyeL));",
+  "      float pupil = smoothstep(0.035, 0.020, length(eyeL));",
+  "      vMask = clamp(mouthOpen * teeth + (eyeOut - pupil), 0.0, 1.0);",
+  "      vGlow = vMask * 1.3;",
+  "    }",
+  "    // 19. CUTE_CANDY_SWEETS (Dripping Frosting Glaze & Rainbow Candy Sprinkles)",
+  "    else if (uVinylId >= 18.5 && uVinylId < 19.5) {",
+  "      float drip = sin(distCenter * 15.0) * 0.08 + cos(zPos * 20.0) * 0.04;",
+  "      float glaze = smoothstep(0.3 + drip, 0.25 + drip, yPos);",
+  "      vec2 sGrid = vLocalPos.xz * 20.0;",
+  "      float sHash = fract(sin(dot(floor(sGrid), vec2(37.1, 89.3))) * 23421.6);",
+  "      float sprinkle = (sHash > 0.65) ? smoothstep(0.2, 0.05, length(fract(sGrid) - 0.5)) : 0.0;",
+  "      vMask = clamp(glaze * 0.8 + sprinkle, 0.0, 1.0);",
+  "      vGlow = sprinkle * 1.8;",
+  "    }",
+  "    // 20. PIXEL_ARCADE_8BIT (Retro 8-Bit Arcade Invaders & Pixel Hearts)",
+  "    else if (uVinylId >= 19.5 && uVinylId < 20.5) {",
+  "      vec2 pUV = floor(vLocalPos.xz * 16.0 * vScale);",
+  "      float pInvader = 0.0;",
+  "      vec2 pCell = mod(pUV, 8.0);",
+  "      vec2 pSym = vec2(abs(pCell.x - 3.5), pCell.y);",
+  "      if (pSym.y == 1.0 && pSym.x < 1.0) pInvader = 1.0;",
+  "      if (pSym.y == 2.0 && pSym.x < 2.0) pInvader = 1.0;",
+  "      if (pSym.y == 3.0 && (pSym.x < 3.5 && pSym.x > 1.0)) pInvader = 1.0;",
+  "      if (pSym.y == 4.0 && pSym.x < 3.0) pInvader = 1.0;",
+  "      if (pSym.y == 5.0 && pSym.x > 1.5) pInvader = 1.0;",
+  "      if (pSym.y == 6.0 && (pSym.x < 0.8 || pSym.x > 2.5)) pInvader = 1.0;",
+  "      vMask = pInvader * isTop;",
+  "      vGlow = pInvader * (2.0 + sin(uTime * 8.0) * 0.6);",
+  "    }",
+  "    // 21. CUTE_PAW_PRINTS (Walking Kitty/Puppy Paw Prints)",
+  "    else if (uVinylId >= 20.5 && uVinylId < 21.5) {",
+  "      vec2 pawUV = vec2(distCenter * 8.0, zPos * 6.0);",
+  "      vec2 pawCell = fract(pawUV) - 0.5;",
+  "      float pawHash = fract(sin(dot(floor(pawUV), vec2(23.7, 67.1))) * 54321.1);",
+  "      float mainPad = smoothstep(0.18, 0.08, length(pawCell + vec2(0.0, 0.08)));",
+  "      float toe1 = smoothstep(0.08, 0.02, length(pawCell - vec2(-0.16, 0.16)));",
+  "      float toe2 = smoothstep(0.09, 0.02, length(pawCell - vec2(-0.06, 0.24)));",
+  "      float toe3 = smoothstep(0.09, 0.02, length(pawCell - vec2( 0.06, 0.24)));",
+  "      float toe4 = smoothstep(0.08, 0.02, length(pawCell - vec2( 0.16, 0.16)));",
+  "      float paw = (pawHash > 0.35) ? max(mainPad, max(max(toe1, toe2), max(toe3, toe4))) : 0.0;",
+  "      vMask = paw * isTop;",
+  "    }",
+  "    // 22. LAVA_MAGMA (Volcanic Molten Magma Fissures)",
+  "    else if (uVinylId >= 21.5 && uVinylId < 22.5) {",
+  "      float tL = uVinylAnimated > 0.5 ? uTime * 2.5 : 0.0;",
+  "      vec2 lUV = vLocalPos.xz * 12.0 * vScale;",
+  "      float n1 = sin(lUV.x * 2.0 + lUV.y * 1.5 - tL * 0.8) * 0.5 + 0.5;",
+  "      float n2 = cos(lUV.x * 3.0 - lUV.y * 2.5 + tL * 1.2) * 0.5 + 0.5;",
+  "      float crack = abs(n1 - n2);",
+  "      float magma = smoothstep(0.14, 0.02, crack);",
+  "      float pulse = sin(tL * 2.0 + zPos * 8.0) * 0.5 + 0.5;",
+  "      vMask = magma;",
+  "      vGlow = magma * (2.5 + pulse * 1.5);",
+  "    }",
+  "    // 23. QUANTUM_CIRCUIT (Quantum Golden PCB Microchip Tracks)",
+  "    else if (uVinylId >= 22.5 && uVinylId < 23.5) {",
+  "      float tQ = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
+  "      vec2 qUV = vLocalPos.xz * 14.0 * vScale;",
+  "      vec2 qCell = fract(qUV);",
+  "      float track = smoothstep(0.08, 0.02, abs(qCell.x - 0.5)) + smoothstep(0.08, 0.02, abs(qCell.y - 0.5));",
+  "      float node = smoothstep(0.25, 0.15, length(qCell - 0.5));",
+  "      float dataPkt = smoothstep(0.2, 0.05, length(qCell - vec2(fract(tQ * 0.4), 0.5)));",
+  "      vMask = clamp(max(track * 0.8, node) + dataPkt, 0.0, 1.0);",
+  "      vGlow = (node * 1.5 + dataPkt * 3.0);",
+  "    }",
+  "    // 24. NEON_TOKYO_DRIFT (Tokyo Midnight Drift Speed Slashes)",
+  "    else if (uVinylId >= 23.5) {",
+  "      float slash1 = smoothstep(0.035, 0.008, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 6.0) - 0.25);",
+  "      float slash2 = smoothstep(0.025, 0.005, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 8.5) - 0.15);",
+  "      float slash3 = smoothstep(0.020, 0.005, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 10.5) - 0.10);",
+  "      vMask = max(max(slash1, slash2), slash3) * isSide;",
+  "      vGlow = vMask * 1.8;",
+  "    }",
+  "",
+  "    if (vMask > 0.001) {",
+  "      base = mix(base, uVinylColor, clamp(vMask, 0.0, 1.0));",
+  "    }",
+  "  }",
   "  if (uCrowd > 0.5) {",
   "    vec2 gridUV = floor(vUV * vec2(192.0, 48.0));",
   "    float flashHash = fract(sin(dot(gridUV, vec2(12.9898, 78.233)) + floor(uTime * 14.0) * 0.07) * 43758.5453);",
@@ -2462,7 +2726,7 @@ var FS_MAIN = [
   "  float skyFac = clamp(R.y * 0.5 + 0.5, 0.0, 1.0);",
   "  vec3 envColor = mix(groundBounce, skyAmb * 1.2, skyFac);",
   "  vec3 envReflection = pow(1.0 - NdotV, 4.0) * envColor * (uSpec * 0.20 + uRim * 0.25);",
-  "  vec3 col = lit + specularSun + clearcoatLobe + floodSpec + envReflection + uEmissive;",
+  "  vec3 col = lit + specularSun + clearcoatLobe + floodSpec + envReflection + uEmissive + (uVinylColor * (vGlow * uVinylEmissive * 1.5));",
   // Atmospheric Fog
   "  float dist = length(uCam - vW);",
   "  float fog = 1.0 - exp(-dist * uFog);",
@@ -2658,13 +2922,18 @@ export function Renderer(canvas) {
   this.progPart = this.program(VS_PART, FS_PART);
   this.progLine = this.program(VS_LINE, FS_LINE);
   this.progGrass = this.program(VS_GRASS, FS_GRASS);
+  this.extAniso = gl.getExtension("EXT_texture_filter_anisotropic") ||
+                  gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic") ||
+                  gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
+  this.maxAniso = this.extAniso ? gl.getParameter(this.extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 8 : 1;
   this.uMain = this.uniforms(this.progMain, [
     "uVP", "uModel", "uNM", "uColor", "uEmissive", "uCam", "uFogCol",
     "uOpacity", "uSpec", "uUseTex", "uFog", "uAlphaTest", "uRim",
     "uFlood", "uSun", "uAmb", "uBump", "uTex",
     "uClearcoat", "uMetallic", "uAO", "uFlakes",
     "uShadowVP", "uShadowMap", "uShadowEnable", "uShadowSoftness",
-    "uTime", "uCrowd", "uUVScroll"
+    "uTime", "uCrowd", "uUVScroll",
+    "uVinylId", "uVinylColor", "uVinylEmissive", "uVinylScale", "uVinylAnimated"
   ]);
   this.uGrass = this.uniforms(this.progGrass, [
     "uVP", "uShadowVP", "uShadowMap", "uShadowEnable", "uShadowSoftness",
@@ -2744,7 +3013,12 @@ Renderer.prototype.texture = function (canvas, repeat, mips) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mips === false ? gl.LINEAR : gl.LINEAR_MIPMAP_LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  if (mips !== false) gl.generateMipmap(gl.TEXTURE_2D);
+  if (mips !== false) {
+    gl.generateMipmap(gl.TEXTURE_2D);
+    if (this.extAniso && this.maxAniso > 1) {
+      gl.texParameterf(gl.TEXTURE_2D, this.extAniso.TEXTURE_MAX_ANISOTROPY_EXT, this.maxAniso);
+    }
+  }
   return t;
 };
 Renderer.prototype.resize = function (scale) {
@@ -2829,7 +3103,12 @@ var MAT_DEFAULT = {
   metallic: 0.0,
   ao: 0.0,
   flakes: 0.0,
-  crowd: 0.0
+  crowd: 0.0,
+  vinylId: 0.0,
+  vinylColor: [1.0, 1.0, 1.0],
+  vinylEmissive: 0.0,
+  vinylScale: 1.0,
+  vinylAnimated: false
 };
 Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   var gl = this.gl, u = this.uMain;
@@ -2863,6 +3142,14 @@ Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   gl.uniform1f(u.uUseTex, mat.tex ? 1 : 0);
   gl.uniform1f(u.uCrowd, mat.crowd !== undefined ? mat.crowd : 0.0);
   gl.uniform2f(u.uUVScroll, mat.uvScroll ? mat.uvScroll[0] : 0, mat.uvScroll ? mat.uvScroll[1] : 0);
+
+  // Vinyl decal and dynamic animated shader parameters
+  gl.uniform1f(u.uVinylId, mat.vinylId !== undefined ? mat.vinylId : 0.0);
+  var vc = mat.vinylColor || MAT_DEFAULT.vinylColor;
+  gl.uniform3f(u.uVinylColor, vc[0], vc[1], vc[2]);
+  gl.uniform1f(u.uVinylEmissive, mat.vinylEmissive !== undefined ? mat.vinylEmissive : 0.0);
+  gl.uniform1f(u.uVinylScale, mat.vinylScale !== undefined ? mat.vinylScale : 1.0);
+  gl.uniform1f(u.uVinylAnimated, mat.vinylAnimated ? 1.0 : 0.0);
 
   var wantTex = mat.tex || this.whiteTex;
   if (this.curTex !== wantTex) {
@@ -2959,9 +3246,10 @@ Renderer.prototype.generateGrassInstances = function (count) {
     return;
   }
 
-  var halfW = 52.0;
-  var halfL = 62.0;
-  var cornerR = 7.5;
+  var arena = CFG.arena || {};
+  var halfW = (arena.hx ? arena.hx - 0.4 : 61.0);
+  var halfL = (arena.hz ? arena.hz - 0.4 : 76.4);
+  var cornerR = (arena.cornerFillet ? arena.cornerFillet - 0.4 : 11.9);
   var stepX = (halfW * 2) / CHUNKS_X;
   var stepZ = (halfL * 2) / CHUNKS_Z;
 
@@ -3297,7 +3585,7 @@ Renderer.prototype.renderShadowMap = function (props, cars, ball) {
     var groundRestHeight = V.wheel.radius + V.wheel.rest - V.wheel.attachY;
     var upOffset = (CAR_SCALE - 1.0) * groundRestHeight;
 
-    var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM'];
+    var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM', 'MONSTER', 'KART', 'DRAGSTER', 'HYPER', 'COACH', 'SUV', 'HOTROD', 'LIMO'];
     for (var i = 0; i < cars.length; i++) {
       var car = cars[i];
       if (!car || !car.body) continue;
@@ -3792,6 +4080,7 @@ var _qScratch3 = new Quat();
 var _vScratch1 = new V3();
 var _vScratch2 = new V3();
 var _vScratch3 = new V3();
+var _vScratch4 = new V3();
 var _vCarDrawPos = new V3();
 var _wheelScale = new V3();
 var _metallicCol = [0, 0, 0];
@@ -3840,6 +4129,26 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
       emissive: [0.12, 0.14, 0.18],
       spec: 0.65,
       rim: 0.25
+    });
+  }
+
+  // 4b. 3D Stadium Roof Space-Truss Architecture & Majestic Canopy Arches
+  if (meshes.roofTruss) {
+    this.draw(meshes.roofTruss, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [0.42, 0.48, 0.56],
+      emissive: [0.10, 0.12, 0.16],
+      spec: 0.75,
+      metallic: 0.80,
+      rim: 0.35
+    });
+  }
+  if (meshes.roofNeon) {
+    var rPulse = 0.85 + Math.sin(this.time * 2.8) * 0.15;
+    this.draw(meshes.roofNeon, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [0.90, 0.95, 1.0],
+      emissive: [0.35 * rPulse, 0.65 * rPulse, 1.2 * rPulse],
+      spec: 0.90,
+      rim: 0.50
     });
   }
 
@@ -4011,16 +4320,23 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
     }
   }
 
-  var hR = haloRadius || 0.35;
-  var cR = coreRadius || 0.09;
+  var lGfx = (CFG.gfx) || {};
+  var bMult = (lGfx.laserBrightness !== undefined) ? lGfx.laserBrightness : 0.45;
+  var tMult = (lGfx.laserThickness !== undefined) ? lGfx.laserThickness : 0.70;
+  var hMult = (lGfx.laserHaloRadius !== undefined) ? lGfx.laserHaloRadius : 0.75;
+  var oMult = (lGfx.laserOpacity !== undefined) ? lGfx.laserOpacity : 0.40;
+  var sMult = (lGfx.laserSpotRadius !== undefined) ? lGfx.laserSpotRadius : 0.80;
+
+  var hR = (haloRadius || 0.35) * hMult;
+  var cR = (coreRadius || 0.09) * tMult;
 
   // 1. Outer Volumetric Glowing Halo Envelope (Additive blooming cylinder)
   if (props && props.laserHalo) {
     _vScale.set(hR, hR, len);
     this.draw(props.laserHalo, p1, qRot, _vScale, {
       color: colInfo.halo,
-      emissive: colInfo.haloEmiss,
-      opacity: 0.62,
+      emissive: [colInfo.haloEmiss[0] * bMult, colInfo.haloEmiss[1] * bMult, colInfo.haloEmiss[2] * bMult],
+      opacity: 0.62 * oMult,
       blend: "add",
       cull: false,
       spec: 0.0
@@ -4032,8 +4348,8 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
     _vScale.set(cR, cR, len);
     this.draw(props.laserCore, p1, qRot, _vScale, {
       color: [1.0, 1.0, 1.0],
-      emissive: colInfo.coreEmiss,
-      opacity: 0.95,
+      emissive: [colInfo.coreEmiss[0] * bMult, colInfo.coreEmiss[1] * bMult, colInfo.coreEmiss[2] * bMult],
+      opacity: 0.95 * oMult,
       blend: "add",
       cull: false,
       spec: 0.0
@@ -4042,20 +4358,20 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
 
   // 3. Projector Optical Lens Flare at Origin Tower
   if (props && props.laserFlare) {
-    this.draw(props.laserFlare, p1, _qIdentity, _vScale.set(0.65, 0.65, 0.65), {
+    this.draw(props.laserFlare, p1, _qIdentity, _vScale.set(0.65 * sMult, 0.65 * sMult, 0.65 * sMult), {
       color: [1.0, 1.0, 1.0],
-      emissive: colInfo.flareEmiss,
-      opacity: 0.88,
+      emissive: [colInfo.flareEmiss[0] * bMult, colInfo.flareEmiss[1] * bMult, colInfo.flareEmiss[2] * bMult],
+      opacity: 0.88 * oMult,
       blend: "add",
       cull: false,
       spec: 0.0
     });
 
     // 4. Ground/Canopy Focal Energy Impact Spot
-    this.draw(props.laserFlare, p2, _qIdentity, _vScale.set(0.85, 0.85, 0.85), {
+    this.draw(props.laserFlare, p2, _qIdentity, _vScale.set(0.85 * sMult, 0.85 * sMult, 0.85 * sMult), {
       color: colInfo.halo,
-      emissive: colInfo.impactEmiss,
-      opacity: 0.72,
+      emissive: [colInfo.impactEmiss[0] * bMult, colInfo.impactEmiss[1] * bMult, colInfo.impactEmiss[2] * bMult],
+      opacity: 0.72 * oMult,
       blend: "add",
       cull: false,
       spec: 0.0
@@ -4505,7 +4821,62 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
 
   _vScale.set(CAR_SCALE, CAR_SCALE, CAR_SCALE);
 
-  var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM'];
+  // Dynamic rebuild of the car kit meshes to match the active tuning parameters (e.g. wheel radius/suspension/hideWheelFlaps/flapOffsetY/flapScale/flapWidthScale/flapThickScale)
+  var W_cfg = V.wheel;
+  var hideFlapsKey = (CFG.vehicle && CFG.vehicle.hideWheelFlaps) ? "1" : "0";
+  var flapOffsetYKey = (CFG.vehicle && CFG.vehicle.flapOffsetY !== undefined) ? CFG.vehicle.flapOffsetY.toFixed(3) : "0";
+  var flapScaleKey = (CFG.vehicle && CFG.vehicle.flapScale !== undefined) ? CFG.vehicle.flapScale.toFixed(2) : "1";
+  var flapWidthScaleKey = (CFG.vehicle && CFG.vehicle.flapWidthScale !== undefined) ? CFG.vehicle.flapWidthScale.toFixed(2) : "1";
+  var flapThickScaleKey = (CFG.vehicle && CFG.vehicle.flapThickScale !== undefined) ? CFG.vehicle.flapThickScale.toFixed(2) : "1";
+  var checkKey = W_cfg.radius + "_" + W_cfg.rest + "_" + W_cfg.attachX + "_" + W_cfg.attachY + "_" + W_cfg.attachZ + "_" + hideFlapsKey + "_" + flapOffsetYKey + "_" + flapScaleKey + "_" + flapWidthScaleKey + "_" + flapThickScaleKey;
+  if (props && !props._lastWheelCheck) {
+    props._lastWheelCheck = checkKey;
+  } else if (props && props._lastWheelCheck !== checkKey) {
+    props._lastWheelCheck = checkKey;
+    try {
+      var newKit = buildCarKit(this);
+      if (newKit) {
+        // Clean up old model VAOs to prevent memory leaks
+        if (props.carKit && props.carKit.models) {
+          for (var mid in props.carKit.models) {
+            var oldM = props.carKit.models[mid];
+            if (oldM.body && oldM.body.vao) this.gl.deleteVertexArray(oldM.body.vao);
+            if (oldM.accent && oldM.accent.vao) this.gl.deleteVertexArray(oldM.accent.vao);
+            if (oldM.glass && oldM.glass.vao) this.gl.deleteVertexArray(oldM.glass.vao);
+            if (oldM.lights && oldM.lights.vao) this.gl.deleteVertexArray(oldM.lights.vao);
+            if (oldM.thruster && oldM.thruster.vao) this.gl.deleteVertexArray(oldM.thruster.vao);
+            if (oldM.trim && oldM.trim.vao) this.gl.deleteVertexArray(oldM.trim.vao);
+          }
+        }
+        // Clean up old wheel VAOs
+        if (props.carKit && props.carKit.wheels) {
+          for (var wid in props.carKit.wheels) {
+            var oldW = props.carKit.wheels[wid];
+            if (oldW.wheel && oldW.wheel.vao) this.gl.deleteVertexArray(oldW.wheel.vao);
+            if (oldW.hub && oldW.hub.vao) this.gl.deleteVertexArray(oldW.hub.vao);
+          }
+        }
+        props.carKit = newKit;
+        if (newKit.models && newKit.models.OCTANE) {
+          var oct = newKit.models.OCTANE;
+          props.body = oct.body;
+          props.accent = oct.accent;
+          props.glass = oct.glass;
+          props.lights = oct.lights;
+          props.thruster = oct.thruster;
+          props.trim = oct.trim;
+        }
+        if (newKit.wheels && newKit.wheels.SPORT) {
+          props.wheel = newKit.wheels.SPORT.wheel;
+          props.hub = newKit.wheels.SPORT.hub;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to dynamically rebuild carKit:", e);
+    }
+  }
+
+  var BOT_MODELS = ['OCTANE', 'VORTEX', 'STRIKER', 'TITAN', 'RAPTOR', 'PHANTOM', 'MONSTER', 'KART', 'DRAGSTER', 'HYPER', 'COACH', 'SUV', 'HOTROD', 'LIMO'];
   var BOT_WHEELS = ['SPORT', 'TURBINE', 'MESH', 'OFFROAD', 'DISH', 'AERO', 'STEEL'];
 
   var isPlayer = !!car.isPlayer;
@@ -4525,6 +4896,8 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   var meshAccent = (kitM && kitM.accent) || props.accent;
   var meshGlass = (kitM && kitM.glass) || props.glass;
   var meshLights = (kitM && kitM.lights) || props.lights;
+  var meshHeadlights = (kitM && kitM.headlights) || props.headlights || null;
+  var meshTaillights = (kitM && kitM.taillights) || props.taillights || null;
   var meshThruster = (kitM && kitM.thruster) || props.thruster;
   var meshTrim = (kitM && kitM.trim) || props.trim;
   var meshWheel = (kitW && kitW.wheel) || props.wheel;
@@ -4564,7 +4937,60 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
     if (cust.bump !== undefined) carBump = cust.bump;
   }
 
-  // 1. Main Body Shell (Realistic 3D Embossed Panel Relief & Aerodynamic Louvers)
+  // High-Precision Procedural Car Vinyls & Dynamic Animated Livery
+  var VINYL_MAP = {
+    "NONE": 0.0,
+    "RACING_STRIPES": 1.0,
+    "CYBER_GRID": 2.0,
+    "FLAME_SURGE": 3.0,
+    "LIGHTNING_STORM": 4.0,
+    "WAVE_FLOW": 5.0,
+    "CARBON_HEX": 6.0,
+    "CAMO_TACTICAL": 7.0,
+    "DIGITAL_MATRIX": 8.0,
+    "SPEED_APEX": 9.0,
+    "SUNBURST_RAYS": 10.0,
+    "DRAGON_FIRE": 11.0,
+    "PHOENIX_BLAZE": 12.0,
+    "HERO_SPIDER_WEB": 13.0,
+    "HERO_LIGHTNING_BOLT": 14.0,
+    "HERO_COSMIC_STAR": 15.0,
+    "HERO_BAT_WING": 16.0,
+    "CUTE_STARS_GALAXY": 17.0,
+    "CUTE_MONSTER_SMILE": 18.0,
+    "CUTE_CANDY_SWEETS": 19.0,
+    "PIXEL_ARCADE_8BIT": 20.0,
+    "CUTE_PAW_PRINTS": 21.0,
+    "LAVA_MAGMA": 22.0,
+    "QUANTUM_CIRCUIT": 23.0,
+    "NEON_TOKYO_DRIFT": 24.0
+  };
+
+  var vinylId = 0.0;
+  var vinylColor = [1.0, 1.0, 1.0];
+  var vinylEmissive = 0.0;
+  var vinylScale = 1.0;
+  var vinylAnimated = false;
+
+  if (isPlayer) {
+    var vKey = cust.vinyl || "NONE";
+    vinylId = VINYL_MAP[vKey] !== undefined ? VINYL_MAP[vKey] : 0.0;
+    if (cust.vinylColor) vinylColor = parseHex(cust.vinylColor, [1.0, 1.0, 1.0]);
+    if (cust.vinylEmissive !== undefined) vinylEmissive = cust.vinylEmissive;
+    if (cust.vinylScale !== undefined) vinylScale = cust.vinylScale;
+    if (cust.vinylAnimated !== undefined) vinylAnimated = !!cust.vinylAnimated;
+  } else {
+    // Bots can have distinctive dynamic vinyls based on their car index
+    var botVinyls = ["RACING_STRIPES", "CYBER_GRID", "FLAME_SURGE", "LIGHTNING_STORM", "WAVE_FLOW", "CARBON_HEX", "SPEED_APEX"];
+    var botVKey = botVinyls[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % botVinyls.length];
+    vinylId = VINYL_MAP[botVKey] || 0.0;
+    vinylColor = (team === 0 ? [0.4, 0.85, 1.0] : [1.0, 0.75, 0.3]);
+    vinylEmissive = 0.45;
+    vinylScale = 1.0;
+    vinylAnimated = true;
+  }
+
+  // 1. Main Body Shell (Realistic 3D Embossed Panel Relief, Team Colors & Vinyl Decals)
   if (meshBody) {
     this.draw(meshBody, carDrawPos, B.quat, _vScale, {
       color: bodyCol,
@@ -4575,7 +5001,12 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
       metallic: carMetallic,
       flakes: carFlakes,
       ao: carAO,
-      rim: 0.35
+      rim: 0.35,
+      vinylId: vinylId,
+      vinylColor: vinylColor,
+      vinylEmissive: vinylEmissive,
+      vinylScale: vinylScale,
+      vinylAnimated: vinylAnimated
     });
   }
 
@@ -4626,12 +5057,55 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
     });
   }
 
-  // 5. Glowing Headlights & Taillights
-  if (meshLights) {
+  // Dynamic Brake Detection (Foot brake / reverse throttle OR handbrake slide)
+  var isBraking = false;
+  if (car.input) {
+    if (car.input.throttle < -0.05) {
+      isBraking = true;
+    }
+    var fwdSpeed = car.forwardSpeed ? car.forwardSpeed() : 0;
+    if (car.input.slide && Math.abs(fwdSpeed) > 0.6) {
+      isBraking = true;
+    }
+  }
+
+  // 5. Clean Radiant Car Headlights & Taillights (Self-illuminating object meshes)
+  if (meshHeadlights || meshTaillights) {
+    if (meshHeadlights) {
+      // Front Headlights fixture object
+      this.draw(meshHeadlights, carDrawPos, B.quat, _vScale, {
+        color: lightsCol,
+        emissive: [lightsCol[0] * 2.2, lightsCol[1] * 2.2, lightsCol[2] * 2.2],
+        spec: 1.0,
+        clearcoat: 1.0
+      });
+    }
+    if (meshTaillights) {
+      // Rear Taillights fixture object (Clean warm yellowish-white self-glow on brake)
+      var tailCol = isBraking ? [1.0, 0.96, 0.78] : [0.85, 0.18, 0.14];
+      var tailEmissive = isBraking
+        ? [2.8, 2.6, 1.8] // Warm yellowish-white self-luminous glow directly on the light mesh
+        : [1.1, 0.20, 0.15]; // Sleek ambient red running light
+
+      this.draw(meshTaillights, carDrawPos, B.quat, _vScale, {
+        color: tailCol,
+        emissive: tailEmissive,
+        spec: 1.0,
+        clearcoat: 1.0
+      });
+    }
+  } else if (meshLights) {
+    // Fallback unified light mesh
+    var activeLightsCol = isBraking ? [1.0, 0.96, 0.78] : lightsCol;
+    var activeEmissive = isBraking
+      ? [2.8, 2.6, 1.8]
+      : [lightsCol[0] * 2.0, lightsCol[1] * 2.0, lightsCol[2] * 2.0];
+
     this.draw(meshLights, carDrawPos, B.quat, _vScale, {
-      color: lightsCol,
-      emissive: [lightsCol[0] * 2.2, lightsCol[1] * 2.2, lightsCol[2] * 2.2],
-      spec: 1.0
+      color: activeLightsCol,
+      emissive: activeEmissive,
+      spec: 1.0,
+      clearcoat: 1.0
     });
   }
 
@@ -4654,26 +5128,22 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
     var curR = wheel.radius || V.wheel.radius;
     _wheelScale.set(CAR_SCALE * curR, CAR_SCALE * curR, CAR_SCALE * curR);
 
-    var relX, relY, relZ;
-    var dx = wheel.center ? wheel.center.x - B.pos.x : 999;
-    var dy = wheel.center ? wheel.center.y - B.pos.y : 999;
-    var dz = wheel.center ? wheel.center.z - B.pos.z : 999;
-    var distSq = dx * dx + dy * dy + dz * dz;
+    // Determine custom visual X offset for this model (e.g. to match fender arches)
+    var customX = (kitM && kitM.archX !== undefined) ? (kitM.archX + 0.025) : null;
 
-    // If wheel center is valid and close to car body (within 3 meters unscaled)
-    if (wheel.center && distSq < 9.0) {
-      relX = dx * CAR_SCALE;
-      relY = dy * CAR_SCALE;
-      relZ = dz * CAR_SCALE;
-    } else {
-      // Direct reliable calculation from car body orientation + wheel local attachment
-      var attachRot = B.quat.rotate(wheel.local, _vScratch3);
-      var comp = wheel.compression || 0;
-      var restTravel = V.wheel.rest - comp;
-      relX = attachRot.x * CAR_SCALE;
-      relY = (attachRot.y - restTravel) * CAR_SCALE;
-      relZ = attachRot.z * CAR_SCALE;
-    }
+    var sx = (wheel.local.x > 0) ? 1 : -1;
+    var localX = (customX !== null) ? (sx * customX) : wheel.local.x;
+
+    // Direct, mathematically correct local-to-world rotation keeping suspension movement aligned with car's orientation
+    var comp = wheel.compression || 0;
+    var restTravel = V.wheel.rest - comp;
+    var localPos = _vScratch4;
+    localPos.set(localX, wheel.local.y - restTravel, wheel.local.z);
+
+    var attachRot = B.quat.rotate(localPos, _vScratch3);
+    var relX = attachRot.x * CAR_SCALE;
+    var relY = attachRot.y * CAR_SCALE;
+    var relZ = attachRot.z * CAR_SCALE;
     _vScratch1.set(carDrawPos.x + relX, carDrawPos.y + relY, carDrawPos.z + relZ);
 
     // Rotate wheel around steer (Y) and rolling spin (X)
@@ -4706,7 +5176,7 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
 
     // 7.1 Four corner fenders / wheel bumpers (fender arches and brake calipers)
     // Rendered relative to the body but offset along the suspension travel (restTravel)
-    if (kitM && kitM.fenders && kitM.fenders[w]) {
+    if (!CFG.vehicle.hideWheelFlaps && kitM && kitM.fenders && kitM.fenders[w]) {
       var f = kitM.fenders[w];
       var comp = wheel.compression || 0;
       var restTravel = V.wheel.rest - comp;

@@ -29,7 +29,7 @@ import {
   Shield,
   Camera
 } from "lucide-react";
-import { CFG, DEFAULT_CFG, saveCurrentConfig, deepMerge, STADIUM_THEMES } from "../game/config.js";
+import { CFG, DEFAULT_CFG, saveCurrentConfig, deepMerge, STADIUM_THEMES, saveZeroPreset, loadZeroPreset, hasZeroPreset } from "../game/config.js";
 
 export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose, initialTab }) {
   const [activeTab, setActiveTab] = useState(initialTab || "graphics"); // 'graphics' | 'hitbox' | 'wheels' | 'flip' | 'air' | 'boost' | 'ball' | 'presets'
@@ -78,9 +78,15 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     wheelTravel: CFG.vehicle.wheel.travel,
     wheelStiffness: CFG.vehicle.wheel.stiffness,
     wheelDamping: CFG.vehicle.wheel.damping,
+    wheelDownforce: CFG.vehicle.wheel.downforce !== undefined ? CFG.vehicle.wheel.downforce : 12.0,
     grip: CFG.vehicle.grip,
     gripSlide: CFG.vehicle.gripSlide,
     steerRate: CFG.vehicle.steerRate,
+    hideWheelFlaps: !!(CFG.vehicle.hideWheelFlaps),
+    flapOffsetY: (CFG.vehicle.flapOffsetY !== undefined ? CFG.vehicle.flapOffsetY : 0.0),
+    flapScale: (CFG.vehicle.flapScale !== undefined ? CFG.vehicle.flapScale : 1.0),
+    flapWidthScale: (CFG.vehicle.flapWidthScale !== undefined ? CFG.vehicle.flapWidthScale : 1.0),
+    flapThickScale: (CFG.vehicle.flapThickScale !== undefined ? CFG.vehicle.flapThickScale : 1.0),
 
     // 2. 360° Flips & Dodges
     dodgeAngRate: CFG.vehicle.dodge.angRate,
@@ -151,7 +157,14 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     grassSubsurface: (CFG.gfx && CFG.gfx.grassSubsurface !== undefined) ? CFG.gfx.grassSubsurface : 0.80,
     boostPadHeightOffset: (CFG.gfx && CFG.gfx.boostPadHeightOffset !== undefined) ? CFG.gfx.boostPadHeightOffset : 0.35,
     crowdAnimation: (CFG.gfx && CFG.gfx.crowdAnimation !== undefined) ? CFG.gfx.crowdAnimation : true,
-    crowdEnergy: (CFG.gfx && CFG.gfx.crowdEnergy !== undefined) ? CFG.gfx.crowdEnergy : 1.0
+    crowdEnergy: (CFG.gfx && CFG.gfx.crowdEnergy !== undefined) ? CFG.gfx.crowdEnergy : 1.0,
+
+    // Stadium Lasers & Optical Beams
+    laserBrightness: (CFG.gfx && CFG.gfx.laserBrightness !== undefined) ? CFG.gfx.laserBrightness : 0.45,
+    laserThickness: (CFG.gfx && CFG.gfx.laserThickness !== undefined) ? CFG.gfx.laserThickness : 0.70,
+    laserHaloRadius: (CFG.gfx && CFG.gfx.laserHaloRadius !== undefined) ? CFG.gfx.laserHaloRadius : 0.75,
+    laserOpacity: (CFG.gfx && CFG.gfx.laserOpacity !== undefined) ? CFG.gfx.laserOpacity : 0.40,
+    laserSpotRadius: (CFG.gfx && CFG.gfx.laserSpotRadius !== undefined) ? CFG.gfx.laserSpotRadius : 0.80
   });
 
   const [values, setValues] = useState(getInitialValues);
@@ -219,6 +232,13 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     if (key === "carBumpStyle") CFG.gfx.carBumpStyle = val;
     if (key === "carAmbientOcclusion") CFG.gfx.carAmbientOcclusion = val;
 
+    // Lasers
+    if (key === "laserBrightness") CFG.gfx.laserBrightness = val;
+    if (key === "laserThickness") CFG.gfx.laserThickness = val;
+    if (key === "laserHaloRadius") CFG.gfx.laserHaloRadius = val;
+    if (key === "laserOpacity") CFG.gfx.laserOpacity = val;
+    if (key === "laserSpotRadius") CFG.gfx.laserSpotRadius = val;
+
     // Camera Real-Time parameters
     if (key === "cameraFov") {
       CFG.camera.fov = val;
@@ -241,6 +261,13 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     if (key === "cameraSpeedZoom") {
       CFG.camera.speedZoom = val;
     }
+
+    // Flaps / Fender Arches
+    if (key === "flapWidthScale") CFG.vehicle.flapWidthScale = val;
+    if (key === "flapThickScale") CFG.vehicle.flapThickScale = val;
+    if (key === "flapScale") CFG.vehicle.flapScale = val;
+    if (key === "flapOffsetY") CFG.vehicle.flapOffsetY = val;
+    if (key === "hideWheelFlaps") CFG.vehicle.hideWheelFlaps = val;
 
     // Sync with compiled Three.js engine objects if they exist
     if (window.teObj) {
@@ -304,6 +331,26 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     setValues(prev => ({ ...prev, showHitboxes: nextState }));
     if (onConfigChange) {
       onConfigChange("showHitboxes", nextState);
+    }
+  };
+
+  const [zeroNotice, setZeroNotice] = useState("");
+  const [hasZero, setHasZero] = useState(() => hasZeroPreset());
+
+  const handleSaveZeroPreset = () => {
+    saveZeroPreset();
+    setHasZero(true);
+    setZeroNotice("تغییرات صفر ذخیره شد!");
+    setTimeout(() => setZeroNotice(""), 2500);
+  };
+
+  const handleLoadZeroPreset = () => {
+    const loaded = loadZeroPreset();
+    if (loaded) {
+      setValues(getInitialValues());
+      if (onConfigChange) onConfigChange();
+      setZeroNotice("تنظیمات تغییرات صفر اعمال شد!");
+      setTimeout(() => setZeroNotice(""), 2500);
     }
   };
 
@@ -1119,6 +1166,158 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                     </div>
                   </div>
 
+                  {/* Wheel Flaps / Arches Configuration Card */}
+                  <div className="p-3 rounded-xl bg-neutral-900/80 border border-emerald-500/30 shadow-md space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white font-mono">طاق/فلپ گلگیر چرخ‌ها (Wheel Flaps)</span>
+                        </div>
+                        <p className="text-[11px] text-neutral-400">
+                          {values.hideWheelFlaps ? "فلپ‌ها کلاً مخفی هستند" : "فلپ‌ها فعال و قابل تنظیم هستند"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !values.hideWheelFlaps;
+                          updateParam("hideWheelFlaps", next, val => {
+                            CFG.vehicle.hideWheelFlaps = val;
+                          });
+                        }}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          values.hideWheelFlaps ? "bg-red-500/80" : "bg-emerald-500"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            values.hideWheelFlaps ? "translate-x-0" : "translate-x-5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {!values.hideWheelFlaps && (
+                      <div className="pt-2 border-t border-white/10 space-y-3">
+                        {/* Flap Lateral Width */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">سایز عرضی / پهنای فلپ (Width)</span>
+                            <span className="text-emerald-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              {((values.flapWidthScale || 1.0) * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.15"
+                            max="2.00"
+                            step="0.05"
+                            value={values.flapWidthScale || 1.0}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("flapWidthScale", v, val => {
+                                CFG.vehicle.flapWidthScale = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-neutral-500 font-mono">
+                            <span>بسیار باریک (15%)</span>
+                            <span>پیش‌فرض (100%)</span>
+                            <span>عریض و پهن (200%)</span>
+                          </div>
+                        </div>
+
+                        {/* Flap Thickness */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">کلفتی و ضخامت لایه فلپ (Thickness)</span>
+                            <span className="text-emerald-400 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              {((values.flapThickScale || 1.0) * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.15"
+                            max="2.00"
+                            step="0.05"
+                            value={values.flapThickScale || 1.0}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("flapThickScale", v, val => {
+                                CFG.vehicle.flapThickScale = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-neutral-500 font-mono">
+                            <span>بسیار نازک (15%)</span>
+                            <span>پیش‌فرض (100%)</span>
+                            <span>خیلی کلفت (200%)</span>
+                          </div>
+                        </div>
+
+                        {/* Flap Scale / Size */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">مقیاس کلی طاق (Overall Scale)</span>
+                            <span className="text-white font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {(values.flapScale * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.40"
+                            max="1.80"
+                            step="0.05"
+                            value={values.flapScale}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("flapScale", v, val => {
+                                CFG.vehicle.flapScale = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-neutral-500 font-mono">
+                            <span>کوچک (40%)</span>
+                            <span>عادی (100%)</span>
+                            <span>بزرگ (180%)</span>
+                          </div>
+                        </div>
+
+                        {/* Flap Vertical Offset */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-300 font-medium">ارتفاع فلپ (بالا / پایین)</span>
+                            <span className="text-white font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                              {(values.flapOffsetY >= 0 ? "+" : "") + (values.flapOffsetY * 100).toFixed(1)} cm
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-0.08"
+                            max="0.12"
+                            step="0.005"
+                            value={values.flapOffsetY}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              updateParam("flapOffsetY", v, val => {
+                                CFG.vehicle.flapOffsetY = val;
+                              });
+                            }}
+                            className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                          />
+                          <div className="flex justify-between text-[9px] text-neutral-500 font-mono">
+                            <span>پایین‌تر (-8cm)</span>
+                            <span>پیش‌فرض (0)</span>
+                            <span>بالاتر (+12cm)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Suspension Height */}
                   <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-white/10 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
@@ -1136,6 +1335,28 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                       onChange={e => {
                         const v = Number(e.target.value);
                         updateParam("wheelRest", v, val => { CFG.vehicle.wheel.rest = val; });
+                      }}
+                      className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
+                    />
+                  </div>
+
+                  {/* Downforce */}
+                  <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-neutral-300 font-medium">نیروی رو به پایین (Downforce)</span>
+                      <span className="text-white font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                        {values.wheelDownforce.toFixed(1)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="40.0"
+                      step="0.5"
+                      value={values.wheelDownforce}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        updateParam("wheelDownforce", v, val => { CFG.vehicle.wheel.downforce = val; });
                       }}
                       className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-emerald-400"
                     />
@@ -2703,6 +2924,140 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                     )}
                   </div>
 
+                  {/* Stadium Lasers & Optical Beams (تنظیمات لیزرهای استادیوم) */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-950/60 via-neutral-900/90 to-neutral-900/90 border border-purple-500/40 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-300 font-mono flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-400" /> لیزرهای سه‌بعدی استادیوم (Stadium Volumetric Lasers)
+                      </span>
+                    </div>
+
+                    {/* Laser Brightness */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">شدت روشنایی لیزرها (Laser Brightness)</span>
+                        <span className="text-purple-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                          {Math.round((values.laserBrightness !== undefined ? values.laserBrightness : 0.45) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.0"
+                        max="1.8"
+                        step="0.05"
+                        value={values.laserBrightness !== undefined ? values.laserBrightness : 0.45}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("laserBrightness", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.laserBrightness = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                    </div>
+
+                    {/* Laser Thickness */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">کلفتی لوله مرکزی لیزر (Beam Thickness)</span>
+                        <span className="text-purple-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                          {(values.laserThickness !== undefined ? values.laserThickness : 0.70).toFixed(2)}x
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="2.0"
+                        step="0.05"
+                        value={values.laserThickness !== undefined ? values.laserThickness : 0.70}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("laserThickness", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.laserThickness = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                    </div>
+
+                    {/* Laser Halo Glow Radius */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">شعاع هاله نورانی دور لیزر (Halo Glow Radius)</span>
+                        <span className="text-purple-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                          {(values.laserHaloRadius !== undefined ? values.laserHaloRadius : 0.75).toFixed(2)}x
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="2.5"
+                        step="0.05"
+                        value={values.laserHaloRadius !== undefined ? values.laserHaloRadius : 0.75}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("laserHaloRadius", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.laserHaloRadius = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                    </div>
+
+                    {/* Laser Spot Radius (دایره نوری برخورد و منبع) */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">دایره نوری برخورد و منبع (Focal Spot Radius)</span>
+                        <span className="text-purple-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                          {(values.laserSpotRadius !== undefined ? values.laserSpotRadius : 0.80).toFixed(2)}x
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="2.5"
+                        step="0.05"
+                        value={values.laserSpotRadius !== undefined ? values.laserSpotRadius : 0.80}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("laserSpotRadius", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.laserSpotRadius = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                    </div>
+
+                    {/* Laser Opacity */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">میزان شفافیت لیزر (Laser Opacity)</span>
+                        <span className="text-purple-300 font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-white/10">
+                          {Math.round((values.laserOpacity !== undefined ? values.laserOpacity : 0.40) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.0"
+                        max="1.0"
+                        step="0.05"
+                        value={values.laserOpacity !== undefined ? values.laserOpacity : 0.40}
+                        onChange={e => {
+                          const v = Number(e.target.value);
+                          updateParam("laserOpacity", v, val => {
+                            if (!CFG.gfx) CFG.gfx = {};
+                            CFG.gfx.laserOpacity = val;
+                          });
+                        }}
+                        className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-purple-400"
+                      />
+                    </div>
+                  </div>
+
                   {/* Ball Type & Material Controls */}
                   <div className="p-3 rounded-xl bg-gradient-to-r from-sky-950/60 via-neutral-900/90 to-neutral-900/90 border border-sky-500/40 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -3119,6 +3474,52 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
               {/* ======================================================== */}
               {activeTab === "presets" && (
                 <div className="space-y-2">
+                  {/* ZERO PRESET (تغییرات صفر) CARD */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/70 via-neutral-900/95 to-neutral-900/90 border-2 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.15)] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 font-mono">
+                        <Sparkles className="w-4 h-4 text-amber-400" /> پریست «تغییرات صفر» (Zero Changes Preset)
+                      </div>
+                      {hasZero && (
+                        <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-400/40">
+                          ذخیره شده ✓
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-neutral-300 leading-relaxed">
+                      تنظیمات شخصی، فیزیک، نورپردازی، ابعاد و زوایای دوربین خود را به عنوان نقطه مبنای پایدار ذخیره یا بازیابی کنید تا هرگز تغییرات شما از دست نرود.
+                    </p>
+
+                    {zeroNotice && (
+                      <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-xs font-mono font-bold text-center animate-pulse">
+                        {zeroNotice}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={handleSaveZeroPreset}
+                        className="p-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold font-mono text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                      >
+                        <Save className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>ذخیره تغییرات صفر</span>
+                      </button>
+
+                      <button
+                        onClick={handleLoadZeroPreset}
+                        disabled={!hasZero}
+                        className={`p-2 rounded-lg font-bold font-mono text-xs flex items-center justify-center gap-1.5 transition ${
+                          hasZero
+                            ? "bg-neutral-800 hover:bg-neutral-700 text-amber-300 border border-amber-400/40"
+                            : "bg-neutral-900 text-neutral-600 border border-white/5 cursor-not-allowed"
+                        }`}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>بازیابی تغییرات صفر</span>
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     onClick={() => handleApplyPreset("octaneRL")}
                     className="w-full p-2.5 rounded-xl bg-neutral-900/80 hover:bg-cyan-500/15 border border-cyan-500/30 hover:border-cyan-500 text-left transition flex items-center justify-between group"
@@ -3188,10 +3589,10 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
             </div>
 
             {/* Footer Action Buttons */}
-            <div className="p-3 bg-neutral-900/95 border-t border-white/10 flex items-center justify-between gap-2">
+            <div className="p-3 bg-neutral-900/95 border-t border-white/10 flex items-center justify-between gap-1.5">
               <button
                 onClick={handleResetToDefaults}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition text-xs font-mono border border-white/10"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition text-xs font-mono border border-white/10"
                 title="Reset Defaults"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -3199,8 +3600,17 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
               </button>
 
               <button
+                onClick={handleSaveZeroPreset}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition text-xs font-mono border border-amber-400/40"
+                title="Save Zero Preset"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>ثبت تغییرات صفر</span>
+              </button>
+
+              <button
                 onClick={handleSaveToStorage}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all shadow-md ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold uppercase transition-all shadow-md ${
                   saveSuccess
                     ? "bg-emerald-500 text-neutral-950 shadow-[0_0_15px_rgba(16,185,129,0.5)]"
                     : "bg-[#99fa47] hover:bg-[#88ea36] text-neutral-950 shadow-[0_0_12px_rgba(153,250,71,0.3)]"
@@ -3214,7 +3624,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                 ) : (
                   <>
                     <Save className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>ذخیره (SAVE)</span>
+                    <span>ذخیره</span>
                   </>
                 )}
               </button>

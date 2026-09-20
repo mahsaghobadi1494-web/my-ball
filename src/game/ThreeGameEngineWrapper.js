@@ -226,6 +226,14 @@ export class ThreeGameEngineWrapper {
     this.engine.canvas.focus();
   }
 
+  toggleBallcam() {
+    if (this.engine.rig) {
+      this.engine.rig.ballCam = !this.engine.rig.ballCam;
+      return this.engine.rig.ballCam;
+    }
+    return false;
+  }
+
   pause() {
     if (typeof this.engine.togglePause === "function") {
       this.engine.togglePause();

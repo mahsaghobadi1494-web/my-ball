@@ -162,9 +162,20 @@ export function m4lookAt(o, eye, target, up) {
   var zl = Math.sqrt(zx * zx + zy * zy + zz * zz);
   if (zl < 1e-9) { zz = 1; zl = 1; }
   zx /= zl; zy /= zl; zz /= zl;
-  var xx = up.y * zz - up.z * zy, xy = up.z * zx - up.x * zz, xz = up.x * zy - up.y * zx;
+  var upX = up ? up.x : 0, upY = up ? up.y : 1, upZ = up ? up.z : 0;
+  var xx = upY * zz - upZ * zy, xy = upZ * zx - upX * zz, xz = upX * zy - upY * zx;
   var xl = Math.sqrt(xx * xx + xy * xy + xz * xz);
-  if (xl < 1e-9) { xx = 1; xy = 0; xz = 0; xl = 1; }
+  if (xl < 1e-6) {
+    // Up vector is parallel or near-parallel to view direction (e.g. looking straight down/up)
+    // Select alternative axis to prevent degenerate view matrix
+    var altY = Math.abs(zy) > 0.9 ? 0 : 1;
+    var altZ = Math.abs(zy) > 0.9 ? 1 : 0;
+    xx = altY * zz - altZ * zy;
+    xy = altZ * zx - 0 * zz;
+    xz = 0 * zy - altY * zx;
+    xl = Math.sqrt(xx * xx + xy * xy + xz * xz);
+    if (xl < 1e-6) { xx = 1; xy = 0; xz = 0; xl = 1; }
+  }
   xx /= xl; xy /= xl; xz /= xl;
   var yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
   o[0] = xx; o[1] = yx; o[2] = zx; o[3] = 0;

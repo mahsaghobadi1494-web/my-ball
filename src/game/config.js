@@ -21,9 +21,11 @@ export var CFG = {
     reverseSpeedCap: 10.5,
     brakeAccel: 30.0,
     coastDecel: 2.8,
-    steerMax: 0.65,
-    steerMin: 0.18,
+    steerMax: 0.52,
+    steerMin: 0.16,
     steerRate: 14.0,
+    driftYawDamp: 7.5,
+    driftStability: 1.0,
     grip: 32.0,
     gripSlide: 6.0,
     slideRecover: 7.5,
@@ -40,6 +42,11 @@ export var CFG = {
     flipAntiSnag: 0.90,
     chassisRoundness: 0.15,
     ballBoxRoundness: 0.20,
+    hideWheelFlaps: false,
+    flapOffsetY: 0.0,
+    flapScale: 1.0,
+    flapWidthScale: 0.65, // Sleek, aerodynamic flap width (reduced from bulky 1.0)
+    flapThickScale: 0.60, // Slim, high-precision fender thickness
     wheel: {
       radius: 0.157,
       rest: 0.07,
@@ -49,7 +56,8 @@ export var CFG = {
       maxRay: 0.45,
       attachY: -0.05,
       attachX: 0.355,
-      attachZ: 0.415
+      attachZ: 0.415,
+      downforce: 12.0
     },
     jump: { impulse: 5.2, secondImpulse: 5.2, holdAccel: 14.0, holdTime: 0.20, cooldown: 0.05, doubleWindow: 1.85, dodgeWindow: 1.85, maxJumpVel: 8.0 },
     dodge: { speed: 8.5, upSpeed: 1.6, angRate: 13.5, duration: 0.52, deadzone: 0.16, flickTorque: 1.45, flickSurge: 1.35 },
@@ -117,6 +125,12 @@ export var CFG = {
     pitchContrast: 1.0,
     pitchRoughness: 0.35,
     turfSheen: 0.45,
+    // Volumetric 3D Stadium Lasers Controls
+    laserBrightness: 0.45, // Soft balanced laser emissive & intensity
+    laserThickness: 0.70,  // Beam cylinder thickness scale
+    laserHaloRadius: 0.75, // Outer glow/halo radius scale
+    laserOpacity: 0.40,    // Translucency & bloom transparency
+    laserSpotRadius: 0.80, // Ground impact and flare optical spot circle radius
     // Vehicle Material & Clearcoat Controls (Solid, high-gloss automotive lacquer without brushed/grainy flakes)
     carGloss: 0.96,
     carClearcoat: 0.95,
@@ -152,23 +166,31 @@ export var CFG = {
     crowdEnergy: 1.0 // Cheering wave and jump height intensity
   },
   customization: {
-    model: "OCTANE", // "OCTANE" | "VORTEX" | "STRIKER" | "TITAN" | "RAPTOR" | "PHANTOM"
+    model: "OCTANE", // "OCTANE" | "VORTEX" | "STRIKER" | "TITAN" | "RAPTOR" | "PHANTOM" ...
     wheel: "SPORT",  // "SPORT" | "TURBINE" | "MESH" | "OFFROAD" | "DISH" | "AERO" | "STEEL"
     useCustomPaint: true, // If true, player uses custom paint instead of pure team color
-    bodyColor: "#e0468c",       // Primary body paint hex
-    accentColor: "#181c23",     // Roll cage, sills, carbon trim hex
+    teamVariant: "BLUE", // "BLUE" | "RED"
+    bodyColor: "#1264e8",       // Primary body paint hex (Blue team champion)
+    accentColor: "#121722",     // Roll cage, sills, carbon trim hex
     trimColor: "#f0f2f5",       // Racing stripes, roof accents hex
-    glassColor: "#0a0e14",      // Canopy tint hex
+    glassColor: "#080e18",      // Canopy tint hex
     lightsColor: "#4ca5ff",     // Headlights & LED glow hex
-    thrusterColor: "#ff7700",   // Jet nozzle & flame hex
+    thrusterColor: "#00e5ff",   // Jet nozzle & flame hex
     hubColor: "#d6dade",        // Rim face & alloy spokes hex
     wheelColor: "#121418",      // Tyre rubber hex
     metallic: 0.65,
     gloss: 0.95,
     flakes: 0.30,
-    clearcoat: 0.90
+    clearcoat: 0.90,
+    // 10 Vinyl Decal Models & Dynamic Animated Vinyls
+    vinyl: "RACING_STRIPES",    // 'CLEAN'|'RACING_STRIPES'|'CYBER_GRID'|'FLAME_SURGE'|'LIGHTNING_STORM'|'WAVE_FLOW'|'CARBON_HEX'|'CAMO_TACTICAL'|'DIGITAL_MATRIX'|'SPEED_APEX'|'SUNBURST_RAYS'
+    vinylColor: "#ffffff",      // Decal artwork graphic color
+    vinylAnimated: false,       // Auto-enabled for dynamic animated patterns
+    vinylScale: 1.0,
+    vinylIntensity: 1.0,
+    vinylEmissive: 0.0          // Glowing neon emission for dynamic decals
   },
-  input: { steerSens: 1.0, airSens: 1.0, deadzone: 0.16 },
+  input: { steerSens: 0.85, airSens: 1.0, deadzone: 0.16 },
   debug: { showHitboxes: false }
 };
 
@@ -344,15 +366,60 @@ export function saveCurrentConfig() {
   return false;
 }
 
+export function saveZeroPreset(customData) {
+  try {
+    if (typeof localStorage !== "undefined") {
+      var toSave = customData || CFG;
+      localStorage.setItem("overdrive_preset_zero", JSON.stringify(toSave));
+      // Also ensure main tuning cfg has it
+      localStorage.setItem("overdrive_tuning_cfg", JSON.stringify(toSave));
+      return true;
+    }
+  } catch (e) {
+    console.error("Failed to save zero preset to localStorage", e);
+  }
+  return false;
+}
+
+export function loadZeroPreset() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      var raw = localStorage.getItem("overdrive_preset_zero");
+      if (raw) {
+        var saved = JSON.parse(raw);
+        deepMerge(CFG, saved);
+        return saved;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to load zero preset from localStorage", e);
+  }
+  return null;
+}
+
+export function hasZeroPreset() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      return !!localStorage.getItem("overdrive_preset_zero");
+    }
+  } catch (e) {
+    return false;
+  }
+  return false;
+}
+
 // Auto-load config if present
 if (typeof window !== "undefined") {
   loadSavedConfig();
 }
 
-export var TEAM = { PULSE: 0, VOLT: 1 };
-export var TEAM_NAME = ["Pulse", "Volt"];
-export var TEAM_COLOR = [[1.0, 0.20, 0.52], [0.60, 0.98, 0.28]];
-export var BOT_NAMES = [["Kestrel", "Mako"], ["Vector", "Onyx", "Halcyon"]];
+export var TEAM = { BLUE: 0, RED: 1, PULSE: 0, VOLT: 1 };
+export var TEAM_NAME = ["تیم آبی (Blue)", "تیم قرمز (Red)"];
+export var TEAM_COLOR = [
+  [0.08, 0.44, 0.96], // Pure Championship Blue #1264E8
+  [0.95, 0.14, 0.16]  // Pure Championship Red #E81A24
+];
+export var BOT_NAMES = [["Striker-Blue", "Mako-Blue", "Zephyr-Blue"], ["Titan-Red", "Onyx-Red", "Blaze-Red"]];
 
 export var CAR_BODY_DEFS = [
   { id: 'OCTANE', name: 'Octane', nameFa: 'اکتان (Octane)', sub: 'باگی کلاسیک', icon: 'buggy', desc: 'باگی نمادین مسابقات با گلگیرهای برجسته، اسکوپ روی سقف و بال آیرودینامیک بلند' },
@@ -360,7 +427,15 @@ export var CAR_BODY_DEFS = [
   { id: 'STRIKER', name: 'Striker', nameFa: 'استرایکر (Striker)', sub: 'ماسل کار کلاسیک', icon: 'zap', desc: 'کاپوت کشیده و عضلانی، کابین عقب‌رفته و اسپویلر دم‌اردکی مسابقه‌ای' },
   { id: 'TITAN', name: 'Titan', nameFa: 'تایتان (Titan)', sub: 'ون آفرود قدرتی', icon: 'shield', desc: 'شاسی بلند و بدنه تقویت‌شده با شیشه‌های مرتفع و لایت‌بار نئونی روی سقف' },
   { id: 'RAPTOR', name: 'Raptor', nameFa: 'رپتور (Raptor)', sub: 'پیکاپ ترافی ترک', icon: 'truck', desc: 'اتاق باربند باز با ریل‌های محافظ استیل، گارد جلو و بدنه مقاوم در برابر ضربه' },
-  { id: 'PHANTOM', name: 'Phantom', nameFa: 'فانتوم (Phantom)', sub: 'فرمول اپن‌ویل', icon: 'flame', desc: 'چرخ‌های باز و رها، بال جلو سه‌تکه، سایدپادهای آیرودینامیک و هیلو ایمنی راننده' }
+  { id: 'PHANTOM', name: 'Phantom', nameFa: 'فانتوم (Phantom)', sub: 'فرمول اپن‌ویل', icon: 'flame', desc: 'چرخ‌های باز و رها، بال جلو سه‌تکه، سایدپادهای آیرودینامیک و هیلو ایمنی راننده' },
+  { id: 'MONSTER', name: 'Monster', nameFa: 'مانستر (Monster)', sub: 'مانستر تراک غول‌پیکر', icon: 'shield', desc: 'شاسی فوق‌العاده بلند، تنه پهن و غول‌پیکر با سپرهای فولادی بزرگ برای آفرود سنگین' },
+  { id: 'KART', name: 'Kart', nameFa: 'کارتینگ (Kart)', sub: 'کارت اسپرت سبک', icon: 'car', desc: 'بدون سقف و شیشه، بدنه بسیار سبک و تخت نزدیک به زمین، مخصوص مسابقات کارتینگ تند' },
+  { id: 'DRAGSTER', name: 'Dragster', nameFa: 'درگستر (Dragster)', sub: 'درگستر موشکی', icon: 'flame', desc: 'بدنه بسیار کشیده شبیه موشک، چرخ‌های غول‌پیکر عقب و کابین راننده فشرده در انتهای شاسی' },
+  { id: 'HYPER', name: 'Hyper', nameFa: 'هایپر (Hyper)', sub: 'سوپر هایپرکار جاده‌ای', icon: 'car', desc: 'لوکس‌ترین و پهن‌ترین هایپرکار جاده‌ای با اسپویلر سوار بر پایه‌ها، زیربدنه کربنی و شاسی کاملا آیرودینامیک' },
+  { id: 'COACH', name: 'Coach', nameFa: 'کوچ (Coach)', sub: 'اتوبوس بلند', icon: 'truck', desc: 'کابین غول‌پیکر مستطیلی طویل و جادار با ردیف کامل شیشه‌های بزرگ جانبی و باربند سقفی' },
+  { id: 'SUV', name: 'SUV', nameFa: 'اس‌یو‌وی (SUV)', sub: 'شاسی‌بلند مدرن شهری', icon: 'shield', desc: 'خودروی شهری و بیابانی مرتفع، مستحکم و پهن با لایت‌بار و ریل سقفی فلزی مستحکم' },
+  { id: 'HOTROD', name: 'Hot Rod', nameFa: 'هات‌راد (Hot Rod)', sub: 'هات‌راد روباز کلاسیک', icon: 'zap', desc: 'موتور روباز قدرتمند کلاسیک با اگزوزهای شیپوری کروم رو به بالا و طراحی سنتی کابین' },
+  { id: 'LIMO', name: 'Limo', nameFa: 'لیموزین (Limo)', sub: 'لیموزین تشریفاتی', icon: 'car', desc: 'شاسی بسیار کشیده لوکس تشریفاتی با ردیف شیشه‌های دودی جانبی و سقف صاف فلزی مجهز' }
 ];
 
 export var CAR_WHEEL_DEFS = [
@@ -373,120 +448,579 @@ export var CAR_WHEEL_DEFS = [
   { id: 'STEEL', name: 'Rally Steel', nameFa: 'استیل رالی', sub: 'رالی مسابقه‌ای', desc: '۸ پره باریک با رینگ فشرده و تایر با دیواره بلند مخصوص رالی' }
 ];
 
+// 24 Distinct High-Quality Vinyl Decals / Liveries for Cars (with dynamic animated shaders & categories)
+export var CAR_VINYL_DEFS = [
+  // --- Category: Simple & Clean ---
+  {
+    id: 'CLEAN',
+    name: 'Clean Solid',
+    nameFa: 'بدنه ساده و فابریک',
+    sub: 'خالص و متالیک',
+    category: 'all',
+    icon: 'sparkles',
+    isAnimated: false,
+    defaultColor: '#ffffff',
+    emissiveBoost: 0.0,
+    desc: 'رنگ بدنه یکدست و صیقلی بدون برچسب با درخشش بازتاب‌های نور محیطی'
+  },
+  // --- Category: Dragon & Mythical ---
+  {
+    id: 'DRAGON_FIRE',
+    name: 'Mythic Dragon Fire',
+    nameFa: 'اژدهای آتشین (پرتاب آتش)',
+    sub: '🐲 پویا با پرتاب شعله',
+    category: 'dragon',
+    icon: 'flame',
+    isAnimated: true,
+    defaultColor: '#ff7700',
+    emissiveBoost: 2.8,
+    desc: 'طرح اژدهای حماسی با چشم درخشان روی کاپوت که شعله‌های متحرک آتش و جرقه‌های گداخته از دهانش به سمت عقب پرتاب می‌شوند'
+  },
+  {
+    id: 'PHOENIX_BLAZE',
+    name: 'Immortal Phoenix',
+    nameFa: 'ققنوس آتشین جاودان',
+    sub: '🔥 پویا و شعله‌ور',
+    category: 'dragon',
+    icon: 'flame',
+    isAnimated: true,
+    defaultColor: '#ffaa00',
+    emissiveBoost: 2.4,
+    desc: 'بال‌های باشکوه ققنوس آتشین که روی گلگیرها گسترده شده و امواج سوزان حرارتی از آن ساطع می‌شود'
+  },
+  // --- Category: Superheroes ---
+  {
+    id: 'HERO_SPIDER_WEB',
+    name: 'Spider Hero Web',
+    nameFa: 'تار عنکبوت ابرقهرمانی',
+    sub: '🦸 نشان عنکبوت نئونی',
+    category: 'hero',
+    icon: 'shield',
+    isAnimated: false,
+    defaultColor: '#ffffff',
+    emissiveBoost: 1.5,
+    desc: 'طرح تار عنکبوت هندسی شگفت‌انگیز با نماد مرکزی عنکبوت درخشان روی کاپوت'
+  },
+  {
+    id: 'HERO_LIGHTNING_BOLT',
+    name: 'Thunderbolt Hero',
+    nameFa: 'صاعقه رعدآسا قهرمان',
+    sub: '⚡ پویا و پرانرژی',
+    category: 'hero',
+    icon: 'zap',
+    isAnimated: true,
+    defaultColor: '#ffd700',
+    emissiveBoost: 2.6,
+    desc: 'صاعقه غول‌پیکر ابرقهرمانی سبک شزم و فلش با هاله انرژی تپنده و پرانرژی'
+  },
+  {
+    id: 'HERO_COSMIC_STAR',
+    name: 'Cosmic Star Shield',
+    nameFa: 'سپر ستاره کیهانی',
+    sub: '⭐ پویا و چرخشی',
+    category: 'hero',
+    icon: 'sun',
+    isAnimated: true,
+    defaultColor: '#38bdf8',
+    emissiveBoost: 2.2,
+    desc: 'ستاره پنج‌پر ابرقهرمانی با حلقه‌های مداری محافظ کیهانی و موج‌های نورانی متحرک'
+  },
+  {
+    id: 'HERO_BAT_WING',
+    name: 'Dark Bat Knight',
+    nameFa: 'بال خفاش شوالیه تاریکی',
+    sub: '🦇 شارپ و زاویه‌دار',
+    category: 'hero',
+    icon: 'shield',
+    isAnimated: false,
+    defaultColor: '#facc15',
+    emissiveBoost: 1.4,
+    desc: 'نشان بال‌های خفاش شبح‌گون با لبه‌های نئونی شارپ و گوش‌های آیرودینامیک'
+  },
+  // --- Category: Cute & Kids & Arcade ---
+  {
+    id: 'CUTE_STARS_GALAXY',
+    name: 'Kawaii Star Galaxy',
+    nameFa: 'ستاره‌های کهکشانی کارتونی',
+    sub: '✨ پویا با گرد و غبار رنگین‌کمان',
+    category: 'cute',
+    icon: 'sparkles',
+    isAnimated: true,
+    defaultColor: '#f472b6',
+    emissiveBoost: 2.0,
+    desc: 'ستاره‌های چشمک‌زن کارتونی و بامزه با دنباله امواج غبار کیهانی شاد و رنگارنگ'
+  },
+  {
+    id: 'CUTE_MONSTER_SMILE',
+    name: 'Playful Monster',
+    nameFa: 'هیولای بامزه دندان‌دار',
+    sub: '👾 کارتونی و خندان',
+    category: 'cute',
+    icon: 'smile',
+    isAnimated: false,
+    defaultColor: '#a855f7',
+    emissiveBoost: 1.0,
+    desc: 'لبخند بزرگ هیولای کارتونی با دندان‌های مثلثی بامزه و چشمان انیمیشنی درشت روی کاپوت'
+  },
+  {
+    id: 'CUTE_CANDY_SWEETS',
+    name: 'Sweet Candy Donut',
+    nameFa: 'آب‌نبات و دونات رنگین‌کمان',
+    sub: '🍩 خوشمزه و رنگارنگ',
+    category: 'cute',
+    icon: 'disc',
+    isAnimated: false,
+    defaultColor: '#ec4899',
+    emissiveBoost: 1.2,
+    desc: 'روکش دونات میوه‌ای با سس شکلاتی و ترافل‌های رنگین‌کمانی آب‌نباتی پخش‌شده روی سقف و بدنه'
+  },
+  {
+    id: 'PIXEL_ARCADE_8BIT',
+    name: 'Retro 8-Bit Arcade',
+    nameFa: 'آرکید پیکسلی رترو ۸-بیتی',
+    sub: '🕹️ پویا با کاراکترهای پیکسلی',
+    category: 'cute',
+    icon: 'layers',
+    isAnimated: true,
+    defaultColor: '#22c55e',
+    emissiveBoost: 2.2,
+    desc: 'سفینه‌های فضایی نوستالژیک مهاجمان فضایی و قلب‌های پیکسلی متحرک در سبک بازی‌های رترو'
+  },
+  {
+    id: 'CUTE_PAW_PRINTS',
+    name: 'Cute Animal Paws',
+    nameFa: 'ردپای پنجه‌های پیشی و هاپو',
+    sub: '🐾 ردپاهای انیمیشنی',
+    category: 'cute',
+    icon: 'disc',
+    isAnimated: false,
+    defaultColor: '#fb923c',
+    emissiveBoost: 0.8,
+    desc: 'ردپاهای بامزه پنجه‌های گربه و سگ که به صورت مایل از کاپوت تا سقف ماشین حرکت کرده‌اند'
+  },
+  // --- Category: Racing & High-Tech ---
+  {
+    id: 'LAVA_MAGMA',
+    name: 'Volcanic Molten Magma',
+    nameFa: 'گدازه‌های مذاب آتش‌فشان',
+    sub: '🌋 پویا با پالس حرارتی',
+    category: 'racing',
+    icon: 'flame',
+    isAnimated: true,
+    defaultColor: '#ff3b00',
+    emissiveBoost: 2.8,
+    desc: 'شکاف‌های عمیق سنگ‌های آتش‌فشانی با جریان روان گدازه‌های مذاب تپنده و درخشان'
+  },
+  {
+    id: 'QUANTUM_CIRCUIT',
+    name: 'Quantum Microchip',
+    nameFa: 'مدارهای کوانتومی پردازنده',
+    sub: '💾 پویا با بسته‌های داده',
+    category: 'racing',
+    icon: 'layers',
+    isAnimated: true,
+    defaultColor: '#00f0ff',
+    emissiveBoost: 2.2,
+    desc: 'ردپای خطوط طلایی بردهای الکترونیکی با بسته‌های داده نورانی متحرک روی بدنه'
+  },
+  {
+    id: 'NEON_TOKYO_DRIFT',
+    name: 'Tokyo Neon Drift',
+    nameFa: 'توکیو نایت دریفت',
+    sub: '🎌 خطوط مسابقه‌ای مایل',
+    category: 'racing',
+    icon: 'zap',
+    isAnimated: false,
+    defaultColor: '#e11d48',
+    emissiveBoost: 1.5,
+    desc: 'خطوط زاویه‌دار و اسلش‌های مسابقات شبانه توکیو با نوارهای آیرودینامیک دوبل'
+  },
+  {
+    id: 'RACING_STRIPES',
+    name: 'GT Twin Stripes',
+    nameFa: 'خطوط مسابقه‌ای دوبل',
+    sub: 'کلاسیک GT',
+    category: 'racing',
+    icon: 'zap',
+    isAnimated: false,
+    defaultColor: '#ffffff',
+    emissiveBoost: 0.0,
+    desc: 'دو خط موازی عریض اسپرت در راستای کاپوت و سقف خودرو با لبه‌های کنتراست بالا'
+  },
+  {
+    id: 'CYBER_GRID',
+    name: 'Cyber Grid Pulse',
+    nameFa: 'شبکه سایبری نئونی',
+    sub: '⚡ پویا و متحرک',
+    category: 'racing',
+    icon: 'layers',
+    isAnimated: true,
+    defaultColor: '#00f0ff',
+    emissiveBoost: 1.8,
+    desc: 'شبکه خطوط ماتریس نئونی آینده‌نگر با پالس نورانی روان و متحرک روی بدنه'
+  },
+  {
+    id: 'FLAME_SURGE',
+    name: 'Blazing Flame Surge',
+    nameFa: 'شعله‌های آتشین متحرک',
+    sub: '⚡ پویا و متحرک',
+    category: 'racing',
+    icon: 'flame',
+    isAnimated: true,
+    defaultColor: '#ffaa00',
+    emissiveBoost: 2.2,
+    desc: 'زبانه‌های خروشان آتش ارگانیک که از دماغه ماشین به سمت عقب موج می‌زنند'
+  },
+  {
+    id: 'LIGHTNING_STORM',
+    name: 'Lightning Plasma',
+    nameFa: 'صاعقه و پلاسمای الکتریکی',
+    sub: '⚡ پویا و متحرک',
+    category: 'racing',
+    icon: 'zap',
+    isAnimated: true,
+    defaultColor: '#a855f7',
+    emissiveBoost: 2.5,
+    desc: 'شاخه صاعقه‌های الکتریکی پرانرژی متحرک که به صورت نئونی روی متریال ماشین جرقه می‌زنند'
+  },
+  {
+    id: 'WAVE_FLOW',
+    name: 'Holo Wave Stream',
+    nameFa: 'امواج هولوگرافیک نئونی',
+    sub: '⚡ پویا و متحرک',
+    category: 'racing',
+    icon: 'disc',
+    isAnimated: true,
+    defaultColor: '#00ffa3',
+    emissiveBoost: 1.6,
+    desc: 'امواج سینوسی هولوگرافیک لطیف و روان که در طول انحناهای بدنه جریان دارند'
+  },
+  {
+    id: 'CARBON_HEX',
+    name: 'Hex Honeycomb Carbon',
+    nameFa: 'فیبر کربن شش‌ضلعی',
+    sub: 'لانه زنبوری اسپرت',
+    category: 'racing',
+    icon: 'shield',
+    isAnimated: false,
+    defaultColor: '#222834',
+    emissiveBoost: 0.0,
+    desc: 'پترن سه‌بعدی فیبر کربن لانه زنبوری با انعکاس‌های نور متغیر تیتانیومی'
+  },
+  {
+    id: 'CAMO_TACTICAL',
+    name: 'Urban Tactical Camo',
+    nameFa: 'کاموفلاژ شهری تاکتیکال',
+    sub: 'چند ضلعی مدرن',
+    category: 'racing',
+    icon: 'layers',
+    isAnimated: false,
+    defaultColor: '#475569',
+    emissiveBoost: 0.0,
+    desc: 'طرح استتاری مدرن چند تکه با زوایای شکسته هندسی و بافت مسابقه‌ای'
+  },
+  {
+    id: 'DIGITAL_MATRIX',
+    name: 'Digital Rain Matrix',
+    nameFa: 'کدهای بارانی دیجیتال',
+    sub: '⚡ پویا و متحرک',
+    category: 'racing',
+    icon: 'sparkles',
+    isAnimated: true,
+    defaultColor: '#55ff00',
+    emissiveBoost: 2.0,
+    desc: 'جریان سقوط کدهای نئونی دیجیتالی که به صورت افقی در طول بدنه خودرو حرکت می‌کنند'
+  },
+  {
+    id: 'SPEED_APEX',
+    name: 'Apex Speed Wings',
+    nameFa: 'بال‌های آیرودینامیک ایپکس',
+    sub: 'شارپ و تهاجمی',
+    category: 'racing',
+    icon: 'flame',
+    isAnimated: false,
+    defaultColor: '#ffffff',
+    emissiveBoost: 0.2,
+    desc: 'خطوط تیز و پره‌های شکسته شبیه بال‌های جنگنده روی کاپوت و دیفیوزرهای کناری'
+  },
+  {
+    id: 'SUNBURST_RAYS',
+    name: 'Sunburst Radical Rays',
+    nameFa: 'پرتوهای رادیکال خورشیدی',
+    sub: 'پرتوهای زاویه‌دار',
+    category: 'racing',
+    icon: 'sun',
+    isAnimated: false,
+    defaultColor: '#ffd700',
+    emissiveBoost: 0.3,
+    desc: 'پرتوهای زاویه‌دار هندسی متمرکز که از مرکز به سمت لبه‌های گلگیر کشیده شده‌اند'
+  }
+];
+
 export var CAR_PRESETS = [
   {
-    id: "neonCyberpunk",
-    name: "Cyberpunk 2077",
-    nameFa: "سایبرپانک نئونی",
-    model: "VORTEX",
+    id: "dragonInfernoFire",
+    name: "Mythic Dragon Fire",
+    nameFa: "اژدهای سرخ آتش‌خوار (Dragon Breath)",
+    model: "STRIKER",
     wheel: "TURBINE",
-    bodyColor: "#ff007f",
-    accentColor: "#00f0ff",
-    trimColor: "#ffe600",
-    glassColor: "#050d1a",
-    lightsColor: "#00f0ff",
-    thrusterColor: "#ff0055",
-    hubColor: "#ffe600",
-    wheelColor: "#0a0c10",
+    teamVariant: "RED",
+    bodyColor: "#b80f1e",
+    accentColor: "#140608",
+    trimColor: "#ff9900",
+    glassColor: "#150406",
+    lightsColor: "#ffaa00",
+    thrusterColor: "#ff3300",
+    hubColor: "#ffaa00",
+    wheelColor: "#0d0e12",
     metallic: 0.85,
     gloss: 0.98,
-    flakes: 0.50,
-    clearcoat: 0.95
+    flakes: 0.45,
+    clearcoat: 0.98,
+    vinyl: "DRAGON_FIRE",
+    vinylColor: "#ff7700",
+    vinylAnimated: true,
+    vinylEmissive: 2.8
   },
   {
-    id: "stealthCarbon",
-    name: "Stealth Carbon",
-    nameFa: "کربن سیاه مخفی‌کار",
-    model: "PHANTOM",
-    wheel: "AERO",
-    bodyColor: "#15181e",
-    accentColor: "#0d0f12",
-    trimColor: "#ff2233",
-    glassColor: "#050608",
-    lightsColor: "#ff1122",
-    thrusterColor: "#ff3300",
-    hubColor: "#22252a",
-    wheelColor: "#08090b",
-    metallic: 0.20,
-    gloss: 0.90,
-    flakes: 0.10,
-    clearcoat: 0.90
-  },
-  {
-    id: "scuderiaRacing",
-    name: "Scuderia Corsa",
-    nameFa: "اسکودریا کورسا مسابقه‌ای",
+    id: "heroSpiderWeb",
+    name: "Spider Hero Web",
+    nameFa: "تیم آبی: قهرمان اسپایدر وب",
     model: "OCTANE",
     wheel: "SPORT",
-    bodyColor: "#d91424",
-    accentColor: "#14171d",
-    trimColor: "#ffffff",
-    glassColor: "#0b1220",
-    lightsColor: "#ffffff",
-    thrusterColor: "#ff7700",
-    hubColor: "#d5dadf",
-    wheelColor: "#111317",
-    metallic: 0.45,
-    gloss: 0.96,
-    flakes: 0.20,
-    clearcoat: 0.95
-  },
-  {
-    id: "goldenImperial",
-    name: "Royal 24K Gold",
-    nameFa: "طلای سلطنتی ۲۴ عیار",
-    model: "STRIKER",
-    wheel: "DISH",
-    bodyColor: "#d4af37",
-    accentColor: "#1a160d",
-    trimColor: "#f7e7a6",
-    glassColor: "#151105",
-    lightsColor: "#ffe899",
-    thrusterColor: "#ffaa00",
-    hubColor: "#ffd700",
-    wheelColor: "#12110e",
-    metallic: 0.95,
-    gloss: 0.98,
-    flakes: 0.70,
-    clearcoat: 1.00
-  },
-  {
-    id: "toxicAcid",
-    name: "Toxic Radioactive",
-    nameFa: "سمی رادیواکتیو نئونی",
-    model: "TITAN",
-    wheel: "OFFROAD",
-    bodyColor: "#55ff00",
-    accentColor: "#15220c",
-    trimColor: "#111111",
-    glassColor: "#0b1a05",
-    lightsColor: "#88ff33",
-    thrusterColor: "#44ff00",
-    hubColor: "#66ff11",
-    wheelColor: "#0f120e",
+    teamVariant: "BLUE",
+    bodyColor: "#0b5cd6",
+    accentColor: "#0a1324",
+    trimColor: "#e61928",
+    glassColor: "#040c1a",
+    lightsColor: "#38bdf8",
+    thrusterColor: "#00e5ff",
+    hubColor: "#ffffff",
+    wheelColor: "#090b0f",
     metallic: 0.70,
-    gloss: 0.95,
-    flakes: 0.40,
-    clearcoat: 0.90
+    gloss: 0.98,
+    flakes: 0.35,
+    clearcoat: 0.95,
+    vinyl: "HERO_SPIDER_WEB",
+    vinylColor: "#ffffff",
+    vinylAnimated: false,
+    vinylEmissive: 1.6
   },
   {
-    id: "gulfHeritage",
-    name: "Gulf Heritage",
-    nameFa: "گلف هریتیج کلاسیک",
-    model: "RAPTOR",
+    id: "heroThunderFlash",
+    name: "Thunderbolt Hero",
+    nameFa: "تیم قرمز: صاعقه شزم فلش",
+    model: "VORTEX",
     wheel: "MESH",
-    bodyColor: "#6ec6e6",
-    accentColor: "#13212b",
-    trimColor: "#ff6600",
-    glassColor: "#08131d",
-    lightsColor: "#ffffff",
-    thrusterColor: "#ff5500",
-    hubColor: "#ff7711",
-    wheelColor: "#101316",
-    metallic: 0.35,
-    gloss: 0.94,
+    teamVariant: "RED",
+    bodyColor: "#d91424",
+    accentColor: "#170709",
+    trimColor: "#ffd700",
+    glassColor: "#120305",
+    lightsColor: "#ffd700",
+    thrusterColor: "#ffcc00",
+    hubColor: "#ffd700",
+    wheelColor: "#0d0e12",
+    metallic: 0.80,
+    gloss: 0.96,
+    flakes: 0.40,
+    clearcoat: 0.98,
+    vinyl: "HERO_LIGHTNING_BOLT",
+    vinylColor: "#ffd700",
+    vinylAnimated: true,
+    vinylEmissive: 2.6
+  },
+  {
+    id: "cuteKawaiiGalaxy",
+    name: "Cute Kawaii Stars",
+    nameFa: "کهکشان ستاره‌های کارتونی",
+    model: "KART",
+    wheel: "SPORT",
+    teamVariant: "BLUE",
+    bodyColor: "#2563eb",
+    accentColor: "#1e1b4b",
+    trimColor: "#f472b6",
+    glassColor: "#0f172a",
+    lightsColor: "#f472b6",
+    thrusterColor: "#ec4899",
+    hubColor: "#f472b6",
+    wheelColor: "#111827",
+    metallic: 0.50,
+    gloss: 0.95,
+    flakes: 0.60,
+    clearcoat: 0.95,
+    vinyl: "CUTE_STARS_GALAXY",
+    vinylColor: "#f472b6",
+    vinylAnimated: true,
+    vinylEmissive: 2.0
+  },
+  {
+    id: "retro8BitPixel",
+    name: "8-Bit Retro Pixel",
+    nameFa: "آرکید پیکسلی ۸-بیتی رترو",
+    model: "HYPER",
+    wheel: "AERO",
+    teamVariant: "BLUE",
+    bodyColor: "#0284c7",
+    accentColor: "#082f49",
+    trimColor: "#22c55e",
+    glassColor: "#031c2e",
+    lightsColor: "#22c55e",
+    thrusterColor: "#4ade80",
+    hubColor: "#22c55e",
+    wheelColor: "#020617",
+    metallic: 0.75,
+    gloss: 0.96,
+    flakes: 0.30,
+    clearcoat: 0.90,
+    vinyl: "PIXEL_ARCADE_8BIT",
+    vinylColor: "#22c55e",
+    vinylAnimated: true,
+    vinylEmissive: 2.2
+  },
+  {
+    id: "volcanicLavaMagma",
+    name: "Volcanic Magma",
+    nameFa: "تیم قرمز: گدازه‌های مذاب آتش‌فشان",
+    model: "RAPTOR",
+    wheel: "OFFROAD",
+    teamVariant: "RED",
+    bodyColor: "#991b1b",
+    accentColor: "#180505",
+    trimColor: "#ff4500",
+    glassColor: "#150505",
+    lightsColor: "#ff3b00",
+    thrusterColor: "#ff2200",
+    hubColor: "#ff4500",
+    wheelColor: "#0a0a0f",
+    metallic: 0.60,
+    gloss: 0.92,
+    flakes: 0.40,
+    clearcoat: 0.92,
+    vinyl: "LAVA_MAGMA",
+    vinylColor: "#ff3b00",
+    vinylAnimated: true,
+    vinylEmissive: 2.8
+  },
+  {
+    id: "blueChampionApex",
+    name: "Blue Team Apex",
+    nameFa: "تیم آبی: قهرمان ایپکس",
+    model: "OCTANE",
+    wheel: "SPORT",
+    teamVariant: "BLUE",
+    bodyColor: "#1062e6",
+    accentColor: "#0f1624",
+    trimColor: "#ffffff",
+    glassColor: "#060d1a",
+    lightsColor: "#38bdf8",
+    thrusterColor: "#00e5ff",
+    hubColor: "#d5dadf",
+    wheelColor: "#101216",
+    metallic: 0.70,
+    gloss: 0.98,
+    flakes: 0.35,
+    clearcoat: 0.95,
+    vinyl: "SPEED_APEX",
+    vinylColor: "#ffffff",
+    vinylAnimated: false,
+    vinylEmissive: 0.2
+  },
+  {
+    id: "redInfernoFlames",
+    name: "Red Team Inferno Flames",
+    nameFa: "تیم قرمز: زبانه‌های آتشین",
+    model: "VORTEX",
+    wheel: "TURBINE",
+    teamVariant: "RED",
+    bodyColor: "#e61928",
+    accentColor: "#1a0b0d",
+    trimColor: "#ffd700",
+    glassColor: "#1a0608",
+    lightsColor: "#ff7700",
+    thrusterColor: "#ff3300",
+    hubColor: "#ffd700",
+    wheelColor: "#0d0e12",
+    metallic: 0.65,
+    gloss: 0.96,
+    flakes: 0.30,
+    clearcoat: 0.95,
+    vinyl: "FLAME_SURGE",
+    vinylColor: "#ffaa00",
+    vinylAnimated: true,
+    vinylEmissive: 2.2
+  },
+  {
+    id: "blueCyberPulse",
+    name: "Blue Team Cyber Pulse",
+    nameFa: "تیم آبی: شبکه سایبری نئونی",
+    model: "HYPER",
+    wheel: "AERO",
+    teamVariant: "BLUE",
+    bodyColor: "#0b4ec7",
+    accentColor: "#091220",
+    trimColor: "#00f0ff",
+    glassColor: "#040b17",
+    lightsColor: "#00f0ff",
+    thrusterColor: "#00d2ff",
+    hubColor: "#00f0ff",
+    wheelColor: "#080b10",
+    metallic: 0.85,
+    gloss: 0.98,
+    flakes: 0.45,
+    clearcoat: 1.00,
+    vinyl: "CYBER_GRID",
+    vinylColor: "#00f0ff",
+    vinylAnimated: true,
+    vinylEmissive: 2.0
+  },
+  {
+    id: "blueHoloWave",
+    name: "Blue Team Holo Wave",
+    nameFa: "تیم آبی: امواج هولوگرافیک",
+    model: "PHANTOM",
+    wheel: "TURBINE",
+    teamVariant: "BLUE",
+    bodyColor: "#0e56d4",
+    accentColor: "#0a1324",
+    trimColor: "#00ffa3",
+    glassColor: "#040d1c",
+    lightsColor: "#00ffa3",
+    thrusterColor: "#00ffa3",
+    hubColor: "#00ffa3",
+    wheelColor: "#090c12",
+    metallic: 0.75,
+    gloss: 0.96,
+    flakes: 0.40,
+    clearcoat: 0.95,
+    vinyl: "WAVE_FLOW",
+    vinylColor: "#00ffa3",
+    vinylAnimated: true,
+    vinylEmissive: 1.8
+  },
+  {
+    id: "stealthCarbonGT",
+    name: "Stealth Carbon GT",
+    nameFa: "کربن سیاه هگز مسابقه‌ای",
+    model: "TITAN",
+    wheel: "DISH",
+    teamVariant: "BLUE",
+    bodyColor: "#12151c",
+    accentColor: "#0a0c10",
+    trimColor: "#38bdf8",
+    glassColor: "#05070a",
+    lightsColor: "#38bdf8",
+    thrusterColor: "#0ea5e9",
+    hubColor: "#334155",
+    wheelColor: "#08090c",
+    metallic: 0.40,
+    gloss: 0.92,
     flakes: 0.15,
-    clearcoat: 0.90
+    clearcoat: 0.90,
+    vinyl: "CARBON_HEX",
+    vinylColor: "#1e293b",
+    vinylAnimated: false,
+    vinylEmissive: 0.0
   }
 ];
 

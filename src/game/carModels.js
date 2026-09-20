@@ -921,7 +921,317 @@ var RAPTOR = {
   lightBar: { z: 0.300 }
 };
 
-var BODIES = [OCTANE, VORTEX, STRIKER, TITAN, RAPTOR, PHANTOM];
+// A monster truck: the body rides high on a narrow shell so the huge arches are
+// fully outside it, which is what gives the silhouette its stilts-on-wheels read.
+var MONSTER = {
+  id: 'MONSTER',
+  name: 'Monster',
+  sub: 'مانستر تراک',
+  mat: { gloss: 0.66, clearcoat: 0.30, metallic: 0.24, flakes: 0.30, ao: 0.88, rim: 0.24 },
+  stations: [
+    [-0.620, 0.120, 0.150, 0.075, 3.6],
+    [-0.580, 0.130, 0.230, 0.100, 4.0],
+    [-0.430, 0.145, 0.268, 0.115, 4.2],
+    [-0.220, 0.150, 0.272, 0.118, 4.2],
+    [0.010, 0.148, 0.270, 0.116, 4.2],
+    [0.220, 0.142, 0.262, 0.112, 4.0],
+    [0.400, 0.136, 0.240, 0.104, 3.8],
+    [0.560, 0.130, 0.190, 0.086, 3.6],
+    [0.660, 0.126, 0.110, 0.058, 3.4]
+  ],
+  narrow: 1.0,
+  glassZ: [0.060, 0.300],
+  glassH: 0.098,
+  windows: { y0: 0.172, y1: 0.238, z0: -0.380, z1: 0.190, cols: 4, rows: 2, panes: 2, pillar: 0.22, taper: 0.28 },
+  glassY: 0.132,
+  roof: { z: -0.020, hw: 0.200, hl: 0.150 },
+  scoop: null,
+  arch: { r: 0.285, span: 1.18, thick: 0.055, wide: 0.138 },
+  archX: 0.175,
+  creases: [{ t: 0.44, k: 0.048, w: 0.15 }, { t: PI - 0.44, k: 0.048, w: 0.15 },
+            { t: -0.60, k: 0.036, w: 0.16 }, { t: PI + 0.60, k: 0.036, w: 0.16 }],
+  seams: [0.520, 0.240, -0.160, -0.430],
+  stripes: [{ c: 0.000, w: 0.062, z0: -0.480, z1: 0.560, seg: 5 }],
+  louvres: [{ c: 0.104, z0: 0.340, z1: 0.500, count: 4, halfW: 0.028, halfL: 0.012, lift: 0.0016 }],
+  mirrors: { z: 0.330, h: 0.12 },
+  wing: null,
+  splitter: { z: 0.648, hw: 0.250, y: -0.030, thick: 0.014, chord: 0.062 },
+  exhaust: { z: -0.630, x: 0.120, y: 0.110, r: 0.046 },
+  plow: { z: 0.690, y: -0.020, h: 0.130, d: 0.055, x: 0.280 },
+  lightBar: { z: 0.290 }
+};
+
+// A go-kart: no canopy, no cage, almost no bodywork. The shell is a thin pan
+// that sits BELOW the wheel tops, so the tyres stick up either side of it.
+var KART = {
+  id: 'KART',
+  name: 'Kart',
+  sub: 'کارتینگ',
+  mat: { gloss: 0.92, clearcoat: 0.80, metallic: 0.34, flakes: 0.44, ao: 0.80, rim: 0.38 },
+  stations: [
+    [-0.420, -0.048, 0.070, 0.026, 3.0],
+    [-0.380, -0.050, 0.110, 0.036, 3.2],
+    [-0.240, -0.056, 0.138, 0.048, 3.4],
+    [-0.040, -0.058, 0.142, 0.050, 3.4],
+    [0.160, -0.056, 0.136, 0.048, 3.2],
+    [0.330, -0.052, 0.108, 0.038, 3.0],
+    [0.460, -0.048, 0.058, 0.024, 2.8]
+  ],
+  narrow: 1.0,
+  noGlass: true,
+  noCage: true,
+  glassZ: [-0.100, 0.060],
+  glassH: 0.040,
+  glassY: -0.030,
+  roof: null,
+  scoop: null,
+  arch: { r: 0.200, span: 0.92, thick: 0.020, wide: 0.075 },
+  archX: 0.175,
+  creases: [{ t: 0.50, k: 0.040, w: 0.14 }, { t: PI - 0.50, k: 0.040, w: 0.14 },
+            { t: -0.62, k: 0.030, w: 0.15 }, { t: PI + 0.62, k: 0.030, w: 0.15 }],
+  seams: [0.260, -0.260],
+  stripes: [{ c: 0.000, w: 0.038, z0: -0.360, z1: 0.420, seg: 4 }],
+  mirrors: null,
+  wing: { z: -0.430, hw: 0.250, y: 0.105, thick: 0.010, chord: 0.062 },
+  splitter: { z: 0.480, hw: 0.170, y: -0.078, thick: 0.010, chord: 0.048 },
+  exhaust: { z: -0.300, x: 0.090, y: 0.030, r: 0.028 },
+  engine: { z: -0.270, y: -0.010, hw: 0.082, hh: 0.046, hl: 0.072 }
+};
+
+// A dragster: the longest and narrowest body here. The cabin is pushed right to
+// the back so the whole nose is one uninterrupted wedge.
+var DRAGSTER = {
+  id: 'DRAGSTER',
+  name: 'Dragster',
+  sub: 'درگستر',
+  mat: { gloss: 1.0, clearcoat: 0.98, metallic: 0.82, flakes: 0.72, ao: 0.74, rim: 0.60 },
+  stations: [
+    [-0.720, -0.030, 0.100, 0.048, 2.8],
+    [-0.660, -0.032, 0.132, 0.058, 3.0],
+    [-0.500, -0.036, 0.148, 0.062, 3.0],
+    [-0.300, -0.040, 0.140, 0.058, 2.9],
+    [-0.060, -0.046, 0.120, 0.050, 2.8],
+    [0.180, -0.050, 0.104, 0.044, 2.7],
+    [0.440, -0.054, 0.086, 0.036, 2.6],
+    [0.640, -0.056, 0.062, 0.026, 2.5],
+    [0.740, -0.056, 0.034, 0.016, 2.4]
+  ],
+  narrow: 1.0,
+  glassZ: [-0.520, -0.240],
+  glassH: 0.058,
+  glassY: -0.0181,
+  roof: { z: -0.380, hw: 0.132, hl: 0.086 },
+  scoop: null,
+  arch: { r: 0.192, span: 1.50, thick: 0.026, wide: 0.086 },
+  archX: 0.192,
+  creases: [{ t: 0.42, k: 0.046, w: 0.14 }, { t: PI - 0.42, k: 0.046, w: 0.14 },
+            { t: -0.58, k: 0.034, w: 0.15 }, { t: PI + 0.58, k: 0.034, w: 0.15 }],
+  seams: [0.520, 0.180, -0.300, -0.600],
+  stripes: [{ c: 0.000, w: 0.030, z0: -0.560, z1: 0.700, seg: 5 }],
+  mirrors: null,
+  wing: { z: -0.700, hw: 0.430, y: 0.250, thick: 0.014, chord: 0.110 },
+  splitter: { z: 0.726, hw: 0.140, y: -0.076, thick: 0.010, chord: 0.070 },
+  exhaust: { z: -0.690, x: 0.090, y: 0.010, r: 0.034 },
+  stack: { x: 0.150, y: 0.070, z: -0.230, h: 0.200, r: 0.018 },
+  engine: { z: 0.300, y: -0.020, hw: 0.096, hh: 0.048, hl: 0.150 }
+};
+
+// A hypercar: the widest and flattest shell of the fourteen, with the wing
+// mounted on pylons above the tail rather than on the deck.
+var HYPER = {
+  id: 'HYPER',
+  name: 'Hyper',
+  sub: 'هایپرکار',
+  mat: { gloss: 1.0, clearcoat: 1.0, metallic: 0.88, flakes: 0.78, ao: 0.72, rim: 0.62 },
+  stations: [
+    [-0.680, -0.036, 0.190, 0.044, 3.4],
+    [-0.640, -0.036, 0.288, 0.058, 3.6],
+    [-0.480, -0.036, 0.368, 0.066, 3.6],
+    [-0.240, -0.034, 0.400, 0.068, 3.6],
+    [0.040, -0.032, 0.398, 0.068, 3.5],
+    [0.260, -0.032, 0.372, 0.064, 3.4],
+    [0.460, -0.034, 0.330, 0.058, 3.2],
+    [0.620, -0.038, 0.256, 0.046, 3.0],
+    [0.720, -0.042, 0.150, 0.030, 2.8]
+  ],
+  narrow: 1.0,
+  glassZ: [0.140, 0.440],
+  glassH: 0.076,
+  glassY: -0.0176,
+  roof: { z: 0.040, hw: 0.196, hl: 0.130 },
+  scoop: null,
+  arch: { r: 0.216, span: 1.56, thick: 0.038, wide: 0.116 },
+  creases: [{ t: 0.40, k: 0.050, w: 0.13 }, { t: PI - 0.40, k: 0.050, w: 0.13 },
+            { t: -0.56, k: 0.038, w: 0.15 }, { t: PI + 0.56, k: 0.038, w: 0.15 }],
+  seams: [0.580, 0.300, -0.180, -0.540],
+  stripes: [{ c: 0.078, w: 0.032, z0: -0.600, z1: 0.680, seg: 4 }],
+  flank: { y0: -0.038, y1: -0.002, z0: -0.520, z1: 0.540 },
+  louvres: [{ c: 0.140, z0: 0.420, z1: 0.560, count: 3, halfW: 0.030, halfL: 0.012, lift: 0.0016 }],
+  mirrors: { z: 0.340 },
+  wing: { z: -0.672, hw: 0.430, y: 0.208, thick: 0.013, chord: 0.104 },
+  splitter: { z: 0.700, hw: 0.360, y: -0.070, thick: 0.012, chord: 0.082 },
+  exhaust: { z: -0.690, x: 0.160, y: -0.010, r: 0.040 },
+  quad: true,
+  sidepods: true
+};
+
+// A coach: the longest, tallest and boxiest body. Squareness 7.5 keeps the sides
+// nearly flat, and the glass band runs almost the whole length.
+var COACH = {
+  id: 'COACH',
+  name: 'Coach',
+  sub: 'اتوبوس',
+  mat: { gloss: 0.70, clearcoat: 0.42, metallic: 0.12, flakes: 0.16, ao: 0.86, rim: 0.22, tint: [0.96, 0.98, 1.0] },
+  stations: [
+    [-0.700, 0.098, 0.240, 0.150, 7.5],
+    [-0.660, 0.104, 0.300, 0.182, 7.5],
+    [-0.500, 0.108, 0.314, 0.192, 7.5],
+    [-0.240, 0.110, 0.316, 0.194, 7.5],
+    [0.060, 0.110, 0.316, 0.194, 7.5],
+    [0.340, 0.108, 0.314, 0.192, 7.5],
+    [0.540, 0.106, 0.308, 0.188, 7.5],
+    [0.660, 0.104, 0.288, 0.176, 7.0],
+    [0.720, 0.100, 0.230, 0.146, 6.5]
+  ],
+  narrow: 1.0,
+  glassZ: [0.580, -0.320],
+  windows: { y0: 0.150, y1: 0.262, z0: -0.540, z1: 0.520, cols: 4, rows: 3, panes: 4, pillar: 0.13, taper: 0.08 },
+  glassH: 0.132,
+  glassY: 0.148,
+  roof: { z: 0.100, hw: 0.280, hl: 0.240 },
+  scoop: null,
+  arch: { r: 0.228, span: 1.16, thick: 0.036, wide: 0.096 },
+  creases: [{ t: 0.30, k: 0.030, w: 0.18 }, { t: PI - 0.30, k: 0.030, w: 0.18 },
+            { t: -0.50, k: 0.028, w: 0.18 }, { t: PI + 0.50, k: 0.028, w: 0.18 }],
+  seams: [0.600, 0.240, -0.140, -0.480],
+  stripes: [{ c: 0.000, w: 0.058, z0: -0.620, z1: 0.660, seg: 5 }],
+  flank: { y0: -0.040, y1: 0.006, z0: -0.600, z1: 0.620 },
+  mirrors: { z: 0.560, h: 0.18 },
+  wing: null,
+  splitter: { z: 0.706, hw: 0.230, y: -0.062, thick: 0.013, chord: 0.052 },
+  exhaust: { z: -0.690, x: 0.150, y: -0.020, r: 0.040 },
+  lightBar: { z: 0.620 },
+  rack: { z: 0.100, hw: 0.240, hl: 0.220, bars: 4 }
+};
+
+// A SUV: upright and boxy, high beltline, roof rack. Sits between the van and
+// the coach in size but is squarer than either.
+var SUV = {
+  id: 'SUV',
+  name: 'SUV',
+  sub: 'شاسی‌بلند',
+  mat: { gloss: 0.76, clearcoat: 0.50, metallic: 0.26, flakes: 0.30, ao: 0.86, rim: 0.28 },
+  stations: [
+    [-0.660, 0.070, 0.200, 0.100, 5.6],
+    [-0.620, 0.074, 0.266, 0.140, 5.8],
+    [-0.460, 0.078, 0.294, 0.160, 5.8],
+    [-0.220, 0.080, 0.300, 0.164, 5.8],
+    [0.060, 0.078, 0.298, 0.162, 5.8],
+    [0.300, 0.076, 0.288, 0.156, 5.6],
+    [0.480, 0.072, 0.268, 0.142, 5.4],
+    [0.610, 0.068, 0.230, 0.118, 5.2],
+    [0.680, 0.066, 0.150, 0.080, 5.0]
+  ],
+  narrow: 1.0,
+  glassZ: [0.420, -0.240],
+  windows: { y0: 0.108, y1: 0.206, z0: -0.470, z1: 0.350, cols: 4, rows: 3, panes: 3, pillar: 0.17, taper: 0.22 },
+  glassH: 0.116,
+  glassY: 0.112,
+  roof: { z: 0.060, hw: 0.262, hl: 0.200 },
+  scoop: null,
+  arch: { r: 0.256, span: 1.26, thick: 0.048, wide: 0.116 },
+  creases: [{ t: 0.34, k: 0.042, w: 0.16 }, { t: PI - 0.34, k: 0.042, w: 0.16 },
+            { t: -0.54, k: 0.032, w: 0.17 }, { t: PI + 0.54, k: 0.032, w: 0.17 }],
+  seams: [0.520, 0.180, -0.180, -0.520],
+  stripes: [{ c: 0.086, w: 0.036, z0: -0.560, z1: 0.620, seg: 4 }],
+  flank: { y0: -0.036, y1: 0.012, z0: -0.540, z1: 0.560 },
+  louvres: [{ c: 0.128, z0: 0.380, z1: 0.520, count: 3, halfW: 0.032, halfL: 0.012, lift: 0.0016 }],
+  mirrors: { z: 0.400, h: 0.16 },
+  wing: null,
+  splitter: { z: 0.666, hw: 0.260, y: -0.058, thick: 0.013, chord: 0.058 },
+  exhaust: { z: -0.650, x: 0.140, y: 0.010, r: 0.042 },
+  lightBar: { z: 0.400 },
+  rack: { z: 0.060, hw: 0.222, hl: 0.188, bars: 3 }
+};
+
+// A hot rod: narrow, low, with the cabin chopped and pushed back and the motor
+// sitting out in the open on the nose.
+var HOTROD = {
+  id: 'HOTROD',
+  name: 'Hot Rod',
+  sub: 'هات‌راد',
+  mat: { gloss: 0.58, clearcoat: 0.26, metallic: 0.42, flakes: 0.38, ao: 0.86, rim: 0.30 },
+  stations: [
+    [-0.660, -0.028, 0.110, 0.048, 2.9],
+    [-0.620, -0.026, 0.164, 0.060, 3.0],
+    [-0.440, -0.022, 0.182, 0.066, 3.0],
+    [-0.220, -0.020, 0.176, 0.064, 2.9],
+    [0.020, -0.022, 0.152, 0.054, 2.8],
+    [0.260, -0.026, 0.134, 0.046, 2.7],
+    [0.480, -0.030, 0.116, 0.038, 2.6],
+    [0.640, -0.032, 0.086, 0.028, 2.5],
+    [0.720, -0.034, 0.050, 0.018, 2.4]
+  ],
+  narrow: 1.0,
+  glassZ: [-0.300, -0.060],
+  glassH: 0.064,
+  glassY: -0.0054,
+  roof: { z: -0.180, hw: 0.158, hl: 0.100 },
+  scoop: null,
+  arch: { r: 0.206, span: 1.32, thick: 0.030, wide: 0.102 },
+  archX: 0.216,
+  creases: [{ t: 0.44, k: 0.048, w: 0.14 }, { t: PI - 0.44, k: 0.048, w: 0.14 },
+            { t: -0.60, k: 0.036, w: 0.15 }, { t: PI + 0.60, k: 0.036, w: 0.15 }],
+  seams: [0.480, 0.060, -0.360, -0.600],
+  stripes: [{ c: 0.000, w: 0.030, z0: -0.400, z1: 0.640, seg: 4 }],
+  louvres: [{ c: 0.084, z0: 0.380, z1: 0.520, count: 4, halfW: 0.024, halfL: 0.010, lift: 0.0016 }],
+  mirrors: null,
+  wing: null,
+  splitter: { z: 0.708, hw: 0.130, y: -0.060, thick: 0.011, chord: 0.054 },
+  exhaust: { z: -0.640, x: 0.096, y: 0.010, r: 0.032 },
+  stack: { x: 0.132, y: 0.088, z: -0.070, h: 0.230, r: 0.020 },
+  engine: { z: 0.300, y: 0.004, hw: 0.104, hh: 0.054, hl: 0.132 }
+};
+
+// A limousine: the longest and lowest of the formal bodies, with a tall rear
+// greenhouse so it reads as a chauffeur car rather than another van.
+var LIMO = {
+  id: 'LIMO',
+  name: 'Limo',
+  sub: 'لیموزین',
+  mat: { gloss: 0.96, clearcoat: 0.92, metallic: 0.58, flakes: 0.48, ao: 0.78, rim: 0.48 },
+  stations: [
+    [-0.740, 0.046, 0.170, 0.078, 4.6],
+    [-0.700, 0.048, 0.238, 0.112, 4.8],
+    [-0.520, 0.052, 0.276, 0.132, 5.0],
+    [-0.260, 0.056, 0.286, 0.138, 5.0],
+    [0.020, 0.056, 0.286, 0.138, 5.0],
+    [0.300, 0.054, 0.280, 0.134, 4.8],
+    [0.500, 0.050, 0.266, 0.126, 4.6],
+    [0.660, 0.046, 0.226, 0.106, 4.4],
+    [0.760, 0.042, 0.140, 0.066, 4.2]
+  ],
+  narrow: 1.0,
+  glassZ: [0.460, -0.320],
+  windows: { y0: 0.098, y1: 0.190, z0: -0.520, z1: 0.470, cols: 4, rows: 3, panes: 3, pillar: 0.16, taper: 0.20 },
+  glassH: 0.106,
+  glassY: 0.118,
+  roof: { z: 0.020, hw: 0.248, hl: 0.260 },
+  scoop: null,
+  arch: { r: 0.226, span: 1.30, thick: 0.038, wide: 0.098 },
+  creases: [{ t: 0.36, k: 0.040, w: 0.16 }, { t: PI - 0.36, k: 0.040, w: 0.16 },
+            { t: -0.56, k: 0.030, w: 0.17 }, { t: PI + 0.56, k: 0.030, w: 0.17 }],
+  seams: [0.600, 0.260, -0.140, -0.540],
+  stripes: [{ c: 0.000, w: 0.028, z0: -0.660, z1: 0.700, seg: 5 }],
+  flank: { y0: -0.030, y1: 0.010, z0: -0.620, z1: 0.620 },
+  mirrors: { z: 0.440, h: 0.12 },
+  wing: null,
+  splitter: { z: 0.746, hw: 0.240, y: -0.064, thick: 0.012, chord: 0.050 },
+  exhaust: { z: -0.730, x: 0.130, y: -0.010, r: 0.038 },
+  quad: true
+};
+
+var BODIES = [OCTANE, VORTEX, STRIKER, TITAN, RAPTOR, PHANTOM, MONSTER, KART, DRAGSTER, HYPER, COACH, SUV, HOTROD, LIMO];
 
 /* ------------------------------------------------------------------ *
  * body assembly
@@ -932,6 +1242,8 @@ function buildBody(def, anchor) {
   var accent = new Builder();
   var glass = new Builder();
   var lights = new Builder();
+  var headlights = new Builder();
+  var taillights = new Builder();
   var thruster = new Builder();
   // A second paint slot. The accent slot is fixed charcoal, so a bright racing
   // stripe needs its own mesh; `drawVehicle` renders this one off-white.
@@ -965,17 +1277,27 @@ function buildBody(def, anchor) {
   sillZ(accent, st, 0.66, 0.072);
 
   /* --- 2. fender arches over each wheel --- */
-  if (def.arch) {
+  var hideFlaps = !!(CFG.vehicle && CFG.vehicle.hideWheelFlaps);
+  if (def.arch && !hideFlaps) {
     var A = def.arch;
+    var flapScale = (CFG.vehicle && CFG.vehicle.flapScale !== undefined) ? CFG.vehicle.flapScale : 1.0;
+    var flapOffsetY = (CFG.vehicle && CFG.vehicle.flapOffsetY !== undefined) ? CFG.vehicle.flapOffsetY : 0.0;
+    var flapWidthScale = (CFG.vehicle && CFG.vehicle.flapWidthScale !== undefined) ? CFG.vehicle.flapWidthScale : 1.0;
+    var flapThickScale = (CFG.vehicle && CFG.vehicle.flapThickScale !== undefined) ? CFG.vehicle.flapThickScale : 1.0;
+    var archR = A.r * flapScale;
+    var archThick = A.thick * flapScale * flapThickScale;
+    var archWide = A.wide * flapScale * flapWidthScale;
+    var archY = anchor.y + flapOffsetY;
+
     // pulled inboard of the axle so the fender bridges the shell and the tyre
-    var ax = anchor.x - 0.025;
+    var ax = def.archX !== undefined ? def.archX : (anchor.x - 0.025);
     for (var s = 0; s < 4; s++) {
       var sx = (s % 2) ? 1 : -1;
       var sz = (s < 2) ? 1 : -1;
-      arch(body, sx * ax, sz * anchor.z, anchor.y, A.r, A.span, A.thick, A.wide, 14);
+      arch(body, sx * ax, sz * anchor.z, archY, archR, A.span, archThick, archWide, 14);
       // dark lip capping the arch's outer edge — reads as a fender flare
-      arch(accent, sx * ax, sz * anchor.z, anchor.y,
-        A.r + A.thick * 0.62, A.span, A.thick * 0.34, A.wide * 1.10, 14);
+      arch(accent, sx * ax, sz * anchor.z, archY,
+        archR + archThick * 0.62, A.span, archThick * 0.34, archWide * 1.10, 14);
     }
   }
 
@@ -1180,13 +1502,27 @@ function buildBody(def, anchor) {
     }
   }
 
-  /* --- 14. lights --- */
+  /* --- 14. headlights & taillights --- */
   var frontZ = def.stations[def.stations.length - 1][0] - 0.055;
+  var rearZ = def.stations[0][0] + 0.045;
   for (var li = 0; li < 2; li++) {
     var lx = li ? 1 : -1;
+    // Front Projector Headlights & LED DRL Eyebrows
+    headlights.box(0.056, 0.018, 0.022, new V3(lx * 0.155, 0.032, frontZ), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
+    headlights.box(0.042, 0.008, 0.016, new V3(lx * 0.165, 0.044, frontZ - 0.008), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
+
+    // Rear Modern LED Taillight Clusters & Brake Light Bars
+    taillights.box(0.052, 0.018, 0.018, new V3(lx * 0.175, 0.076, rearZ), null, 1.0);
+    taillights.box(0.038, 0.008, 0.014, new V3(lx * 0.185, 0.064, rearZ), null, 1.0);
+
+    // Backwards-compatible combined lights
     lights.box(0.052, 0.015, 0.020, new V3(lx * 0.155, 0.030, frontZ), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
-    lights.box(0.048, 0.014, 0.018, new V3(lx * 0.175, 0.075, def.stations[0][0] + 0.045), null, 1.0);
+    lights.box(0.048, 0.014, 0.018, new V3(lx * 0.175, 0.075, rearZ), null, 1.0);
   }
+
+  // Rear high-mount third brake light bar
+  taillights.box(0.12, 0.009, 0.012, new V3(0, 0.125, rearZ + 0.015), null, 1.0);
+
   if (def.lightBar) {
     var LB = def.lightBar;
     // rides on top of the roof, wherever the derivation put it
@@ -1194,6 +1530,7 @@ function buildBody(def, anchor) {
     // a dark housing sitting on the roof, with the lamps set into its front face
     accent.box(0.205, 0.021, 0.030, new V3(0, lby, LB.z), null, 1.0);
     for (var lb = 0; lb < 4; lb++) {
+      headlights.box(0.036, 0.015, 0.009, new V3(-0.150 + lb * 0.100, lby + 0.002, LB.z + 0.035), null, 1.0);
       lights.box(0.036, 0.015, 0.009, new V3(-0.150 + lb * 0.100, lby + 0.002, LB.z + 0.035), null, 1.0);
     }
   }
@@ -1224,6 +1561,39 @@ function buildBody(def, anchor) {
       accent.box(0.045, BD.wallH * 0.32, 0.030,
         new V3((fc ? 1 : -1) * (BD.hw - 0.075), BD.y + BD.wallH * 0.62, bz1 - 0.09), null, 1.0);
     }
+  }
+
+  /* --- 14c. snow plow (MONSTER) --- */
+  if (def.plow) {
+    var P = def.plow;
+    accent.box(P.x, P.h, P.d, new V3(0, P.y, P.z), null, 1.0);
+  }
+
+  /* --- 14d. roof rack (COACH, SUV) --- */
+  if (def.rack) {
+    var RK = def.rack;
+    var rky = roofY + 0.010;
+    accent.box(RK.hw, 0.010, RK.hl, new V3(0, rky, RK.z), null, 1.0);
+    var bars = RK.bars || 3;
+    for (var b = 0; b < bars; b++) {
+      var bz = RK.z - RK.hl + (RK.hl * 2) * (b / (bars - 1));
+      accent.box(RK.hw, 0.008, 0.008, new V3(0, rky + 0.008, bz), null, 1.0);
+    }
+  }
+
+  /* --- 14e. exhaust stack (DRAGSTER, HOTROD) --- */
+  if (def.stack) {
+    var ST = def.stack;
+    for (var s = 0; s < 2; s++) {
+      var sx = s ? 1 : -1;
+      accent.cylinder(ST.r, ST.r, ST.h, 8, new V3(ST.x * sx, ST.y, ST.z), new Quat().fromAxisAngle(1, 0, 0, -0.15), true, true);
+    }
+  }
+
+  /* --- 14f. exposed engine (DRAGSTER, HOTROD, KART) --- */
+  if (def.engine) {
+    var EG = def.engine;
+    accent.box(EG.hw, EG.hh, EG.hl, new V3(0, EG.y, EG.z), null, 1.0);
   }
 
   /* --- 15. brake calipers: static, so they belong on the body, not the wheel --- */
@@ -1301,8 +1671,12 @@ function buildBody(def, anchor) {
     accent: accent,
     glass: glass,
     lights: lights,
+    headlights: headlights,
+    taillights: taillights,
     thruster: thruster,
-    trim: trim
+    trim: trim,
+    frontZ: frontZ,
+    rearZ: rearZ
   };
 }
 
@@ -1371,8 +1745,13 @@ export function buildCarKit(R) {
       accent: R.mesh(m.accent),
       glass: R.mesh(m.glass),
       lights: R.mesh(m.lights),
+      headlights: R.mesh(m.headlights),
+      taillights: R.mesh(m.taillights),
       thruster: R.mesh(m.thruster),
-      trim: R.mesh(m.trim)
+      trim: R.mesh(m.trim),
+      archX: BODIES[i].archX,
+      frontZ: m.frontZ,
+      rearZ: m.rearZ
     };
   }
 

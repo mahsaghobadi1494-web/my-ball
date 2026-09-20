@@ -75,16 +75,83 @@ Effects.prototype.boostFlame = function (car, dt) {
   }
 };
 Effects.prototype.tyreDust = function (car, wheel, amount, dt) {
-  if (this.rng.next() > amount * 16 * dt * CFG.gfx.particles) return;
-  var p = this.spawn();
-  if (!p) return;
-  p.pos.copy(wheel.contact);
-  p.pos.y += 0.05;
-  p.vel.set(car.body.vel.x * 0.15 + this.rng.range(-0.5, 0.5), this.rng.range(0.4, 1.2), car.body.vel.z * 0.15 + this.rng.range(-0.5, 0.5));
-  p.col[0] = 0.95; p.col[1] = 0.98; p.col[2] = 1.0;
-  p.size = this.rng.range(0.08, 0.18);
-  p.max = this.rng.range(0.15, 0.35);
-  p.life = 0; p.grav = -0.6; p.drag = 2.8; p.fade = 0.25; p.grow = 0.4; p.stretch = 1;
+  var gfxP = (CFG.gfx && CFG.gfx.particles !== undefined) ? CFG.gfx.particles : 1.0;
+  if (gfxP <= 0.001) return;
+  var speed = car.speed ? car.speed() : 0;
+  if (speed < 1.0) return;
+
+  var slip = wheel.slip || (amount * 8.0);
+  var intensity = clamp(slip * 0.35 + amount * 1.5, 0.2, 3.5);
+  var spawnRate = Math.floor(intensity * 38 * dt * gfxP) + (this.rng.next() < (intensity * 38 * dt * gfxP) % 1 ? 1 : 0);
+
+  for (var k = 0; k < spawnRate; k++) {
+    var p = this.spawn();
+    if (!p) return;
+
+    var B = car.body;
+    p.pos.copy(wheel.contact);
+    p.pos.y += 0.08;
+    p.pos.x += this.rng.range(-0.15, 0.15);
+    p.pos.z += this.rng.range(-0.15, 0.15);
+
+    // Ballistic spray vector: flung backward and out tangentially from spinning wheels
+    var spraySpeed = this.rng.range(3.5, 9.5) * (0.6 + amount * 0.8);
+    var flingDirX = -B.fwd.x * 0.45 + (this.rng.range(-1, 1) * 0.85);
+    var flingDirZ = -B.fwd.z * 0.45 + (this.rng.range(-1, 1) * 0.85);
+
+    var type = this.rng.next();
+    if (type < 0.40) {
+      // 1. Dark Stadium Mud & Turf Earth Chunks (قهوه ای و خاک)
+      p.col[0] = this.rng.range(0.18, 0.28);
+      p.col[1] = this.rng.range(0.12, 0.18);
+      p.col[2] = this.rng.range(0.06, 0.10);
+      p.size = this.rng.range(0.14, 0.34);
+      p.max = this.rng.range(0.35, 0.65);
+      p.grav = 7.5; // Arcs and falls quickly under gravity
+      p.drag = 1.2;
+      p.fade = 1.0;
+      p.stretch = 1.4;
+      p.grow = 0.05;
+      p.vel.set(
+        B.vel.x * 0.2 + flingDirX * spraySpeed,
+        this.rng.range(2.0, 5.5),
+        B.vel.z * 0.2 + flingDirZ * spraySpeed
+      );
+    } else if (type < 0.70) {
+      // 2. Sheared Lush Grass Turf Clippings (پرتاب تکه های چمن سبز)
+      p.col[0] = this.rng.range(0.12, 0.22);
+      p.col[1] = this.rng.range(0.55, 0.75);
+      p.col[2] = this.rng.range(0.16, 0.28);
+      p.size = this.rng.range(0.12, 0.26);
+      p.max = this.rng.range(0.30, 0.55);
+      p.grav = 5.0;
+      p.drag = 1.8;
+      p.fade = 0.95;
+      p.stretch = 1.8;
+      p.grow = 0.02;
+      p.vel.set(
+        B.vel.x * 0.15 + flingDirX * (spraySpeed * 0.8),
+        this.rng.range(2.5, 6.0),
+        B.vel.z * 0.15 + flingDirZ * (spraySpeed * 0.8)
+      );
+    } else {
+      // 3. Hot Powerslide Tire Smoke Billows (دود لاستیک در دریفت)
+      p.col[0] = 0.88; p.col[1] = 0.92; p.col[2] = 0.96;
+      p.size = this.rng.range(0.20, 0.45);
+      p.max = this.rng.range(0.40, 0.85);
+      p.grav = -0.4; // Billows softly upward
+      p.drag = 2.4;
+      p.fade = 0.40;
+      p.stretch = 1.0;
+      p.grow = 0.95;
+      p.vel.set(
+        B.vel.x * 0.1 + this.rng.range(-0.6, 0.6),
+        this.rng.range(0.8, 2.2),
+        B.vel.z * 0.1 + this.rng.range(-0.6, 0.6)
+      );
+    }
+    p.life = 0;
+  }
 };
 Effects.prototype.sparks = function (pos, normal, strength, col) {
   var n = Math.floor(clamp(strength, 2, 26) * CFG.gfx.particles);

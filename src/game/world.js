@@ -359,12 +359,7 @@ World.prototype.fixedStep = function (dt) {
   if (this.state === "PLAYING" || this.state === "COUNTDOWN") {
     assignRoles(this);
     for (var a = 0; a < this.ai.length; a++) {
-      if (this.state === "COUNTDOWN") {
-        this.ai[a].car.input.throttle = 1;
-        this.ai[a].car.input.boost = true;
-      } else {
-        this.ai[a].update(dt);
-      }
+      this.ai[a].update(dt);
     }
   }
 

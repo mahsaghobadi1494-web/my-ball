@@ -936,18 +936,21 @@ export default function App() {
 
               <div>
                 <span className="text-[11px] font-mono uppercase tracking-widest text-[#42b8ff] font-bold">AI Bot Difficulty</span>
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
                   {[
-                    { level: 0, label: "Rookie" },
-                    { level: 1, label: "Semi-Pro" },
-                    { level: 2, label: "All-Star" }
+                    { level: 0, label: "Rookie", fa: "تازه‌کار" },
+                    { level: 1, label: "Amateur", fa: "نیمه‌حرفه‌ای" },
+                    { level: 2, label: "Pro", fa: "حرفه‌ای" },
+                    { level: 3, label: "All-Star", fa: "ستاره" },
+                    { level: 4, label: "Legendary", fa: "افسانه‌ای" }
                   ].map(b => (
                     <button
                       key={b.level}
                       onClick={() => setBotSkill(b.level)}
-                      className={`py-2 px-2 rounded font-mono text-xs font-bold border transition ${botSkill === b.level ? 'bg-[#1689d9] border-[#55bcff] text-white shadow-[0_0_10px_rgba(85,188,255,0.4)]' : 'bg-[#07101c]/40 border-white/10 text-neutral-400'}`}
+                      className={`py-2 px-2 rounded font-mono text-xs font-bold border transition flex flex-col items-center justify-center ${botSkill === b.level ? 'bg-[#1689d9] border-[#55bcff] text-white shadow-[0_0_10px_rgba(85,188,255,0.4)]' : 'bg-[#07101c]/40 border-white/10 text-neutral-400 hover:text-white hover:bg-white/5'}`}
                     >
-                      {b.label}
+                      <span className="font-bold text-[11px]">{b.label}</span>
+                      <span className="text-[9px] opacity-75 font-sans">{b.fa}</span>
                     </button>
                   ))}
                 </div>

@@ -1,198 +1,8 @@
 // @ts-nocheck
-export var CFG = {
-  physics: {
-    hz: 240,
-    maxStepsPerFrame: 12,
-    gravity: 6.50,
-    maxCarSpeed: 28.0,
-    maxBallSpeed: 65.0,
-    maxAngSpeed: 24.0,
-    contactSlop: 0.004,
-    posCorrect: 0.55
-  },
-  vehicle: {
-    mass: 180,
-    hx: 0.42, hy: 0.18, hz: 0.59,
-    comOffsetY: -0.045,
-    inertiaScale: 0.72,
-    driveAccel: 24.0,
-    driveSpeedCap: 18.5,
-    reverseAccel: 15.0,
-    reverseSpeedCap: 10.5,
-    brakeAccel: 30.0,
-    coastDecel: 2.8,
-    steerMax: 0.52,
-    steerMin: 0.16,
-    steerRate: 14.0,
-    driftYawDamp: 7.5,
-    driftStability: 1.0,
-    grip: 32.0,
-    gripSlide: 6.0,
-    slideRecover: 7.5,
-    frictionCircle: 4.0,
-    airDrag: 0.015,
-    groundDrag: 0.005,
-    stickAccel: 22.0,
-    stickSpeedRef: 9.0,
-    ballHitboxScaleX: 1.25,
-    ballHitboxScaleY: 1.20,
-    ballHitboxScaleZ: 1.25,
-    carScale: 2.75,
-    hitboxElevationOffset: 0.0,
-    flipAntiSnag: 0.90,
-    chassisRoundness: 0.15,
-    ballBoxRoundness: 0.20,
-    hideWheelFlaps: false,
-    flapOffsetY: 0.0,
-    flapScale: 1.0,
-    flapWidthScale: 0.65, // Sleek, aerodynamic flap width (reduced from bulky 1.0)
-    flapThickScale: 0.60, // Slim, high-precision fender thickness
-    wheel: {
-      radius: 0.157,
-      rest: 0.07,
-      travel: 0.08,
-      stiffness: 165.0,
-      damping: 18.0,
-      maxRay: 0.45,
-      attachY: -0.05,
-      attachX: 0.355,
-      attachZ: 0.415,
-      downforce: 12.0
-    },
-    jump: { impulse: 5.2, secondImpulse: 5.2, holdAccel: 14.0, holdTime: 0.20, cooldown: 0.05, doubleWindow: 1.85, dodgeWindow: 1.85, maxJumpVel: 8.0 },
-    dodge: { speed: 8.5, upSpeed: 1.6, angRate: 13.5, duration: 0.52, deadzone: 0.16, flickTorque: 1.45, flickSurge: 1.35 },
-    air: { pitch: 16.0, yaw: 12.5, roll: 46.0, maxAirAngSpeed: 5.5, damp: 6.5, rollDamp: 8.5 },
-    boost: { max: 100, consume: 33.3, accel: 13.5, speedCap: 28.0 }
-  },
-  ball: {
-    radius: 2.334, mass: 35,
-    restitution: 0.60, restitutionCar: 0.62,
-    friction: 0.36, wallFriction: 0.42,
-    drag: 0.0305, angDrag: 0.0175,
-    rollResist: 0.42,
-    magnus: 0.0032,
-    kickScale: 1.25,
-    kickBase: 6.5, kickSlope: 0.45, kickMax: 32.0,
-    carReaction: 0.04,
-    carAngularReaction: 0.02,
-    carPushBack: 0.02
-  },
-  arena: {
-    hx: 61.5,
-    hz: 76.8,
-    height: 30.75,
-    fillet: 3.9,
-    cornerFillet: 12.3,
-    goalHalfW: 13.395,
-    goalHeight: 9.63,
-    goalDepth: 9.6,
-    wallFriction: 0.55,
-    wallRestitution: 0.30
-  },
-  match: {
-    duration: 300,
-    countdown: 3,
-    goalReplay: 4.0,
-    teamSize: 3,
-    overtime: true
-  },
-  camera: {
-    fov: 100, distance: 9.0, height: 2.45, stiffness: 1.0, pitch: 12,
-    ballcamHeight: 3.1, ballcamDistance: 9.6, shake: 1.0, speedZoom: 2.6, fovSpeed: 10,
-    swivelSpeed: 2.5, transitionSpeed: 1.5,
-    startBallcam: true
-  },
-  ai: {
-    skill: 2,
-    predictHorizon: 2.6,
-    predictStep: 1 / 30,
-    boostThreshold: 34,
-    dodgeRange: 2.9
-  },
-  boostPad: { smallAmount: 12, bigAmount: 100, smallCooldown: 4, bigCooldown: 10, smallRadius: 2.4, bigRadius: 3.2, height: 2.5 },
-  audio: { master: 0.7, sfx: 0.9, engine: 0.6 },
-  gfx: {
-    renderScale: 1,
-    particles: 1,
-    shadows: true,
-    stadiumTheme: "NEON_CHAMPIONSHIP",
-    perfMode: "BALANCED", // "ULTRA" (120 FPS) | "BALANCED" (60 FPS) | "HIGH" (Cinema Quality)
-    // Stadium & Lighting Controls
-    floodlightIntensity: 0.35, // Reduced from blinding 1.0+ to soft balanced 0.35
-    ambientLight: 0.85,
-    sunIntensity: 0.95,
-    pitchBrightness: 1.0,
-    pitchContrast: 1.0,
-    pitchRoughness: 0.35,
-    turfSheen: 0.45,
-    // Volumetric 3D Stadium Lasers Controls
-    laserBrightness: 0.45, // Soft balanced laser emissive & intensity
-    laserThickness: 0.70,  // Beam cylinder thickness scale
-    laserHaloRadius: 0.75, // Outer glow/halo radius scale
-    laserOpacity: 0.40,    // Translucency & bloom transparency
-    laserSpotRadius: 0.80, // Ground impact and flare optical spot circle radius
-    // Vehicle Material & Clearcoat Controls (Solid, high-gloss automotive lacquer without brushed/grainy flakes)
-    carGloss: 0.96,
-    carClearcoat: 0.95,
-    carMetallic: 0.08,
-    carFlakes: 0.00, // Zero brushed noise for pure mirror-smooth lacquer
-    carBump: 0.90, // Procedural 3D surface relief, panel seams, hood vents, and carbon fiber micro-relief
-    carBumpStyle: "SPORTS_PANELS", // "SPORTS_PANELS" | "AERO_LOUVERS" | "CARBON_WEAVE" | "ARMOR_PLATES"
-    carAmbientOcclusion: 0.85, // Cavity & chassis contact self-shadowing
-    carReflection: 0.80,
-    shadowMapping: true, // Real-time directional sun shadow map (WebGL2 native PCF)
-    shadowSoftness: 1.0, // Soft penumbra PCF filter radius
-    // Ball Material & Procedural Bump Controls
-    ballType: "soccer", // "soccer" | "volleyball" | "tennis" | "basketball"
-    ballBrightness: 1.00, // Solid saturated colors
-    ballGloss: 0.72,
-    ballMetallic: 0.00, // 0 metallic to maintain solid saturated panel paint
-    ballBumpIntensity: 1.00, // Deep 3D embossed panel relief
-    ballEmissiveGlow: 0.00, // Clean 0 glow so sphere does not wash out flatly
-    // Dynamic 3D Instanced Pitch Grass System
-    grassEnabled: true,
-    grassDensity: "ULTRA_DENSE", // "HYPER_DENSE" (5M) | "CINEMATIC_MAX" (3M) | "OPTIMIZED_2_5M" (2.5M) | "OPTIMIZED_2M" (2M) | "EXTREME" (1.5M) | "ULTRA_DENSE" (750k) | "ULTRA" (350k) | "HIGH" (150k) | "BALANCED" (60k) | "LOW" (25k)
-    grassBladeCount: 750000,
-    grassBladeWidth: 1.25, // Wider lush blade width for full dense coverage
-    grassHeight: 0.65, // in meters
-    grassWindSpeed: 1.4,
-    grassWaveStrength: 0.85,
-    grassTremble: 0.80, // flutter jitter
-    grassTipCreaminess: 1.00, // Velvety creamy warm sunlight tips (soft rounded edges)
-    grassSubsurface: 0.80, // Soft light translucency
-    boostPadHeightOffset: 0.35, // Elevation above turf/grass (in meters)
-    // Animated Stadium Spectator Crowds & Mexican Wave
-    crowdAnimation: true,
-    crowdEnergy: 1.0 // Cheering wave and jump height intensity
-  },
-  customization: {
-    model: "OCTANE", // "OCTANE" | "VORTEX" | "STRIKER" | "TITAN" | "RAPTOR" | "PHANTOM" ...
-    wheel: "SPORT",  // "SPORT" | "TURBINE" | "MESH" | "OFFROAD" | "DISH" | "AERO" | "STEEL"
-    useCustomPaint: true, // If true, player uses custom paint instead of pure team color
-    teamVariant: "BLUE", // "BLUE" | "RED"
-    bodyColor: "#1264e8",       // Primary body paint hex (Blue team champion)
-    accentColor: "#121722",     // Roll cage, sills, carbon trim hex
-    trimColor: "#f0f2f5",       // Racing stripes, roof accents hex
-    glassColor: "#080e18",      // Canopy tint hex
-    lightsColor: "#4ca5ff",     // Headlights & LED glow hex
-    thrusterColor: "#00e5ff",   // Jet nozzle & flame hex
-    hubColor: "#d6dade",        // Rim face & alloy spokes hex
-    wheelColor: "#121418",      // Tyre rubber hex
-    metallic: 0.65,
-    gloss: 0.95,
-    flakes: 0.30,
-    clearcoat: 0.90,
-    // 10 Vinyl Decal Models & Dynamic Animated Vinyls
-    vinyl: "RACING_STRIPES",    // 'CLEAN'|'RACING_STRIPES'|'CYBER_GRID'|'FLAME_SURGE'|'LIGHTNING_STORM'|'WAVE_FLOW'|'CARBON_HEX'|'CAMO_TACTICAL'|'DIGITAL_MATRIX'|'SPEED_APEX'|'SUNBURST_RAYS'
-    vinylColor: "#ffffff",      // Decal artwork graphic color
-    vinylAnimated: false,       // Auto-enabled for dynamic animated patterns
-    vinylScale: 1.0,
-    vinylIntensity: 1.0,
-    vinylEmissive: 0.0          // Glowing neon emission for dynamic decals
-  },
-  input: { steerSens: 0.85, airSens: 1.0, deadzone: 0.16 },
-  debug: { showHitboxes: false }
-};
+import { V4_SETTINGS } from './v4Settings.js';
+
+export { V4_SETTINGS };
+export var CFG = JSON.parse(JSON.stringify(V4_SETTINGS));
 
 export var STADIUM_THEMES = {
   NEON_CHAMPIONSHIP: {
@@ -321,33 +131,32 @@ export function deepMerge(target, source) {
 
 export function loadSavedConfig() {
   try {
+    // ALWAYS initialize the game with the authentic Version 4 configuration
+    deepMerge(CFG, V4_SETTINGS);
+
     if (typeof localStorage !== "undefined") {
-      var raw = localStorage.getItem("overdrive_tuning_cfg");
-      if (raw) {
-        var saved = JSON.parse(raw);
-        if (saved && saved.ball && saved.ball.carReaction === 0.26) {
-          saved.ball.carReaction = 0.04;
-        }
-        if (saved && saved.vehicle && saved.vehicle.air) {
-          if (saved.vehicle.air.maxAirAngSpeed === undefined) {
-            saved.vehicle.air.maxAirAngSpeed = 5.5;
-          }
-          if (saved.vehicle.air.damp !== undefined && saved.vehicle.air.damp < 5.0) {
-            saved.vehicle.air.damp = 6.5;
-          }
-          if (saved.vehicle.air.rollDamp !== undefined && saved.vehicle.air.rollDamp < 6.0) {
-            saved.vehicle.air.rollDamp = 8.5;
-          }
-        }
-        if (saved && saved.gfx) {
-          if (saved.gfx.perfMode === undefined) saved.gfx.perfMode = "BALANCED";
-          if (saved.gfx.turfSheen === undefined) saved.gfx.turfSheen = 0.45;
-          if (saved.gfx.sunIntensity === undefined) saved.gfx.sunIntensity = 0.95;
-        }
-        deepMerge(CFG, saved);
-        return true;
+      // Save official Version 4 configuration into local storage as permanent baseline
+      localStorage.setItem("overdrive_v4_settings", JSON.stringify(V4_SETTINGS));
+      localStorage.setItem("overdrive_preset_zero", JSON.stringify(V4_SETTINGS));
+      localStorage.setItem("overdrive_tuning_cfg", JSON.stringify(V4_SETTINGS));
+
+      // Remove any stale ultra_garage keys that could corrupt or override the Version 4 player car
+      var staleKeys = [
+        "ultra_garage_useUltraKit",
+        "ultra_garage_model",
+        "ultra_garage_hat",
+        "ultra_garage_antenna",
+        "ultra_garage_wheel",
+        "ultra_garage_finish",
+        "ultra_garage_rimFinish",
+        "ultra_garage_vinyl",
+        "ultra_garage_celebration"
+      ];
+      for (var s = 0; s < staleKeys.length; s++) {
+        localStorage.removeItem(staleKeys[s]);
       }
     }
+    return true;
   } catch (e) {
     console.warn("Failed to load saved config from localStorage", e);
   }
@@ -369,9 +178,8 @@ export function saveCurrentConfig() {
 export function saveZeroPreset(customData) {
   try {
     if (typeof localStorage !== "undefined") {
-      var toSave = customData || CFG;
+      var toSave = customData || V4_SETTINGS;
       localStorage.setItem("overdrive_preset_zero", JSON.stringify(toSave));
-      // Also ensure main tuning cfg has it
       localStorage.setItem("overdrive_tuning_cfg", JSON.stringify(toSave));
       return true;
     }
@@ -383,14 +191,12 @@ export function saveZeroPreset(customData) {
 
 export function loadZeroPreset() {
   try {
+    deepMerge(CFG, V4_SETTINGS);
     if (typeof localStorage !== "undefined") {
-      var raw = localStorage.getItem("overdrive_preset_zero");
-      if (raw) {
-        var saved = JSON.parse(raw);
-        deepMerge(CFG, saved);
-        return saved;
-      }
+      localStorage.setItem("overdrive_preset_zero", JSON.stringify(V4_SETTINGS));
+      localStorage.setItem("overdrive_tuning_cfg", JSON.stringify(V4_SETTINGS));
     }
+    return V4_SETTINGS;
   } catch (e) {
     console.warn("Failed to load zero preset from localStorage", e);
   }
@@ -398,14 +204,7 @@ export function loadZeroPreset() {
 }
 
 export function hasZeroPreset() {
-  try {
-    if (typeof localStorage !== "undefined") {
-      return !!localStorage.getItem("overdrive_preset_zero");
-    }
-  } catch (e) {
-    return false;
-  }
-  return false;
+  return true;
 }
 
 // Auto-load config if present
@@ -422,31 +221,169 @@ export var TEAM_COLOR = [
 export var BOT_NAMES = [["Striker-Blue", "Mako-Blue", "Zephyr-Blue"], ["Titan-Red", "Onyx-Red", "Blaze-Red"]];
 
 export var CAR_BODY_DEFS = [
-  { id: 'OCTANE', name: 'Octane', nameFa: 'اکتان (Octane)', sub: 'باگی کلاسیک', icon: 'buggy', desc: 'باگی نمادین مسابقات با گلگیرهای برجسته، اسکوپ روی سقف و بال آیرودینامیک بلند' },
-  { id: 'VORTEX', name: 'Vortex', nameFa: 'ورتکس (Vortex)', sub: 'GT سوپراسپرت', icon: 'car', desc: 'بدنه پهن و ارتفاع کم، کابین فست‌بک و ورودی‌های هوای جانبی فیبر کربنی' },
-  { id: 'STRIKER', name: 'Striker', nameFa: 'استرایکر (Striker)', sub: 'ماسل کار کلاسیک', icon: 'zap', desc: 'کاپوت کشیده و عضلانی، کابین عقب‌رفته و اسپویلر دم‌اردکی مسابقه‌ای' },
-  { id: 'TITAN', name: 'Titan', nameFa: 'تایتان (Titan)', sub: 'ون آفرود قدرتی', icon: 'shield', desc: 'شاسی بلند و بدنه تقویت‌شده با شیشه‌های مرتفع و لایت‌بار نئونی روی سقف' },
-  { id: 'RAPTOR', name: 'Raptor', nameFa: 'رپتور (Raptor)', sub: 'پیکاپ ترافی ترک', icon: 'truck', desc: 'اتاق باربند باز با ریل‌های محافظ استیل، گارد جلو و بدنه مقاوم در برابر ضربه' },
-  { id: 'PHANTOM', name: 'Phantom', nameFa: 'فانتوم (Phantom)', sub: 'فرمول اپن‌ویل', icon: 'flame', desc: 'چرخ‌های باز و رها، بال جلو سه‌تکه، سایدپادهای آیرودینامیک و هیلو ایمنی راننده' },
-  { id: 'MONSTER', name: 'Monster', nameFa: 'مانستر (Monster)', sub: 'مانستر تراک غول‌پیکر', icon: 'shield', desc: 'شاسی فوق‌العاده بلند، تنه پهن و غول‌پیکر با سپرهای فولادی بزرگ برای آفرود سنگین' },
-  { id: 'KART', name: 'Kart', nameFa: 'کارتینگ (Kart)', sub: 'کارت اسپرت سبک', icon: 'car', desc: 'بدون سقف و شیشه، بدنه بسیار سبک و تخت نزدیک به زمین، مخصوص مسابقات کارتینگ تند' },
-  { id: 'DRAGSTER', name: 'Dragster', nameFa: 'درگستر (Dragster)', sub: 'درگستر موشکی', icon: 'flame', desc: 'بدنه بسیار کشیده شبیه موشک، چرخ‌های غول‌پیکر عقب و کابین راننده فشرده در انتهای شاسی' },
-  { id: 'HYPER', name: 'Hyper', nameFa: 'هایپر (Hyper)', sub: 'سوپر هایپرکار جاده‌ای', icon: 'car', desc: 'لوکس‌ترین و پهن‌ترین هایپرکار جاده‌ای با اسپویلر سوار بر پایه‌ها، زیربدنه کربنی و شاسی کاملا آیرودینامیک' },
-  { id: 'COACH', name: 'Coach', nameFa: 'کوچ (Coach)', sub: 'اتوبوس بلند', icon: 'truck', desc: 'کابین غول‌پیکر مستطیلی طویل و جادار با ردیف کامل شیشه‌های بزرگ جانبی و باربند سقفی' },
-  { id: 'SUV', name: 'SUV', nameFa: 'اس‌یو‌وی (SUV)', sub: 'شاسی‌بلند مدرن شهری', icon: 'shield', desc: 'خودروی شهری و بیابانی مرتفع، مستحکم و پهن با لایت‌بار و ریل سقفی فلزی مستحکم' },
-  { id: 'HOTROD', name: 'Hot Rod', nameFa: 'هات‌راد (Hot Rod)', sub: 'هات‌راد روباز کلاسیک', icon: 'zap', desc: 'موتور روباز قدرتمند کلاسیک با اگزوزهای شیپوری کروم رو به بالا و طراحی سنتی کابین' },
-  { id: 'LIMO', name: 'Limo', nameFa: 'لیموزین (Limo)', sub: 'لیموزین تشریفاتی', icon: 'car', desc: 'شاسی بسیار کشیده لوکس تشریفاتی با ردیف شیشه‌های دودی جانبی و سقف صاف فلزی مجهز' }
+  { id: 'OCTANE', name: 'Octavius Prime', nameFa: 'اکتان پرایم (Octane)', sub: 'باگی مسابقه‌ای محبوب', icon: 'buggy', desc: 'باگی آیرودینامیک با دماغه کوتاه، شانه‌های پهن و باله عقب پرقدرت' },
+  { id: 'DOMINUS', name: 'Dominator GT', nameFa: 'دومیناتور GT (Dominus)', sub: 'وج سوپراسپرت', icon: 'car', desc: 'بدنه کشیده و تخت با بزرگترین سطح ضربه‌زنی و اسپویلر مسابقه‌ای GT' },
+  { id: 'FENNEC', name: 'Fennec Cyber', nameFa: 'فنک سایبر (Fennec)', sub: 'بدنه جعبه‌ای عضلانی', icon: 'shield', desc: 'طراحی مکعبی عضلانی با دیواره‌های صاف و آیرودینامیک فوق‌العاده در هوا' },
+  { id: 'TAKUMI', name: 'Samurai Drift', nameFa: 'سامورایی دریفت (Takumi)', sub: 'کوپه دریفت JDM', icon: 'zap', desc: 'کوپه ژاپنی با گلگیرهای بسیار پهن، ورودی‌های هوای کاپوت و اگزوز بزرگ' },
+  { id: 'BREAKOUT', name: 'Apex Hyper R', nameFa: 'آپکس هایپر R (Breakout)', sub: 'هایپرکار موتور وسط', icon: 'car', desc: 'بدنه کشیده و پهن با تیغه‌های هوایی جانبی و باله دوطبقه کربنی' },
+  { id: 'MANTIS', name: 'Mantis Proto', nameFa: 'مانتیس پروتوتایپ (Mantis)', sub: 'سوپر اسپرت خوابیده', icon: 'flame', desc: 'ارتفاع بسیار کم نزدیک به زمین با کابین حبابدار شیشه‌ای خلبانی' },
+  { id: 'MERC', name: 'Bastion Titan', nameFa: 'باستیون تایران (Merc)', sub: 'سنگین‌وزن زره‌پوش', icon: 'truck', desc: 'شاسی مستحکم زره‌پوش با پرچ‌های فولادی، گارد جلو و اگزوزهای عمودی' },
+  { id: 'BATCAR', name: 'Phantom Stealth', nameFa: 'فانتوم استلث (Batcar)', sub: 'موشک زاویه‌دار', icon: 'flame', desc: 'طراحی لبه‌دار استلث بدون کروم با موتور جت خروجی و باله‌های پروانه‌ای' },
+  { id: 'VANGUARD', name: 'Vanguard Van', nameFa: 'ونوانگارد پنل (Vanguard)', sub: 'ون مسابقه‌ای مرتفع', icon: 'truck', desc: 'سقف مرتفع و جادار با نردبان عقب و باله انتهایی سقفی' },
+  { id: 'NOCTURNE', name: 'Nocturne Exotic', nameFa: 'نوکتورن اگزوتیک (Nocturne)', sub: 'کانوپی جتی', icon: 'zap', desc: 'کابین شیشه‌ای خلبانی یکپارچه با باله کوسه‌ای مرکزی و موتور جت عقب' },
+  { id: 'BRAWLER', name: 'Brawler V8 Muscle', nameFa: 'برولر V8 عضلانی (Brawler)', sub: 'ماسل کار کلاسیک', icon: 'flame', desc: 'موتور سوپرشارژر خروجی از کاپوت، اگزوزهای جانبی و صدای طنین‌انداز V8' },
+  { id: 'PALADIN', name: 'Paladin Heavy', nameFa: 'پالادین آفرود (Paladin)', sub: 'شاسی‌بلند آفرود', icon: 'shield', desc: 'رول‌کیج فلزی ضخیم، لایت‌بار نئونی سقفی و تایرهای آفرود غول‌پیکر' },
+  { id: 'BREAKER', name: 'Breaker Wedge', nameFa: 'بریکر وِج (Breaker)', sub: 'تیغه شیرجه‌ای', icon: 'car', desc: 'دماغه شیب‌دار نزدیک به زمین با دیفیوزر ۷ پره و باله GT' },
+  { id: 'RALLYHAWK', name: 'Rally Hawk', nameFa: 'رالی هاوک (Rally Hawk)', sub: 'هاشبک رالی شن', icon: 'zap', desc: 'شاسی سفت و مرتفع با گل‌پخش‌کن‌های مسابقه‌ای و پروژکتورهای رالی' },
+  { id: 'ZEPHYR', name: 'Zephyr Speedster', nameFa: 'زفیر اسپیدستر (Zephyr)', sub: 'کابین روباز اسپرت', icon: 'sun', desc: 'رودستر بدون سقف با بادگیر جلوی شیشه‌ای و برآمدگی‌های صندلی عقب' },
+  { id: 'CENTAUR', name: 'Centaur GT', nameFa: 'سنتاور تورر (Centaur)', sub: 'گرند تورر سنگین', icon: 'car', desc: 'کاپوت بسیار کشیده و لوکس با جلوپنجره کروم و اگزوزهای چهارگانه' },
+  { id: 'HORNET', name: 'Hornet Kei Racer', nameFa: 'هورنت کی (Hornet)', sub: 'کوچک و فوق‌العاده سریع', icon: 'sparkles', desc: 'بدنه فشرده و چابک با باله عقب مرتفع و تسلط کامل در هوا' },
+  { id: 'DRAGLINE', name: 'Dragline Rocket', nameFa: 'درگلاین موشکی (Dragline)', sub: 'درگستر چرخ عقب غول‌پیکر', icon: 'flame', desc: 'فاصله محوری بسیار زیاد، تایرهای عقب پهن درگ و ویلی‌بار تعادل' },
+  { id: 'AEROWING', name: 'Aerowing LMP', nameFa: 'آیرووینگ لمانز (Aerowing)', sub: 'استقامت لمانز', icon: 'shield', desc: 'بدنه آیرودینامیک لمانز با باله قوی کوسه‌ای و اسپلیتر عریض جلویی' },
+  { id: 'VOLTAIC', name: 'Voltaic EV One', nameFa: 'ولتاپک الکتریکی (Voltaic)', sub: 'مفهومی نئونی الکتریکی', icon: 'zap', desc: 'طراحی نئونی آینده‌نگر با نوارهای نوری سرتاسری و خروجی‌های هوای درخشان' }
 ];
 
 export var CAR_WHEEL_DEFS = [
-  { id: 'SPORT', name: 'Sport 5', nameFa: 'اسپرت ۵ پره', sub: 'پنج‌پره اسپرت', desc: '۵ پره پهن و مخروطی با لبه‌های تراش‌خورده و صیقلی' },
-  { id: 'TURBINE', name: 'Turbine', nameFa: 'توربینی', sub: 'توربینی ریسینگ', desc: '۱۲ پره باریک با زاویه مایل جهت خنک‌کاری بهینه دیسک ترمز' },
-  { id: 'MESH', name: 'Mesh Lock', nameFa: 'مش قفل‌دار', sub: 'شبکه‌ای سنترلاک', desc: '۱۰ پره متقاطع مشبک مسابقه‌ای با ۶ مهره تیتانیومی سنترلاک' },
-  { id: 'OFFROAD', name: 'Offroad', nameFa: 'آفرود بولد', sub: 'عضلانی بیابانی', desc: '۶ پره ضخیم فوق‌العاده مستحکم با تایرهای بالونی عاج‌دار' },
-  { id: 'DISH', name: 'Deep Dish', nameFa: 'دیپ دیش', sub: 'لبه عمیق', desc: 'پره‌های فرورفته در عمق رینگ با لبه خارجی براق و برجسته' },
-  { id: 'AERO', name: 'Aero Cover', nameFa: 'کاور آیرو', sub: 'دیسک آیرودینامیک', desc: 'صفحه بسته آیرودینامیک ضد تلاطم هوا با ۵ شیار تخلیه گرما' },
-  { id: 'STEEL', name: 'Rally Steel', nameFa: 'استیل رالی', sub: 'رالی مسابقه‌ای', desc: '۸ پره باریک با رینگ فشرده و تایر با دیواره بلند مخصوص رالی' }
+  { id: 'SPORT', name: 'Falcon Star', nameFa: 'فالکون استار ۵ پره', sub: 'پنج‌پره کروم', desc: '۵ پره پهن و مخروطی با لبه‌های تراش‌خورده و صیقلی کروم' },
+  { id: 'VORTEX', name: 'Vortex Twist', nameFa: 'ورتکس توئیست ۶ پره', sub: 'مارپیچ آیرودینامیک', desc: '۶ پره منحنی چرخشی برای تخلیه هوای ترمز' },
+  { id: 'TURBINE', name: 'Turbina Jet', nameFa: 'توربینی جت ۹ پره', sub: 'توربینی ریسینگ', desc: '۹ پره باریک با زاویه مایل جهت خنک‌کاری بهینه دیسک ترمز' },
+  { id: 'DISH', name: 'Deep Dish Chrome', nameFa: 'دیپ دیش کروم', sub: 'لبه عمیق', desc: 'پره‌های فرورفته در عمق رینگ با لبه خارجی براق و برجسته' },
+  { id: 'SPLIT_SIX', name: 'Split Six', nameFa: 'اسپلیت ۶ پره دوتایی', sub: 'دوتایی اسپرت', desc: '۶ جفت پره دوتایی متقاطع با سنترلاک تیتانیوم' },
+  { id: 'WISHBONE', name: 'Wishbone Mesh', nameFa: 'ویش‌بون Y شکل', sub: 'سبک مسابقه‌ای', desc: '۵ پره دوشاخه جفتی فوق‌العاده سبک' },
+  { id: 'MESH', name: 'Mesh Weave', nameFa: 'مش ویو ۱۰ پره', sub: 'شبکه‌ای مشبک', desc: '۱۰ پره متقاطع مشبک مسابقه‌ای با ۶ مهره تیتانیومی سنترلاک' },
+  { id: 'BLADERUNNER', name: 'Bladerunner Carbon', nameFa: 'بلیدرانر فیبر کربن', sub: 'تیغه کربنی', desc: '۴ تیغه پهن آیرودینامیک با بافت فیبر کربن' },
+  { id: 'WEBLINE', name: 'Webline', nameFa: 'وب‌لاین ۸ پره', sub: 'عنکبوتی ریسینگ', desc: 'پره‌های شعاعی متصل به الگوی تار عنکبوتی' },
+  { id: 'OFFROAD', name: 'Cagework Heavy', nameFa: 'کِیج‌ورک سنگین', sub: 'عضلانی بیابانی', desc: '۶ پره ضخیم فوق‌العاده مستحکم با تایرهای بالونی عاج‌دار رالی' },
+  { id: 'WIREPIN', name: 'Wirepin Classic', nameFa: 'وایربین ۱۶ پره سیمی', sub: 'کلاسیک سیمی', desc: '۱۶ پره سیمی با لکه‌گیری دست‌ساز' },
+  { id: 'FANBLADE', name: 'Fanblade GT', nameFa: 'فن‌بلید GT', sub: 'پروانه‌ای خنک‌کننده', desc: '۷ پره پروانه‌ای با هوادهی بالای دیسک ترمز' },
+  { id: 'CROSSHAIR', name: 'Crosshair Stealth', nameFa: 'کروس‌هیر استلث', sub: 'ضربدری تیره', desc: '۴ پره متقاطع با آلیاژ آلومینیوم دودی' },
+  { id: 'HEXCORE', name: 'Hexcore Neon', nameFa: 'هگزکور نئونی', sub: 'شش‌ضلعی سایبری', desc: 'الگوی لانه زنبوری با حاشیه درخشان' },
+  { id: 'SPIRALIS', name: 'Spiralis', nameFa: 'اسپیرالیس ۵ پره', sub: 'مارپیچ درخشان', desc: 'پره‌های چرخشی مایل با پوشش پودری' },
+  { id: 'MONOLITH', name: 'Monolith Block', nameFa: 'مستحکم مونولیت', sub: 'بلوکی سنگین', desc: '۵ پره تکه‌تکه ضخیم برای ضربات سنگین' },
+  { id: 'GOLDLINE', name: 'Goldline VIP', nameFa: 'گلدلاین VIP', sub: '۱۰ پره روکش طلا', desc: '۱۰ پره نازک با آبکاری طلای ۲۴ عیار' },
+  { id: 'OBSIDIAN', name: 'Obsidian Black', nameFa: 'ابسیدین مات', sub: 'کریستالی تاریک', desc: 'رینگ کاملاً مشکی مات با زوایای کریستالی' },
+  { id: 'CARBONITE', name: 'Carbonite Composite', nameFa: 'کربنیت کامپوزیت', sub: 'سبک‌وزن فیبر کربن', desc: 'تکنولوژی یکپارچه فیبر کربن مسابقات لمانز' },
+  { id: 'TITANIX', name: 'Titanix Forged', nameFa: 'تایتانیکس فورج‌کن', sub: '👑 تیتانیوم ماشین‌کاری', desc: 'رینگ تیتانیومی نورد گرم با دیسک شیاردار' },
+  { id: 'SLICKLINE', name: 'Slickline Racing', nameFa: 'اسلیک‌لاین پیست', sub: 'تایر اسلیک', desc: 'تایر کاملاً صاف اسلیک مخصوص پیست خشک' },
+  { id: 'GRAVELKING', name: 'Gravelking Rally', nameFa: 'گراول‌کینگ شن', sub: 'عاج عمیق آفرود', desc: 'تایرهای عاج عمیق مخصوص رالی شن و گل' },
+  { id: 'VGRIP', name: 'V-Grip Pro Rain', nameFa: 'وی-گریپ بارانی', sub: 'شیارهای V شکل', desc: 'تایر با شیارهای عمیق خروج سریع آب' },
+  { id: 'DRIFTLINE', name: 'Driftline Speed', nameFa: 'دریفت‌لاین رنگی', sub: 'دیواره رنگی', desc: 'دیواره دور لاستیک رنگی مخصوص حرکات نمایشی' },
+  { id: 'NEON_HALO', name: 'Neon Halo Glow', nameFa: 'نئون هالو درخشان', sub: '⚡ هالو نئونی', desc: 'رینگ مشکی با حلقه نئونی متحرک و درخشان' },
+  { id: 'EMBER_SPAG', name: 'Ember Blaze', nameFa: 'امبر آتشین', sub: '🔥 پره‌های گداخته', desc: 'پره‌های متحرک با درخشش نارنجی نیترو' },
+  { id: 'PLASMA_RING', name: 'Plasma Ring', nameFa: 'حلقه پلاسمای بنفش', sub: '⚛️ پلاسما نئون', desc: 'میدان مغناطیسی بنفش دور رینگ' },
+  { id: 'CHRONOS', name: 'Chronos Dial', nameFa: 'کرونوس زمان', sub: '⏱️ عقربه‌ای متحرک', desc: 'طراحی شبیه صفحه ساعت مکانیکی' },
+  { id: 'GYROLOOP', name: 'Gyroloop Light', nameFa: 'ژیروسکوپ نوری', sub: '🌀 ژیروسکوپ', desc: 'حلقه‌های متداخل شناور در هوا' },
+  { id: 'VOIDSTAR', name: 'Voidstar Galaxy', nameFa: 'ویداستار سیاهچاله', sub: '🌌 سیاهچاله کیهانی', desc: 'مرکز تاریک جذبی با ستاره‌های پیرامون' },
+  { id: 'PULSAR', name: 'Pulsar Beam', nameFa: 'پالسار پرتویی', sub: '💫 پالس رادیویی', desc: 'پرتوهای نوری درخشان تپنده' },
+  { id: 'TURBOFAN', name: 'Turbofan Carbon', nameFa: 'فن توربو کربن', sub: '🌀 توربوفن', desc: 'دیسک تهویه هوای فرمول یک' },
+  { id: 'CYCLONE_X', name: 'Cyclone X', nameFa: 'سایکولون گردباد', sub: '🌪️ گردباد ۵ پره', desc: 'پره‌های پیچیده شبیه گردباد' },
+  { id: 'STARLANCE', name: 'Starlance Gold', nameFa: 'استارلنس طلایی', sub: '🌟 پره ستاره‌ای', desc: 'نوک پره‌های تیز شبیه ستاره' },
+  { id: 'NEBULA', name: 'Nebula Swirl', nameFa: 'نبیولا کهکشانی', sub: '🌌 سدیم بنفش', desc: 'گردوغبار درخشان بنفش دور رینگ' },
+  { id: 'FROSTBITE', name: 'Frostbite Crystal', nameFa: 'فراست‌بایت یخی', sub: '❄️ کریستال یخی', desc: 'پره‌های نوک‌تیز شفاف یخی' },
+  { id: 'HELIXON', name: 'Helixon Spiral', nameFa: 'هلیکسون مارپیچ', sub: '🧬 دی‌ان‌ای', desc: 'پره‌های متداخل سه بعدی' },
+  { id: 'VERTEX_R', name: 'Vertex R Triangle', nameFa: 'ورتکس مثلثی', sub: '📐 هندسی تیز', desc: 'سه پره مثلثی دوتایی' },
+  { id: 'QUANTUM', name: 'Quantum Core', nameFa: 'کوانتوم کُر', sub: '⚛️ هسته کوانتوم', desc: 'هسته فیروزه‌ای درخشان نئونی' },
+  { id: 'ZENITH', name: 'Zenith Crown', nameFa: 'زنیت پادشاهی', sub: '👑 تاج طلا', desc: 'طراحی لوکس پادشاهی با لبه طلا' }
 ];
+
+export var COSMETICS_LIBRARY = [
+  // --- HORNS / SPIKES (15) ---
+  { id: 'CLASSIC_HORN', name: 'Classic Horn', nameFa: 'شاخ کلاسیک', category: 'horns', icon: 'shield', desc: 'شاخ‌های جفت کلاسیک روی کاپوت' },
+  { id: 'SPIKE_HORN', name: 'Spike Horn', nameFa: 'شاخ تیغه‌ای', category: 'horns', icon: 'zap', desc: 'تیغه آیرودینامیک نوک‌تیز روی سقف' },
+  { id: 'SPIRAL_HORN', name: 'Spiral Horn', nameFa: 'شاخ مارپیچ', category: 'horns', icon: 'disc', desc: 'شاخ‌های مارپیچ متمایل به جلو' },
+  { id: 'DRAGON_HORN', name: 'Dragon Horn', nameFa: 'شاخ اژدها', category: 'horns', icon: 'flame', desc: 'شاخ‌های برجسته اژدهای باستانی' },
+  { id: 'DEMON_HORNS', name: 'Demon Horns', nameFa: 'شاخ‌های شیطان', category: 'horns', icon: 'flame', desc: 'شاخ‌های قرمز و تیز شیطانی' },
+  { id: 'UNICORN_HORN', name: 'Unicorn Horn', nameFa: 'شاخ تک‌شاخ', category: 'horns', icon: 'sparkles', desc: 'شاخ مارپیچ درخشان تک‌شاخ افسانه‌ای' },
+  { id: 'DEVIL_HORNS', name: 'Devil Horns', nameFa: 'شاخ‌های دیو', category: 'horns', icon: 'flame', desc: 'شاخ‌های کوتاه نئونی گداخته' },
+  { id: 'LIGHTNING_BOLT', name: 'Lightning Bolt', nameFa: 'صاعقه درخشان', category: 'horns', icon: 'zap', desc: 'صاعقه نئونی ایستاده روی کاپوت' },
+  { id: 'CROWN', name: 'Crown Crest', nameFa: 'تاج سلطنتی کوچک', category: 'horns', icon: 'sparkles', desc: 'نشان تاج طلایی فشرده' },
+  { id: 'FLAME_CREST', name: 'Flame Crest', nameFa: 'تاج آتشین', category: 'horns', icon: 'flame', desc: 'زبانه‌های آتش فلزی روی سقف' },
+  { id: 'ICE_SPIKE', name: 'Ice Spike', nameFa: 'تیغه یخی', category: 'horns', icon: 'sun', desc: 'کریستال یخی نوک‌تیز شفاف' },
+  { id: 'VOID_SPIKES', name: 'Void Spikes', nameFa: 'تیغه‌های خلاء', category: 'horns', icon: 'layers', desc: 'مجموعه تیغه‌های مشکی بنفش درخشان' },
+  { id: 'LIGHT_RAY', name: 'Light Ray', nameFa: 'شعاع نوری', category: 'horns', icon: 'sun', desc: 'پرتو نوری عمودی شفاف' },
+  { id: 'SHADOW_CREST', name: 'Shadow Crest', nameFa: 'تاج سایه', category: 'horns', icon: 'shield', desc: 'تاج زاویه‌دار استلث مشکی' },
+  { id: 'LEAF_CROWN', name: 'Leaf Crown', nameFa: 'تاج برگ سبز', category: 'horns', icon: 'sun', desc: 'شاخه برگ‌های متقاطع سبز نئونی' },
+
+  // --- HATS / TOPPERS (15) ---
+  { id: 'BOWLER_HAT', name: 'Bowler Hat', nameFa: 'کلاه شاپو', category: 'hats', icon: 'disc', desc: 'کلاه شاپو کلاسیک با نوار قرمز' },
+  { id: 'TOP_HAT', name: 'Top Hat', nameFa: 'کلاه سیلندر', category: 'hats', icon: 'layers', desc: 'کلاه بلند تشریفاتی سیلندر' },
+  { id: 'BEANIE', name: 'Beanie', nameFa: 'کلاه بافتنی', category: 'hats', icon: 'sun', desc: 'کلاه زمستانی بافتنی اسپرت' },
+  { id: 'ROYAL_CROWN', name: 'Royal Crown', nameFa: 'تاج پادشاهی', category: 'hats', icon: 'sparkles', desc: 'تاج طلایی بزرگ با جواهرات درخشان' },
+  { id: 'PIRATE_HAT', name: 'Pirate Hat', nameFa: 'کلاه دزدان دریایی', category: 'hats', icon: 'shield', desc: 'کلاه سه‌گوش با نشان اسکلت' },
+  { id: 'VIKING_HELM', name: 'Viking Helm', nameFa: 'کلاه وایکینگ', category: 'hats', icon: 'shield', desc: 'کلاهخود فلزی با شاخ‌های عریض' },
+  { id: 'WIZARD_HAT', name: 'Wizard Hat', nameFa: 'کلاه جادوگر', category: 'hats', icon: 'sparkles', desc: 'کلاه مخروطی جادویی با ستاره‌های طلایی' },
+  { id: 'POLICE_CAP', name: 'Police Cap', nameFa: 'کلاه پلیس', category: 'hats', icon: 'shield', desc: 'کلاه رسمی پلیس با نشان نقره‌ای' },
+  { id: 'CHEF_HAT', name: 'Chef Hat', nameFa: 'کلاه آشپز', category: 'hats', icon: 'sun', desc: 'کلاه سفید و مرتفع سرآشپز' },
+  { id: 'COWBOY_HAT', name: 'Cowboy Hat', nameFa: 'کلاه گاوچران', category: 'hats', icon: 'sun', desc: 'کلاه چرمی قهوه‌ای کاوبوی' },
+  { id: 'SANTA_HAT', name: 'Santa Hat', nameFa: 'کلاه بابا نوئل', category: 'hats', icon: 'sparkles', desc: 'کلاه قرمز کریسمس با منگوله سفید' },
+  { id: 'ALIEN_HEADGEAR', name: 'Alien Headgear', nameFa: 'کلاه فضایی', category: 'hats', icon: 'zap', desc: 'آنتن و کلاهخود سبز نئونی بیگانگان' },
+  { id: 'HALO', name: 'Angel Halo', nameFa: 'هاله نورانی', category: 'hats', icon: 'sun', desc: 'حلقه شناور درخشان فرشته بالای سقف' },
+  { id: 'FLOWER_CROWN', name: 'Flower Crown', nameFa: 'تاج گل', category: 'hats', icon: 'sun', desc: 'حلقه گل‌های رنگارنگ بهاری' },
+  { id: 'ANTENNA_BALLS', name: 'Antenna Balls', nameFa: 'آنتن گوی‌دار', category: 'hats', icon: 'disc', desc: 'آنتن فلزی با دو گوی نئونی متحرک' },
+
+  // --- TOOLS / WEAPONS (15) ---
+  { id: 'GIANT_WRENCH', name: 'Giant Wrench', nameFa: 'آچار فرانسه غول‌پیکر', category: 'tools', icon: 'zap', desc: 'آچار فرانسه فلزی بزرگ روی سقف' },
+  { id: 'BATTLE_AXE', name: 'Battle Axe', nameFa: 'تبر جنگی', category: 'tools', icon: 'shield', desc: 'تبر متقاطع دوتیغه فولادی' },
+  { id: 'SWORD', name: 'Katana Sword', nameFa: 'شمشیر کاتانا', category: 'tools', icon: 'zap', desc: 'کاتانای سامورایی با غلاف مشکی' },
+  { id: 'SLEDGEHAMMER', name: 'Sledgehammer', nameFa: 'پتک سنگین', category: 'tools', icon: 'layers', desc: 'پتک فولادی غول‌پیکر' },
+  { id: 'MINI_ROCKET', name: 'Mini Rocket', nameFa: 'موشک فشرده', category: 'tools', icon: 'flame', desc: 'راکت کوچک با باله‌های هدایت' },
+  { id: 'BATTLE_SHIELD', name: 'Battle Shield', nameFa: 'سپر دفاعی', category: 'tools', icon: 'shield', desc: 'سپر فولادی با نماد شیر' },
+  { id: 'MAGIC_STAFF', name: 'Magic Staff', nameFa: 'عصای جادویی', category: 'tools', icon: 'sparkles', desc: 'عصای جادوگر با کریستال بنفش شناور' },
+  { id: 'LANCE', name: 'Jousting Lance', nameFa: 'نیزه مسابقه', category: 'tools', icon: 'zap', desc: 'نیزه شوالیه با گارد فلزی' },
+  { id: 'CROSSBOW', name: 'Crossbow', nameFa: 'کمان زنبورکی', category: 'tools', icon: 'shield', desc: 'کمان مکانیکی با تیر آماد' },
+  { id: 'BLASTER', name: 'Laser Blaster', nameFa: 'تفنگ لیزری', category: 'tools', icon: 'zap', desc: 'سلاح انرژی نئونی سایبری' },
+  { id: 'BOW', name: 'Long Bow', nameFa: 'کمان تیراندازی', category: 'tools', icon: 'sun', desc: 'کمان سنتی چوبی' },
+  { id: 'GRIM_SCYTHE', name: 'Grim Scythe', nameFa: 'داس مرگ', category: 'tools', icon: 'flame', desc: 'داس بزرگ مرگ با تیغه منحنی' },
+  { id: 'CHAINSAW', name: 'Chainsaw', nameFa: 'اره برقی', category: 'tools', icon: 'zap', desc: 'اره برقی صنعتی با زنجیر فولادی' },
+  { id: 'TENNIS_RACKET', name: 'Tennis Racket', nameFa: 'راکت تنیس', category: 'tools', icon: 'disc', desc: 'راکت تنیس با زه فلزی' },
+  { id: 'ELECTRIC_GUITAR', name: 'Electric Guitar', nameFa: 'گیتار الکتریک', category: 'tools', icon: 'flame', desc: 'گیتار راک قرمز گداخته' },
+
+  // --- WINGS / BOOSTERS (10) ---
+  { id: 'ANGEL_WINGS', name: 'Angel Wings', nameFa: 'بال‌های فرشته', category: 'wings', icon: 'sparkles', desc: 'بال‌های سفید درخشان فرشته در طرفین' },
+  { id: 'DEMON_WINGS', name: 'Demon Wings', nameFa: 'بال‌های دیو', category: 'wings', icon: 'flame', desc: 'بال‌های چرمی مشکی و قرمز شیطانی' },
+  { id: 'BUTTERFLY_WINGS', name: 'Butterfly Wings', nameFa: 'بال‌های پروانه', category: 'wings', icon: 'sun', desc: 'بال‌های رنگارنگ نئونی پروانه' },
+  { id: 'DRAGON_WINGS', name: 'Dragon Wings', nameFa: 'بال‌های اژدها', category: 'wings', icon: 'flame', desc: 'بال‌های عریض و فلس‌دار اژدها' },
+  { id: 'JET_FLAMES', name: 'Jet Thrusters', nameFa: 'اگزوزهای جتی', category: 'wings', icon: 'flame', desc: 'دوتایی اگزوز جت در انتهای بدنه' },
+  { id: 'ROCKET_THRUST', name: 'Rocket Booster', nameFa: 'بوستر موشکی', category: 'wings', icon: 'zap', desc: 'محفظه سوخت موشکی با خروجی نارنجی' },
+  { id: 'HOVER_PACK', name: 'Hover Pack', nameFa: 'کوله‌پشتی پرواز', category: 'wings', icon: 'layers', desc: 'سیستم تعادل شناور نئونی' },
+  { id: 'SAIL', name: 'Racing Sail', nameFa: 'بادبان مسابقه‌ای', category: 'wings', icon: 'sun', desc: 'بادبان فیبر کربن آیرودینامیک' },
+  { id: 'VOID_WINGS', name: 'Void Wings', nameFa: 'بال‌های خلاء', category: 'wings', icon: 'sparkles', desc: 'بال‌های سایه‌ای شفاف بنفش' },
+  { id: 'NEON_WINGS', name: 'Neon Cyber Wings', nameFa: 'بال‌های نئونی', category: 'wings', icon: 'zap', desc: 'بال‌های خطوط نوری فیروزه‌ای متحرک' }
+];
+
+export var CELEBRATION_EFFECTS = [
+  { id: 'MASSIVE_EXPLOSION', name: 'Massive Explosion', nameFa: 'انفجار غول‌پیکر', color: '#ff3b00', icon: 'flame', desc: 'انفجار عظیم همراه با موج ضربه‌ای سهمگین و جرقه‌های طلایی' },
+  { id: 'CONFETTI_BURST', name: 'Confetti Celebration', nameFa: 'بارش نقل و کاغذ رنگی', color: '#ec4899', icon: 'sparkles', desc: 'انفجار شاد کاغذهای رنگی و نقل‌های درخشان طلایی' },
+  { id: 'FIREWORKS', name: 'Royal Fireworks', nameFa: 'آتش‌بازی جشن', color: '#38bdf8', icon: 'sun', desc: 'شلیک منورهای چندرنگ و نورافشانی آسمانی' },
+  { id: 'RAINBOW_CASCADE', name: 'Rainbow Cascade', nameFa: 'آبشار رنگین‌کمان', color: '#a855f7', icon: 'sparkles', desc: 'حلقه‌های چندرنگ طیف نوری روان' },
+  { id: 'DARK_VORTEX', name: 'Dark Void Vortex', nameFa: 'گرداب سیاه', color: '#8b5cf6', icon: 'layers', desc: 'مکش ذرات به داخل سیاهچاله بنفش' },
+  { id: 'CRYSTAL_SHATTER', name: 'Crystal Shatter', nameFa: 'شکستن کریستال', color: '#06b6d4', icon: 'sun', desc: 'انفجار هزاران تکه کریستال شفاف درخشان' },
+  { id: 'INFERNO_SURGE', name: 'Inferno Fire Surge', nameFa: 'فوران دوزخی', color: '#ef4444', icon: 'flame', desc: 'ستون‌های مستقیم آتش دوزخی از زمین' },
+  { id: 'PLASMA_STORM', name: 'Plasma Energy Storm', nameFa: 'طوفان پلاسما', color: '#3b82f6', icon: 'zap', desc: 'جرقه‌های شعاعی صاعقه الکتریکی پلاسما' },
+  { id: 'STARBURST', name: 'Supernova Starburst', nameFa: 'انفجار ستاره‌ای', color: '#eab308', icon: 'sparkles', desc: 'پرتوهای نوک‌تیز نورانی ستاره‌ای' },
+  { id: 'VOID_COLLAPSE', name: 'Void Singularity', nameFa: 'فروپاشی خلاء', color: '#a855f7', icon: 'layers', desc: 'موج انقباضی و سپس انفجار بنفش' },
+  { id: 'AURORA_LIGHTS', name: 'Aurora Borealis', nameFa: 'شفق قطبی', color: '#10b981', icon: 'sun', desc: 'پرده‌های موج‌دار نوری سبز و فیروزه‌ای' },
+  { id: 'NUCLEAR_BLOOM', name: 'Atomic Bloom', nameFa: 'قارچ اتمی درخشان', color: '#f97316', icon: 'flame', desc: 'قارچ انرژی اتمی درخشان نارنجی' },
+  { id: 'STELLAR_BIRTH', name: 'Stellar Birth', nameFa: 'تولد ستاره', color: '#f43f5e', icon: 'sparkles', desc: 'تولد گوی درخشان و تشعشعات خورشیدی' },
+  { id: 'FROZEN_CRYSTALLINE', name: 'Frozen Glacial Burst', nameFa: 'انجماد کریستالی', color: '#38bdf8', icon: 'sun', desc: 'قندیل‌ها و ذرات برف و یخ ساطع‌شده' },
+  { id: 'NEON_PULSE', name: 'Cyber Neon Pulse', nameFa: 'پالس نئونی', color: '#00f0ff', icon: 'zap', desc: 'حلقه‌های نئونی هم‌مرکز متسع شونده' },
+  { id: 'MOONLIGHT_GLOW', name: 'Moonlight Glow', nameFa: 'تابش مهتاب', color: '#e2e8f0', icon: 'sparkles', desc: 'هاله نرم نقره‌ای همراه با غبار درخشان' },
+  { id: 'SHADOW_CASCADE', name: 'Shadow Phantom', nameFa: 'آبشار سایه‌ها', color: '#334155', icon: 'layers', desc: 'امواج تاریک سایه‌گون خروشنده' },
+  { id: 'GOLDEN_CASCADE', name: 'Golden Coin Shower', nameFa: 'بارش سکه‌های طلایی', color: '#eab308', icon: 'sun', desc: 'بارش هزاران سکه و شمش طلا' },
+  { id: 'ACID_SPLASH', name: 'Toxic Acid Splash', nameFa: 'پاشش اسید درخشان', color: '#84cc16', icon: 'flame', desc: 'پاشش فواره‌ای مایع اسیدی سبز' },
+  { id: 'QUANTUM_FLUX', name: 'Quantum Flux Rift', nameFa: 'شار کوانتومی', color: '#06b6d4', icon: 'zap', desc: 'شکاف‌های نوری کوانتومی متقاطع' }
+];
+
+export var OLD_CAR_DEFS = {
+  bodies: [
+    { id: 'OCTANE_OLD', name: 'Octane Legacy' },
+    { id: 'STRIKER_OLD', name: 'Striker Classic' },
+    { id: 'TITAN_OLD', name: 'Titan Van' },
+    { id: 'RAPTOR_OLD', name: 'Raptor Truck' },
+    { id: 'PHANTOM_OLD', name: 'Phantom Openwheel' },
+    { id: 'MONSTER_OLD', name: 'Monster Truck' }
+  ]
+};
 
 // 24 Distinct High-Quality Vinyl Decals / Liveries for Cars (with dynamic animated shaders & categories)
 export var CAR_VINYL_DEFS = [

@@ -28,7 +28,8 @@
 
 import { TAU, PI, clamp, V3, Quat } from './math.js';
 import { Builder } from './renderer.js';
-import { CFG } from './config.js';
+import { CFG, COSMETICS_LIBRARY } from './config.js';
+import { isUltraCar, buildUltraCarMesh, isUltraWheel, buildUltraWheelMesh, isUltraTopper, buildUltraTopperMesh, isUltraAntenna, buildUltraAntennaMesh } from './ultraCarAdapter.js';
 
 /* ------------------------------------------------------------------ *
  * wheel placement, derived from the live config
@@ -1231,7 +1232,525 @@ var LIMO = {
   quad: true
 };
 
-var BODIES = [OCTANE, VORTEX, STRIKER, TITAN, RAPTOR, PHANTOM, MONSTER, KART, DRAGSTER, HYPER, COACH, SUV, HOTROD, LIMO];
+var DOMINUS = {
+  id: 'DOMINUS', name: 'Dominator GT', sub: 'وج سوپراسپرت',
+  mat: { gloss: 0.95, clearcoat: 0.90, metallic: 0.65, flakes: 0.40, ao: 0.85, rim: 0.35 },
+  stations: [
+    [-0.720, -0.010, 0.190, 0.052, 4.2],
+    [-0.680, -0.005, 0.260, 0.080, 4.5],
+    [-0.480, 0.000, 0.285, 0.098, 4.8],
+    [-0.240, 0.005, 0.292, 0.104, 4.8],
+    [0.040, 0.005, 0.288, 0.098, 4.6],
+    [0.280, 0.000, 0.270, 0.086, 4.2],
+    [0.480, -0.010, 0.235, 0.070, 3.8],
+    [0.640, -0.020, 0.180, 0.050, 3.4],
+    [0.720, -0.028, 0.120, 0.032, 3.0]
+  ],
+  narrow: 0.96,
+  glassZ: [0.180, -0.280], glassH: 0.078, glassY: 0.042,
+  roof: { z: -0.040, hw: 0.220, hl: 0.150 },
+  arch: { r: 0.218, span: 1.45, thick: 0.036, wide: 0.110 },
+  creases: [{ t: 0.42, k: 0.048, w: 0.14 }, { t: PI - 0.42, k: 0.048, w: 0.14 }],
+  seams: [0.520, 0.220, -0.180, -0.520],
+  stripes: [{ c: 0.065, w: 0.032, z0: -0.650, z1: 0.680, seg: 4 }],
+  flank: { y0: -0.032, y1: 0.008, z0: -0.580, z1: 0.580 },
+  mirrors: { z: 0.220 },
+  wing: { z: -0.680, hw: 0.380, y: 0.185, thick: 0.014, chord: 0.110 },
+  splitter: { z: 0.710, hw: 0.320, y: -0.055, thick: 0.012, chord: 0.075 },
+  exhaust: { z: -0.710, x: 0.140, y: -0.012, r: 0.038 }
+};
+
+var FENNEC = {
+  id: 'FENNEC', name: 'Fennec Cyber', sub: 'بدنه جعبه‌ای عضلانی',
+  mat: { gloss: 0.88, clearcoat: 0.82, metallic: 0.55, flakes: 0.35, ao: 0.88, rim: 0.30 },
+  stations: [
+    [-0.660, 0.042, 0.210, 0.090, 5.8],
+    [-0.620, 0.046, 0.270, 0.125, 6.0],
+    [-0.440, 0.050, 0.292, 0.142, 6.2],
+    [-0.200, 0.052, 0.298, 0.146, 6.2],
+    [0.080, 0.050, 0.294, 0.142, 6.0],
+    [0.320, 0.046, 0.280, 0.130, 5.6],
+    [0.500, 0.040, 0.252, 0.110, 5.2],
+    [0.620, 0.032, 0.200, 0.082, 4.8],
+    [0.680, 0.026, 0.130, 0.052, 4.4]
+  ],
+  narrow: 1.0,
+  glassZ: [0.360, -0.280], glassH: 0.102, glassY: 0.088,
+  roof: { z: 0.020, hw: 0.245, hl: 0.180 },
+  arch: { r: 0.228, span: 1.35, thick: 0.042, wide: 0.118 },
+  creases: [{ t: 0.35, k: 0.042, w: 0.16 }, { t: PI - 0.35, k: 0.042, w: 0.16 }],
+  seams: [0.480, 0.180, -0.220, -0.540],
+  stripes: [{ c: 0.000, w: 0.045, z0: -0.580, z1: 0.620, seg: 4 }],
+  flank: { y0: -0.028, y1: 0.015, z0: -0.550, z1: 0.550 },
+  mirrors: { z: 0.320 },
+  wing: { z: -0.620, hw: 0.320, y: 0.220, thick: 0.015, chord: 0.090 },
+  splitter: { z: 0.670, hw: 0.280, y: -0.052, thick: 0.014, chord: 0.065 },
+  exhaust: { z: -0.650, x: 0.120, y: -0.010, r: 0.042 }
+};
+
+var TAKUMI = {
+  id: 'TAKUMI', name: 'Samurai Drift', sub: 'کوپه دریفت JDM',
+  mat: { gloss: 0.92, clearcoat: 0.88, metallic: 0.58, flakes: 0.45, ao: 0.82, rim: 0.38 },
+  stations: [
+    [-0.680, 0.010, 0.180, 0.060, 4.0],
+    [-0.640, 0.015, 0.250, 0.092, 4.2],
+    [-0.440, 0.020, 0.278, 0.112, 4.5],
+    [-0.200, 0.022, 0.284, 0.118, 4.5],
+    [0.060, 0.020, 0.276, 0.110, 4.2],
+    [0.300, 0.015, 0.258, 0.095, 3.8],
+    [0.500, 0.005, 0.222, 0.075, 3.5],
+    [0.630, -0.005, 0.165, 0.052, 3.0],
+    [0.700, -0.015, 0.100, 0.032, 2.6]
+  ],
+  narrow: 0.95,
+  glassZ: [0.220, -0.240], glassH: 0.088, glassY: 0.062,
+  roof: { z: -0.020, hw: 0.210, hl: 0.140 },
+  arch: { r: 0.225, span: 1.50, thick: 0.046, wide: 0.125 },
+  creases: [{ t: 0.40, k: 0.045, w: 0.14 }, { t: PI - 0.40, k: 0.045, w: 0.14 }],
+  seams: [0.480, 0.200, -0.160, -0.500],
+  louvres: [{ c: 0.090, z0: 0.280, z1: 0.450, count: 3, halfW: 0.028, halfL: 0.010, lift: 0.002 }],
+  flank: { y0: -0.030, y1: 0.010, z0: -0.520, z1: 0.520 },
+  mirrors: { z: 0.240 },
+  wing: { z: -0.650, hw: 0.360, y: 0.210, thick: 0.013, chord: 0.098 },
+  splitter: { z: 0.680, hw: 0.290, y: -0.058, thick: 0.012, chord: 0.070 },
+  exhaust: { z: -0.670, x: 0.130, y: -0.015, r: 0.048 }
+};
+
+var BREAKOUT = {
+  id: 'BREAKOUT', name: 'Apex Hyper R', sub: 'هایپرکار موتور وسط',
+  mat: { gloss: 0.98, clearcoat: 0.95, metallic: 0.70, flakes: 0.50, ao: 0.80, rim: 0.40 },
+  stations: [
+    [-0.740, -0.020, 0.180, 0.042, 3.8],
+    [-0.700, -0.015, 0.260, 0.068, 4.0],
+    [-0.500, -0.010, 0.290, 0.082, 4.2],
+    [-0.260, -0.005, 0.298, 0.088, 4.2],
+    [0.020, -0.005, 0.292, 0.082, 4.0],
+    [0.260, -0.010, 0.272, 0.070, 3.6],
+    [0.480, -0.020, 0.230, 0.052, 3.2],
+    [0.650, -0.030, 0.170, 0.038, 2.8],
+    [0.740, -0.038, 0.110, 0.024, 2.5]
+  ],
+  narrow: 0.94,
+  glassZ: [0.140, -0.320], glassH: 0.068, glassY: 0.030,
+  roof: { z: -0.080, hw: 0.210, hl: 0.160 },
+  arch: { r: 0.212, span: 1.40, thick: 0.032, wide: 0.108 },
+  creases: [{ t: 0.45, k: 0.052, w: 0.12 }, { t: PI - 0.45, k: 0.052, w: 0.12 }],
+  seams: [0.540, 0.240, -0.200, -0.560],
+  flank: { y0: -0.035, y1: 0.005, z0: -0.600, z1: 0.600 },
+  mirrors: { z: 0.180 },
+  wing: { z: -0.710, hw: 0.410, y: 0.175, thick: 0.012, chord: 0.120 },
+  splitter: { z: 0.730, hw: 0.340, y: -0.060, thick: 0.011, chord: 0.085 },
+  exhaust: { z: -0.730, x: 0.150, y: -0.008, r: 0.035 }
+};
+
+var MANTIS = {
+  id: 'MANTIS', name: 'Mantis Proto', sub: 'سوپر اسپرت خوابیده',
+  mat: { gloss: 0.96, clearcoat: 0.92, metallic: 0.62, flakes: 0.42, ao: 0.82, rim: 0.36 },
+  stations: [
+    [-0.720, -0.030, 0.170, 0.038, 3.5],
+    [-0.680, -0.022, 0.240, 0.060, 3.8],
+    [-0.480, -0.015, 0.275, 0.075, 4.0],
+    [-0.240, -0.010, 0.282, 0.080, 4.0],
+    [0.040, -0.010, 0.278, 0.075, 3.8],
+    [0.280, -0.018, 0.258, 0.062, 3.5],
+    [0.480, -0.028, 0.218, 0.048, 3.2],
+    [0.640, -0.038, 0.160, 0.032, 2.8],
+    [0.720, -0.045, 0.100, 0.020, 2.4]
+  ],
+  narrow: 0.93,
+  glassZ: [0.120, -0.340], glassH: 0.062, glassY: 0.022,
+  roof: { z: -0.100, hw: 0.190, hl: 0.160 },
+  arch: { r: 0.208, span: 1.42, thick: 0.030, wide: 0.102 },
+  creases: [{ t: 0.48, k: 0.055, w: 0.11 }, { t: PI - 0.48, k: 0.055, w: 0.11 }],
+  seams: [0.520, 0.220, -0.220, -0.580],
+  flank: { y0: -0.038, y1: 0.002, z0: -0.620, z1: 0.620 },
+  mirrors: { z: 0.160 },
+  wing: { z: -0.700, hw: 0.390, y: 0.160, thick: 0.012, chord: 0.115 },
+  splitter: { z: 0.710, hw: 0.330, y: -0.065, thick: 0.010, chord: 0.080 },
+  exhaust: { z: -0.710, x: 0.120, y: -0.005, r: 0.036 }
+};
+
+var MERC = {
+  id: 'MERC', name: 'Bastion Titan', sub: 'سنگین‌وزن زره‌پوش',
+  mat: { gloss: 0.72, clearcoat: 0.48, metallic: 0.35, flakes: 0.20, ao: 0.92, rim: 0.20 },
+  stations: [
+    [-0.680, 0.080, 0.230, 0.160, 7.2],
+    [-0.640, 0.088, 0.295, 0.195, 7.5],
+    [-0.460, 0.092, 0.312, 0.208, 7.5],
+    [-0.220, 0.095, 0.318, 0.210, 7.5],
+    [0.060, 0.092, 0.312, 0.205, 7.2],
+    [0.320, 0.085, 0.298, 0.190, 6.8],
+    [0.520, 0.075, 0.270, 0.168, 6.2],
+    [0.650, 0.062, 0.215, 0.132, 5.5],
+    [0.700, 0.052, 0.145, 0.085, 5.0]
+  ],
+  narrow: 1.0,
+  glassZ: [0.420, -0.220], glassH: 0.125, glassY: 0.138,
+  roof: { z: 0.080, hw: 0.270, hl: 0.210 },
+  arch: { r: 0.260, span: 1.22, thick: 0.052, wide: 0.122 },
+  creases: [{ t: 0.28, k: 0.032, w: 0.20 }, { t: PI - 0.28, k: 0.032, w: 0.20 }],
+  seams: [0.550, 0.200, -0.200, -0.520],
+  flank: { y0: -0.040, y1: 0.020, z0: -0.580, z1: 0.580 },
+  mirrors: { z: 0.420, h: 0.16 },
+  splitter: { z: 0.690, hw: 0.290, y: -0.058, thick: 0.018, chord: 0.060 },
+  exhaust: { z: -0.660, x: 0.210, y: 0.220, r: 0.050, stack: true }
+};
+
+var BATCAR = {
+  id: 'BATCAR', name: 'Phantom Stealth', sub: 'موشک زاویه‌دار',
+  mat: { gloss: 0.65, clearcoat: 0.40, metallic: 0.85, flakes: 0.15, ao: 0.95, rim: 0.45 },
+  stations: [
+    [-0.760, -0.025, 0.160, 0.035, 3.2],
+    [-0.700, -0.018, 0.230, 0.055, 3.5],
+    [-0.500, -0.010, 0.270, 0.070, 3.8],
+    [-0.260, -0.005, 0.280, 0.076, 3.8],
+    [0.020, -0.005, 0.272, 0.070, 3.5],
+    [0.260, -0.012, 0.250, 0.058, 3.2],
+    [0.480, -0.022, 0.210, 0.042, 2.8],
+    [0.650, -0.032, 0.150, 0.028, 2.4],
+    [0.740, -0.040, 0.090, 0.018, 2.0]
+  ],
+  narrow: 0.92,
+  glassZ: [0.100, -0.360], glassH: 0.058, glassY: 0.018,
+  roof: { z: -0.120, hw: 0.180, hl: 0.150 },
+  arch: { r: 0.205, span: 1.48, thick: 0.028, wide: 0.100 },
+  creases: [{ t: 0.52, k: 0.060, w: 0.10 }, { t: PI - 0.52, k: 0.060, w: 0.10 }],
+  seams: [0.520, 0.220, -0.220, -0.580],
+  flank: { y0: -0.040, y1: 0.000, z0: -0.640, z1: 0.640 },
+  mirrors: { z: 0.140 },
+  wing: { z: -0.730, hw: 0.440, y: 0.190, thick: 0.011, chord: 0.125 },
+  splitter: { z: 0.750, hw: 0.350, y: -0.068, thick: 0.009, chord: 0.090 },
+  exhaust: { z: -0.740, x: 0.000, y: 0.020, r: 0.065 }
+};
+
+var VANGUARD = {
+  id: 'VANGUARD', name: 'Vanguard Van', sub: 'ون مسابقه‌ای مرتفع',
+  mat: { gloss: 0.82, clearcoat: 0.65, metallic: 0.40, flakes: 0.25, ao: 0.88, rim: 0.25 },
+  stations: [
+    [-0.670, 0.075, 0.220, 0.150, 6.8],
+    [-0.630, 0.082, 0.285, 0.182, 7.0],
+    [-0.450, 0.086, 0.305, 0.195, 7.0],
+    [-0.210, 0.088, 0.310, 0.198, 7.0],
+    [0.070, 0.085, 0.302, 0.192, 6.8],
+    [0.320, 0.078, 0.288, 0.178, 6.4],
+    [0.510, 0.068, 0.260, 0.155, 5.8],
+    [0.640, 0.055, 0.205, 0.122, 5.2],
+    [0.690, 0.046, 0.138, 0.078, 4.6]
+  ],
+  narrow: 1.0,
+  glassZ: [0.450, -0.250], glassH: 0.128, glassY: 0.130,
+  roof: { z: 0.080, hw: 0.265, hl: 0.210 },
+  arch: { r: 0.245, span: 1.25, thick: 0.045, wide: 0.115 },
+  creases: [{ t: 0.30, k: 0.035, w: 0.18 }, { t: PI - 0.30, k: 0.035, w: 0.18 }],
+  seams: [0.540, 0.200, -0.200, -0.500],
+  flank: { y0: -0.038, y1: 0.015, z0: -0.560, z1: 0.560 },
+  mirrors: { z: 0.440, h: 0.15 },
+  wing: { z: -0.640, hw: 0.310, y: 0.250, thick: 0.016, chord: 0.080 },
+  splitter: { z: 0.680, hw: 0.270, y: -0.055, thick: 0.015, chord: 0.058 },
+  exhaust: { z: -0.650, x: 0.140, y: -0.012, r: 0.040 }
+};
+
+var NOCTURNE = {
+  id: 'NOCTURNE', name: 'Nocturne Exotic', sub: 'کانوپی جتی',
+  mat: { gloss: 0.94, clearcoat: 0.90, metallic: 0.68, flakes: 0.45, ao: 0.82, rim: 0.38 },
+  stations: [
+    [-0.720, -0.015, 0.180, 0.048, 4.0],
+    [-0.680, -0.008, 0.250, 0.072, 4.2],
+    [-0.480, -0.002, 0.280, 0.090, 4.5],
+    [-0.240, 0.002, 0.288, 0.095, 4.5],
+    [0.040, 0.002, 0.282, 0.090, 4.2],
+    [0.280, -0.005, 0.262, 0.078, 3.8],
+    [0.480, -0.015, 0.225, 0.060, 3.4],
+    [0.640, -0.025, 0.170, 0.042, 3.0],
+    [0.720, -0.032, 0.110, 0.026, 2.6]
+  ],
+  narrow: 0.95,
+  glassZ: [0.160, -0.300], glassH: 0.074, glassY: 0.038,
+  roof: { z: -0.060, hw: 0.200, hl: 0.150 },
+  arch: { r: 0.215, span: 1.42, thick: 0.034, wide: 0.106 },
+  creases: [{ t: 0.44, k: 0.050, w: 0.13 }, { t: PI - 0.44, k: 0.050, w: 0.13 }],
+  seams: [0.520, 0.220, -0.180, -0.540],
+  flank: { y0: -0.034, y1: 0.006, z0: -0.580, z1: 0.580 },
+  mirrors: { z: 0.200 },
+  wing: { z: -0.690, hw: 0.390, y: 0.180, thick: 0.013, chord: 0.112 },
+  splitter: { z: 0.710, hw: 0.320, y: -0.058, thick: 0.011, chord: 0.078 },
+  exhaust: { z: -0.710, x: 0.000, y: 0.040, r: 0.055 }
+};
+
+var BRAWLER = {
+  id: 'BRAWLER', name: 'Brawler V8 Muscle', sub: 'ماسل کار کلاسیک',
+  mat: { gloss: 0.90, clearcoat: 0.84, metallic: 0.52, flakes: 0.38, ao: 0.86, rim: 0.32 },
+  stations: [
+    [-0.700, 0.005, 0.200, 0.068, 4.8],
+    [-0.660, 0.010, 0.270, 0.098, 5.0],
+    [-0.460, 0.015, 0.295, 0.118, 5.2],
+    [-0.220, 0.018, 0.302, 0.122, 5.2],
+    [0.060, 0.015, 0.296, 0.116, 5.0],
+    [0.300, 0.008, 0.278, 0.100, 4.6],
+    [0.500, -0.002, 0.240, 0.080, 4.2],
+    [0.630, -0.012, 0.180, 0.058, 3.8],
+    [0.700, -0.020, 0.115, 0.038, 3.4]
+  ],
+  narrow: 0.97,
+  glassZ: [0.200, -0.260], glassH: 0.084, glassY: 0.055,
+  roof: { z: -0.030, hw: 0.230, hl: 0.150 },
+  scoop: { z: 0.320, hw: 0.075, hl: 0.110, h: 0.065 },
+  arch: { r: 0.232, span: 1.40, thick: 0.044, wide: 0.120 },
+  creases: [{ t: 0.38, k: 0.042, w: 0.15 }, { t: PI - 0.38, k: 0.042, w: 0.15 }],
+  seams: [0.500, 0.200, -0.180, -0.520],
+  stripes: [{ c: 0.000, w: 0.052, z0: -0.620, z1: 0.650, seg: 4 }],
+  flank: { y0: -0.032, y1: 0.010, z0: -0.550, z1: 0.550 },
+  mirrors: { z: 0.240 },
+  wing: { z: -0.660, hw: 0.350, y: 0.170, thick: 0.014, chord: 0.085 },
+  splitter: { z: 0.690, hw: 0.300, y: -0.056, thick: 0.013, chord: 0.068 },
+  exhaust: { z: -0.680, x: 0.160, y: -0.012, r: 0.045 }
+};
+
+var PALADIN = {
+  id: 'PALADIN', name: 'Paladin Heavy', sub: 'شاسی‌بلند آفرود',
+  mat: { gloss: 0.78, clearcoat: 0.55, metallic: 0.42, flakes: 0.28, ao: 0.90, rim: 0.22 },
+  stations: [
+    [-0.670, 0.065, 0.210, 0.130, 6.2],
+    [-0.630, 0.072, 0.275, 0.162, 6.5],
+    [-0.450, 0.076, 0.298, 0.178, 6.5],
+    [-0.210, 0.078, 0.304, 0.182, 6.5],
+    [0.070, 0.075, 0.298, 0.176, 6.2],
+    [0.310, 0.068, 0.282, 0.160, 5.8],
+    [0.500, 0.058, 0.252, 0.138, 5.2],
+    [0.630, 0.046, 0.198, 0.108, 4.6],
+    [0.690, 0.038, 0.132, 0.070, 4.0]
+  ],
+  narrow: 1.0,
+  glassZ: [0.400, -0.240], glassH: 0.118, glassY: 0.118,
+  roof: { z: 0.060, hw: 0.258, hl: 0.195 },
+  arch: { r: 0.255, span: 1.28, thick: 0.050, wide: 0.125 },
+  creases: [{ t: 0.32, k: 0.038, w: 0.17 }, { t: PI - 0.32, k: 0.038, w: 0.17 }],
+  seams: [0.520, 0.180, -0.180, -0.500],
+  flank: { y0: -0.036, y1: 0.012, z0: -0.540, z1: 0.540 },
+  mirrors: { z: 0.380, h: 0.15 },
+  lightBar: { z: 0.440 },
+  splitter: { z: 0.680, hw: 0.280, y: -0.058, thick: 0.016, chord: 0.062 },
+  exhaust: { z: -0.660, x: 0.150, y: -0.010, r: 0.042 }
+};
+
+var BREAKER = {
+  id: 'BREAKER', name: 'Breaker Wedge', sub: 'تیغه شیرجه‌ای',
+  mat: { gloss: 0.94, clearcoat: 0.88, metallic: 0.62, flakes: 0.42, ao: 0.84, rim: 0.35 },
+  stations: [
+    [-0.730, -0.020, 0.180, 0.045, 4.0],
+    [-0.690, -0.012, 0.250, 0.070, 4.2],
+    [-0.490, -0.006, 0.280, 0.088, 4.5],
+    [-0.250, 0.000, 0.288, 0.092, 4.5],
+    [0.030, 0.000, 0.282, 0.088, 4.2],
+    [0.270, -0.008, 0.262, 0.075, 3.8],
+    [0.470, -0.018, 0.225, 0.058, 3.4],
+    [0.640, -0.028, 0.170, 0.040, 3.0],
+    [0.720, -0.035, 0.110, 0.025, 2.6]
+  ],
+  narrow: 0.95,
+  glassZ: [0.160, -0.300], glassH: 0.072, glassY: 0.035,
+  roof: { z: -0.060, hw: 0.210, hl: 0.150 },
+  arch: { r: 0.216, span: 1.44, thick: 0.035, wide: 0.108 },
+  creases: [{ t: 0.42, k: 0.048, w: 0.13 }, { t: PI - 0.42, k: 0.048, w: 0.13 }],
+  seams: [0.520, 0.220, -0.180, -0.540],
+  flank: { y0: -0.034, y1: 0.006, z0: -0.580, z1: 0.580 },
+  mirrors: { z: 0.200 },
+  wing: { z: -0.690, hw: 0.380, y: 0.180, thick: 0.013, chord: 0.108 },
+  splitter: { z: 0.720, hw: 0.330, y: -0.060, thick: 0.011, chord: 0.080 },
+  exhaust: { z: -0.710, x: 0.130, y: -0.010, r: 0.038 }
+};
+
+var RALLYHAWK = {
+  id: 'RALLYHAWK', name: 'Rally Hawk', sub: 'هاشبک رالی شن',
+  mat: { gloss: 0.86, clearcoat: 0.78, metallic: 0.48, flakes: 0.32, ao: 0.86, rim: 0.28 },
+  stations: [
+    [-0.660, 0.035, 0.200, 0.082, 5.2],
+    [-0.620, 0.040, 0.260, 0.115, 5.5],
+    [-0.440, 0.044, 0.285, 0.132, 5.8],
+    [-0.200, 0.046, 0.290, 0.136, 5.8],
+    [0.080, 0.044, 0.285, 0.132, 5.5],
+    [0.320, 0.038, 0.270, 0.120, 5.2],
+    [0.500, 0.030, 0.242, 0.100, 4.6],
+    [0.620, 0.022, 0.190, 0.075, 4.2],
+    [0.680, 0.015, 0.125, 0.048, 3.8]
+  ],
+  narrow: 0.98,
+  glassZ: [0.320, -0.260], glassH: 0.096, glassY: 0.078,
+  roof: { z: 0.010, hw: 0.235, hl: 0.170 },
+  arch: { r: 0.235, span: 1.38, thick: 0.045, wide: 0.120 },
+  creases: [{ t: 0.36, k: 0.040, w: 0.15 }, { t: PI - 0.36, k: 0.040, w: 0.15 }],
+  seams: [0.480, 0.180, -0.200, -0.520],
+  flank: { y0: -0.030, y1: 0.012, z0: -0.540, z1: 0.540 },
+  mirrors: { z: 0.300 },
+  wing: { z: -0.610, hw: 0.310, y: 0.205, thick: 0.014, chord: 0.085 },
+  splitter: { z: 0.660, hw: 0.270, y: -0.050, thick: 0.013, chord: 0.060 },
+  exhaust: { z: -0.640, x: 0.110, y: -0.010, r: 0.040 }
+};
+
+var ZEPHYR = {
+  id: 'ZEPHYR', name: 'Zephyr Speedster', sub: 'کابین روباز اسپرت',
+  mat: { gloss: 0.96, clearcoat: 0.92, metallic: 0.65, flakes: 0.45, ao: 0.80, rim: 0.38 },
+  stations: [
+    [-0.700, -0.005, 0.180, 0.055, 3.8],
+    [-0.660, 0.000, 0.250, 0.082, 4.0],
+    [-0.460, 0.005, 0.280, 0.100, 4.2],
+    [-0.220, 0.008, 0.288, 0.105, 4.2],
+    [0.060, 0.005, 0.280, 0.098, 4.0],
+    [0.300, -0.002, 0.260, 0.082, 3.6],
+    [0.500, -0.010, 0.220, 0.062, 3.2],
+    [0.630, -0.020, 0.160, 0.042, 2.8],
+    [0.700, -0.028, 0.100, 0.026, 2.4]
+  ],
+  narrow: 0.94,
+  glassZ: [0.200, 0.020], glassH: 0.052, glassY: 0.045,
+  roof: { z: -0.040, hw: 0.200, hl: 0.120 },
+  arch: { r: 0.220, span: 1.46, thick: 0.038, wide: 0.112 },
+  creases: [{ t: 0.42, k: 0.046, w: 0.13 }, { t: PI - 0.42, k: 0.046, w: 0.13 }],
+  seams: [0.480, 0.200, -0.160, -0.500],
+  flank: { y0: -0.032, y1: 0.008, z0: -0.540, z1: 0.540 },
+  mirrors: { z: 0.220 },
+  splitter: { z: 0.690, hw: 0.300, y: -0.058, thick: 0.011, chord: 0.072 },
+  exhaust: { z: -0.680, x: 0.130, y: -0.012, r: 0.040 }
+};
+
+var CENTAUR = {
+  id: 'CENTAUR', name: 'Centaur GT', sub: 'گرند تورر سنگین',
+  mat: { gloss: 0.92, clearcoat: 0.86, metallic: 0.60, flakes: 0.40, ao: 0.84, rim: 0.34 },
+  stations: [
+    [-0.720, 0.000, 0.190, 0.062, 4.2],
+    [-0.680, 0.005, 0.260, 0.092, 4.5],
+    [-0.480, 0.010, 0.288, 0.112, 4.8],
+    [-0.240, 0.012, 0.295, 0.118, 4.8],
+    [0.040, 0.010, 0.288, 0.112, 4.5],
+    [0.280, 0.002, 0.268, 0.095, 4.0],
+    [0.480, -0.008, 0.230, 0.075, 3.6],
+    [0.640, -0.018, 0.175, 0.052, 3.2],
+    [0.720, -0.025, 0.115, 0.032, 2.8]
+  ],
+  narrow: 0.96,
+  glassZ: [0.180, -0.260], glassH: 0.082, glassY: 0.050,
+  roof: { z: -0.040, hw: 0.220, hl: 0.150 },
+  arch: { r: 0.225, span: 1.42, thick: 0.040, wide: 0.115 },
+  creases: [{ t: 0.40, k: 0.044, w: 0.14 }, { t: PI - 0.40, k: 0.044, w: 0.14 }],
+  seams: [0.520, 0.220, -0.180, -0.520],
+  flank: { y0: -0.032, y1: 0.008, z0: -0.560, z1: 0.560 },
+  mirrors: { z: 0.220 },
+  wing: { z: -0.680, hw: 0.360, y: 0.175, thick: 0.013, chord: 0.095 },
+  splitter: { z: 0.710, hw: 0.310, y: -0.056, thick: 0.012, chord: 0.072 },
+  exhaust: { z: -0.700, x: 0.150, y: -0.012, r: 0.042 }
+};
+
+var HORNET = {
+  id: 'HORNET', name: 'Hornet Kei Racer', sub: 'کوچک و فوق‌العاده سریع',
+  mat: { gloss: 0.90, clearcoat: 0.82, metallic: 0.50, flakes: 0.35, ao: 0.86, rim: 0.30 },
+  stations: [
+    [-0.620, 0.030, 0.180, 0.075, 4.8],
+    [-0.580, 0.035, 0.240, 0.105, 5.0],
+    [-0.400, 0.038, 0.265, 0.122, 5.2],
+    [-0.180, 0.040, 0.270, 0.125, 5.2],
+    [0.060, 0.038, 0.265, 0.120, 5.0],
+    [0.280, 0.032, 0.250, 0.108, 4.6],
+    [0.440, 0.024, 0.220, 0.088, 4.2],
+    [0.560, 0.016, 0.170, 0.065, 3.8],
+    [0.620, 0.010, 0.110, 0.042, 3.4]
+  ],
+  narrow: 0.98,
+  glassZ: [0.280, -0.220], glassH: 0.092, glassY: 0.072,
+  roof: { z: 0.000, hw: 0.220, hl: 0.150 },
+  arch: { r: 0.220, span: 1.32, thick: 0.040, wide: 0.110 },
+  creases: [{ t: 0.38, k: 0.040, w: 0.15 }, { t: PI - 0.38, k: 0.040, w: 0.15 }],
+  seams: [0.440, 0.160, -0.180, -0.480],
+  flank: { y0: -0.028, y1: 0.010, z0: -0.500, z1: 0.500 },
+  mirrors: { z: 0.260 },
+  wing: { z: -0.580, hw: 0.320, y: 0.200, thick: 0.013, chord: 0.088 },
+  splitter: { z: 0.620, hw: 0.250, y: -0.048, thick: 0.012, chord: 0.055 },
+  exhaust: { z: -0.600, x: 0.110, y: -0.010, r: 0.038 }
+};
+
+var DRAGLINE = {
+  id: 'DRAGLINE', name: 'Dragline Rocket', sub: 'درگستر چرخ عقب غول‌پیکر',
+  mat: { gloss: 0.94, clearcoat: 0.88, metallic: 0.65, flakes: 0.45, ao: 0.82, rim: 0.38 },
+  stations: [
+    [-0.820, -0.015, 0.160, 0.040, 3.5],
+    [-0.760, -0.008, 0.220, 0.060, 3.8],
+    [-0.520, 0.000, 0.250, 0.078, 4.0],
+    [-0.260, 0.005, 0.260, 0.082, 4.0],
+    [0.040, 0.002, 0.250, 0.076, 3.8],
+    [0.300, -0.005, 0.230, 0.062, 3.4],
+    [0.520, -0.015, 0.190, 0.045, 3.0],
+    [0.700, -0.025, 0.130, 0.028, 2.6],
+    [0.800, -0.032, 0.080, 0.016, 2.2]
+  ],
+  narrow: 0.92,
+  glassZ: [0.120, -0.280], glassH: 0.065, glassY: 0.032,
+  roof: { z: -0.080, hw: 0.180, hl: 0.140 },
+  scoop: { z: 0.280, hw: 0.070, hl: 0.100, h: 0.060 },
+  arch: { r: 0.205, span: 1.55, thick: 0.032, wide: 0.105 },
+  creases: [{ t: 0.46, k: 0.050, w: 0.12 }, { t: PI - 0.46, k: 0.050, w: 0.12 }],
+  seams: [0.560, 0.240, -0.200, -0.600],
+  flank: { y0: -0.036, y1: 0.005, z0: -0.640, z1: 0.640 },
+  mirrors: { z: 0.160 },
+  wing: { z: -0.780, hw: 0.420, y: 0.220, thick: 0.015, chord: 0.130 },
+  splitter: { z: 0.790, hw: 0.310, y: -0.062, thick: 0.010, chord: 0.082 },
+  exhaust: { z: -0.790, x: 0.140, y: 0.080, r: 0.052 }
+};
+
+var AEROWING = {
+  id: 'AEROWING', name: 'Aerowing LMP', sub: 'استقامت لمانز',
+  mat: { gloss: 0.98, clearcoat: 0.95, metallic: 0.72, flakes: 0.52, ao: 0.80, rim: 0.42 },
+  stations: [
+    [-0.760, -0.025, 0.180, 0.040, 3.6],
+    [-0.700, -0.018, 0.260, 0.062, 3.8],
+    [-0.500, -0.010, 0.290, 0.078, 4.0],
+    [-0.260, -0.005, 0.298, 0.082, 4.0],
+    [0.020, -0.005, 0.290, 0.078, 3.8],
+    [0.260, -0.012, 0.270, 0.065, 3.5],
+    [0.480, -0.022, 0.228, 0.048, 3.1],
+    [0.650, -0.032, 0.168, 0.032, 2.6],
+    [0.750, -0.040, 0.105, 0.020, 2.2]
+  ],
+  narrow: 0.93,
+  glassZ: [0.120, -0.320], glassH: 0.064, glassY: 0.025,
+  roof: { z: -0.090, hw: 0.190, hl: 0.160 },
+  arch: { r: 0.210, span: 1.44, thick: 0.030, wide: 0.106 },
+  creases: [{ t: 0.48, k: 0.054, w: 0.11 }, { t: PI - 0.48, k: 0.054, w: 0.11 }],
+  seams: [0.540, 0.240, -0.220, -0.580],
+  flank: { y0: -0.036, y1: 0.004, z0: -0.620, z1: 0.620 },
+  mirrors: { z: 0.160 },
+  wing: { z: -0.730, hw: 0.430, y: 0.185, thick: 0.012, chord: 0.122 },
+  splitter: { z: 0.740, hw: 0.360, y: -0.064, thick: 0.010, chord: 0.090 },
+  exhaust: { z: -0.740, x: 0.120, y: -0.005, r: 0.036 }
+};
+
+var VOLTAIC = {
+  id: 'VOLTAIC', name: 'Voltaic EV One', sub: 'مفهومی نئونی الکتریکی',
+  mat: { gloss: 0.98, clearcoat: 0.96, metallic: 0.75, flakes: 0.55, ao: 0.78, rim: 0.45 },
+  stations: [
+    [-0.720, -0.015, 0.185, 0.048, 4.2],
+    [-0.680, -0.008, 0.255, 0.072, 4.5],
+    [-0.480, -0.002, 0.285, 0.090, 4.8],
+    [-0.240, 0.002, 0.292, 0.095, 4.8],
+    [0.040, 0.002, 0.285, 0.090, 4.5],
+    [0.280, -0.005, 0.265, 0.075, 4.0],
+    [0.480, -0.015, 0.225, 0.058, 3.6],
+    [0.640, -0.025, 0.170, 0.040, 3.2],
+    [0.720, -0.032, 0.110, 0.025, 2.8]
+  ],
+  narrow: 0.95,
+  glassZ: [0.160, -0.300], glassH: 0.072, glassY: 0.035,
+  roof: { z: -0.060, hw: 0.210, hl: 0.150 },
+  arch: { r: 0.218, span: 1.42, thick: 0.035, wide: 0.110 },
+  creases: [{ t: 0.42, k: 0.050, w: 0.13 }, { t: PI - 0.42, k: 0.050, w: 0.13 }],
+  seams: [0.520, 0.220, -0.180, -0.540],
+  stripes: [{ c: 0.000, w: 0.038, z0: -0.650, z1: 0.680, seg: 5 }],
+  flank: { y0: -0.032, y1: 0.008, z0: -0.580, z1: 0.580 },
+  mirrors: { z: 0.200 },
+  wing: { z: -0.680, hw: 0.380, y: 0.180, thick: 0.012, chord: 0.100 },
+  splitter: { z: 0.710, hw: 0.330, y: -0.058, thick: 0.011, chord: 0.080 },
+  exhaust: { z: -0.710, x: 0.120, y: -0.008, r: 0.035 }
+};
+
+var BODIES = [OCTANE, DOMINUS, FENNEC, TAKUMI, BREAKOUT, MANTIS, MERC, BATCAR, VANGUARD, NOCTURNE, BRAWLER, PALADIN, BREAKER, RALLYHAWK, ZEPHYR, CENTAUR, HORNET, DRAGLINE, AEROWING, VOLTAIC, VORTEX, STRIKER, TITAN, RAPTOR, PHANTOM, MONSTER, KART, DRAGSTER, HYPER, COACH, SUV, HOTROD, LIMO];
 
 /* ------------------------------------------------------------------ *
  * body assembly
@@ -1502,26 +2021,18 @@ function buildBody(def, anchor) {
     }
   }
 
-  /* --- 14. headlights & taillights --- */
+  /* --- 14. headlights --- */
   var frontZ = def.stations[def.stations.length - 1][0] - 0.055;
-  var rearZ = def.stations[0][0] + 0.045;
+  var rearZ = def.stations[0][0] + 0.055;
   for (var li = 0; li < 2; li++) {
     var lx = li ? 1 : -1;
     // Front Projector Headlights & LED DRL Eyebrows
     headlights.box(0.056, 0.018, 0.022, new V3(lx * 0.155, 0.032, frontZ), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
     headlights.box(0.042, 0.008, 0.016, new V3(lx * 0.165, 0.044, frontZ - 0.008), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
 
-    // Rear Modern LED Taillight Clusters & Brake Light Bars
-    taillights.box(0.052, 0.018, 0.018, new V3(lx * 0.175, 0.076, rearZ), null, 1.0);
-    taillights.box(0.038, 0.008, 0.014, new V3(lx * 0.185, 0.064, rearZ), null, 1.0);
-
-    // Backwards-compatible combined lights
+    // Combined lights (front only)
     lights.box(0.052, 0.015, 0.020, new V3(lx * 0.155, 0.030, frontZ), new Quat().fromAxisAngle(1, 0, 0, -0.20), 1.0);
-    lights.box(0.048, 0.014, 0.018, new V3(lx * 0.175, 0.075, rearZ), null, 1.0);
   }
-
-  // Rear high-mount third brake light bar
-  taillights.box(0.12, 0.009, 0.012, new V3(0, 0.125, rearZ + 0.015), null, 1.0);
 
   if (def.lightBar) {
     var LB = def.lightBar;
@@ -1704,33 +2215,223 @@ function wdef(style) {
 }
 
 var WHEELS = [
-  { id: 'SPORT', name: 'Sport 5', sub: 'پنجپره اسپرت', spokes: 5, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.062, bladeT: 0.026,
-    dish: 0.215, dishSweep: 0.050, rimR: 0.70, shoulder: 0.80, grooves: 3 },
-  { id: 'TURBINE', name: 'Turbine', sub: 'توربینی', spokes: 12, spokeLen: 0.58, spokeMid: 0.68, bladeW: 0.028, bladeT: 0.020,
-    dish: 0.230, dishSweep: 0.030, rimR: 0.70, shoulder: 0.82, grooves: 4 },
-  { id: 'MESH', name: 'Mesh Lock', sub: 'مش قفلدار', spokes: 10, spokeLen: 0.62, spokeMid: 0.66, bladeW: 0.034, bladeT: 0.024,
-    dish: 0.200, dishSweep: 0.040, rimR: 0.71, shoulder: 0.79, grooves: 3, lugs: 6 },
-  { id: 'OFFROAD', name: 'Offroad', sub: 'آفرود', spokes: 6, spokeLen: 0.52, spokeMid: 0.66, bladeW: 0.088, bladeT: 0.042,
-    dish: 0.190, dishSweep: 0.035, rimR: 0.58, shoulder: 0.86, grooves: 5 },
-
-  { id: 'DISH', name: 'Deep Dish', sub: 'دیپ‌دیش',
-    spokes: 5, spokeLen: 0.58, spokeMid: 0.64, bladeW: 0.058, bladeT: 0.024,
-    dish: 0.150, dishSweep: 0.090, lip: 0.305, rimR: 0.72, shoulder: 0.78, grooves: 3 },
-
-  { id: 'AERO', name: 'Aero Cover', sub: 'کاور آیرو',
-    spokes: 0, cover: true, slots: 5, dish: 0.270, dishSweep: 0,
-    lip: 0.300, rimR: 0.72, shoulder: 0.80, grooves: 2 },
-
-  { id: 'STEEL', name: 'Rally Steel', sub: 'استیل رالی',
-    spokes: 8, spokeLen: 0.56, spokeMid: 0.64, bladeW: 0.028, bladeT: 0.036,
-    dish: 0.285, dishSweep: 0.008, lip: 0.300, rimR: 0.62, shoulder: 0.84, grooves: 4 }
+  { id: 'SPORT', name: 'Sport 5', sub: 'پنجپره اسپرت', spokes: 5, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.062, bladeT: 0.026, dish: 0.215, dishSweep: 0.050, rimR: 0.70, shoulder: 0.80, grooves: 3 },
+  { id: 'VORTEX', name: 'Vortex Twist', sub: 'ورتکس ۶ پره', spokes: 6, spokeLen: 0.64, spokeMid: 0.68, bladeW: 0.045, bladeT: 0.022, dish: 0.200, dishSweep: 0.060, rimR: 0.71, shoulder: 0.81, grooves: 4 },
+  { id: 'TURBINE', name: 'Turbina Jet', sub: 'توربینی جت', spokes: 12, spokeLen: 0.58, spokeMid: 0.68, bladeW: 0.028, bladeT: 0.020, dish: 0.230, dishSweep: 0.030, rimR: 0.70, shoulder: 0.82, grooves: 4 },
+  { id: 'MESH', name: 'Mesh Lock', sub: 'مش قفلدار', spokes: 10, spokeLen: 0.62, spokeMid: 0.66, bladeW: 0.034, bladeT: 0.024, dish: 0.200, dishSweep: 0.040, rimR: 0.71, shoulder: 0.79, grooves: 3, lugs: 6 },
+  { id: 'OFFROAD', name: 'Offroad King', sub: 'آفرود', spokes: 6, spokeLen: 0.52, spokeMid: 0.66, bladeW: 0.088, bladeT: 0.042, dish: 0.190, dishSweep: 0.035, rimR: 0.58, shoulder: 0.86, grooves: 5 },
+  { id: 'DISH', name: 'Deep Dish', sub: 'دیپ‌دیش', spokes: 5, spokeLen: 0.58, spokeMid: 0.64, bladeW: 0.058, bladeT: 0.024, dish: 0.150, dishSweep: 0.090, lip: 0.305, rimR: 0.72, shoulder: 0.78, grooves: 3 },
+  { id: 'AERO', name: 'Aero Cover', sub: 'کاور آیرو', spokes: 0, cover: true, slots: 5, dish: 0.270, dishSweep: 0, lip: 0.300, rimR: 0.72, shoulder: 0.80, grooves: 2 },
+  { id: 'STEEL', name: 'Rally Steel', sub: 'استیل رالی', spokes: 8, spokeLen: 0.56, spokeMid: 0.64, bladeW: 0.028, bladeT: 0.036, dish: 0.285, dishSweep: 0.008, lip: 0.300, rimR: 0.62, shoulder: 0.84, grooves: 4 },
+  { id: 'SPLIT_SIX', name: 'Split Six', sub: '۶ پره دوگانه', spokes: 12, spokeLen: 0.62, spokeMid: 0.66, bladeW: 0.025, bladeT: 0.022, dish: 0.210, dishSweep: 0.045, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'WISHBONE', name: 'Wishbone GT', sub: 'چنگالی Y', spokes: 10, spokeLen: 0.60, spokeMid: 0.65, bladeW: 0.030, bladeT: 0.024, dish: 0.200, dishSweep: 0.050, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'BLADERUNNER', name: 'Blade Runner', sub: 'تیغه‌ای', spokes: 5, spokeLen: 0.65, spokeMid: 0.70, bladeW: 0.070, bladeT: 0.018, dish: 0.180, dishSweep: 0.070, rimR: 0.73, shoulder: 0.77, grooves: 4 },
+  { id: 'WEBLINE', name: 'Webline Pro', sub: 'تار عنکبوتی', spokes: 14, spokeLen: 0.58, spokeMid: 0.66, bladeW: 0.020, bladeT: 0.020, dish: 0.220, dishSweep: 0.035, rimR: 0.70, shoulder: 0.81, grooves: 3 },
+  { id: 'WIREPIN', name: 'Wire Pin', sub: 'پره‌ای کلاسیک', spokes: 20, spokeLen: 0.55, spokeMid: 0.65, bladeW: 0.015, bladeT: 0.018, dish: 0.240, dishSweep: 0.025, rimR: 0.68, shoulder: 0.82, grooves: 4 },
+  { id: 'FANBLADE', name: 'Fanblade Turbo', sub: 'پنکه‌ای ریسینگ', spokes: 8, spokeLen: 0.60, spokeMid: 0.68, bladeW: 0.050, bladeT: 0.022, dish: 0.190, dishSweep: 0.065, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'CROSSHAIR', name: 'Crosshair X', sub: '۴ پره متقاطع', spokes: 4, spokeLen: 0.62, spokeMid: 0.66, bladeW: 0.075, bladeT: 0.028, dish: 0.200, dishSweep: 0.055, rimR: 0.70, shoulder: 0.80, grooves: 3 },
+  { id: 'HEXCORE', name: 'Hex Core', sub: 'شش‌ضلعی سایبر', spokes: 6, spokeLen: 0.58, spokeMid: 0.65, bladeW: 0.055, bladeT: 0.030, dish: 0.210, dishSweep: 0.040, rimR: 0.70, shoulder: 0.82, grooves: 4 },
+  { id: 'SPIRALIS', name: 'Spiralis GT', sub: 'مارپیچ خورشیدی', spokes: 9, spokeLen: 0.61, spokeMid: 0.67, bladeW: 0.035, bladeT: 0.022, dish: 0.195, dishSweep: 0.060, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'MONOLITH', name: 'Monolith Solid', sub: 'یکپارچه عضلانی', spokes: 3, spokeLen: 0.55, spokeMid: 0.62, bladeW: 0.110, bladeT: 0.035, dish: 0.180, dishSweep: 0.050, rimR: 0.69, shoulder: 0.83, grooves: 5 },
+  { id: 'GOLDLINE', name: 'Goldline VIP', sub: 'طلایی لوکس', spokes: 10, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.032, bladeT: 0.025, dish: 0.170, dishSweep: 0.075, rimR: 0.73, shoulder: 0.78, grooves: 3 },
+  { id: 'OBSIDIAN', name: 'Obsidian Black', sub: 'مشکی فورج‌شده', spokes: 5, spokeLen: 0.62, spokeMid: 0.67, bladeW: 0.055, bladeT: 0.026, dish: 0.160, dishSweep: 0.080, rimR: 0.73, shoulder: 0.77, grooves: 3 },
+  { id: 'CARBONITE', name: 'Carbonite Tech', sub: 'کربن سبک', spokes: 7, spokeLen: 0.63, spokeMid: 0.68, bladeW: 0.042, bladeT: 0.020, dish: 0.190, dishSweep: 0.055, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'TITANIX', name: 'Titanix Heavy', sub: 'تایتانیوم سخت', spokes: 6, spokeLen: 0.56, spokeMid: 0.64, bladeW: 0.072, bladeT: 0.038, dish: 0.200, dishSweep: 0.045, rimR: 0.68, shoulder: 0.84, grooves: 4 },
+  { id: 'SLICKLINE', name: 'Slickline Zero', sub: 'اسلیک مسابقه‌ای', spokes: 5, spokeLen: 0.64, spokeMid: 0.68, bladeW: 0.048, bladeT: 0.022, dish: 0.220, dishSweep: 0.040, rimR: 0.72, shoulder: 0.78, grooves: 2 },
+  { id: 'GRAVELKING', name: 'Gravel King', sub: 'رالی کویر', spokes: 8, spokeLen: 0.54, spokeMid: 0.62, bladeW: 0.052, bladeT: 0.035, dish: 0.210, dishSweep: 0.030, rimR: 0.64, shoulder: 0.85, grooves: 5 },
+  { id: 'VGRIP', name: 'V-Grip Spec', sub: 'چسبندگی V', spokes: 10, spokeLen: 0.59, spokeMid: 0.66, bladeW: 0.030, bladeT: 0.025, dish: 0.200, dishSweep: 0.050, rimR: 0.71, shoulder: 0.80, grooves: 4 },
+  { id: 'DRIFTLINE', name: 'Drift Line', sub: 'دریفت ژاپنی', spokes: 6, spokeLen: 0.62, spokeMid: 0.67, bladeW: 0.050, bladeT: 0.024, dish: 0.150, dishSweep: 0.085, rimR: 0.73, shoulder: 0.78, grooves: 3 },
+  { id: 'NEON_HALO', name: 'Neon Halo', sub: 'نوارهای نئونی', spokes: 5, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.045, bladeT: 0.022, dish: 0.210, dishSweep: 0.050, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'EMBER_SPAG', name: 'Ember Spark', sub: 'شراره آتشین', spokes: 8, spokeLen: 0.61, spokeMid: 0.67, bladeW: 0.038, bladeT: 0.022, dish: 0.190, dishSweep: 0.060, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'PLASMA_RING', name: 'Plasma Ring', sub: 'حلقه پلاسما', spokes: 0, cover: true, slots: 6, dish: 0.250, dishSweep: 0, lip: 0.290, rimR: 0.73, shoulder: 0.78, grooves: 2 },
+  { id: 'CHRONOS', name: 'Chronos Gear', sub: 'چرخدنده‌ای', spokes: 12, spokeLen: 0.56, spokeMid: 0.65, bladeW: 0.028, bladeT: 0.030, dish: 0.220, dishSweep: 0.035, rimR: 0.69, shoulder: 0.82, grooves: 4 },
+  { id: 'GYROLOOP', name: 'Gyro Loop', sub: 'ژیروسکوپی', spokes: 6, spokeLen: 0.63, spokeMid: 0.68, bladeW: 0.042, bladeT: 0.020, dish: 0.180, dishSweep: 0.065, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'VOIDSTAR', name: 'Void Star', sub: 'ستاره سیاه', spokes: 5, spokeLen: 0.64, spokeMid: 0.69, bladeW: 0.055, bladeT: 0.020, dish: 0.150, dishSweep: 0.090, rimR: 0.74, shoulder: 0.76, grooves: 3 },
+  { id: 'PULSAR', name: 'Pulsar Beam', sub: 'پلسار نوری', spokes: 10, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.028, bladeT: 0.022, dish: 0.200, dishSweep: 0.050, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'TURBOFAN', name: 'Turbofan Pro', sub: 'توربوفن خنک‌کننده', spokes: 15, spokeLen: 0.57, spokeMid: 0.66, bladeW: 0.022, bladeT: 0.020, dish: 0.240, dishSweep: 0.025, rimR: 0.70, shoulder: 0.81, grooves: 4 },
+  { id: 'CYCLONE_X', name: 'Cyclone X', sub: 'سایکلون ۴ پره', spokes: 4, spokeLen: 0.62, spokeMid: 0.68, bladeW: 0.080, bladeT: 0.025, dish: 0.190, dishSweep: 0.060, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'STARLANCE', name: 'Starlance GT', sub: 'نیزه‌ای', spokes: 5, spokeLen: 0.65, spokeMid: 0.70, bladeW: 0.048, bladeT: 0.020, dish: 0.160, dishSweep: 0.080, rimR: 0.73, shoulder: 0.77, grooves: 3 },
+  { id: 'NEBULA', name: 'Nebula Glow', sub: 'کهکشانی', spokes: 8, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.036, bladeT: 0.022, dish: 0.200, dishSweep: 0.055, rimR: 0.72, shoulder: 0.79, grooves: 3 },
+  { id: 'FROSTBITE', name: 'Frostbite Diamond', sub: 'الماسی یخ‌زده', spokes: 10, spokeLen: 0.61, spokeMid: 0.67, bladeW: 0.030, bladeT: 0.024, dish: 0.180, dishSweep: 0.065, rimR: 0.72, shoulder: 0.78, grooves: 3 },
+  { id: 'HELIXON', name: 'Helixon DNA', sub: 'مارپیچ دوگانه', spokes: 12, spokeLen: 0.59, spokeMid: 0.66, bladeW: 0.025, bladeT: 0.022, dish: 0.210, dishSweep: 0.045, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'VERTEX_R', name: 'Vertex Spec R', sub: 'مسابقه‌ای حرفه‌ای', spokes: 6, spokeLen: 0.63, spokeMid: 0.68, bladeW: 0.052, bladeT: 0.024, dish: 0.170, dishSweep: 0.070, rimR: 0.73, shoulder: 0.77, grooves: 3 },
+  { id: 'QUANTUM', name: 'Quantum Core', sub: 'کوانتومی آینده‌نگر', spokes: 6, spokeLen: 0.60, spokeMid: 0.66, bladeW: 0.045, bladeT: 0.025, dish: 0.200, dishSweep: 0.050, rimR: 0.71, shoulder: 0.80, grooves: 3 },
+  { id: 'ZENITH', name: 'Zenith Prime', sub: 'زنیت پرچمدار', spokes: 5, spokeLen: 0.64, spokeMid: 0.69, bladeW: 0.050, bladeT: 0.022, dish: 0.160, dishSweep: 0.080, rimR: 0.74, shoulder: 0.76, grooves: 3 }
 ];
+
+export function buildCosmeticItem(B, item) {
+  var id = item ? item.id : '';
+  var cat = item ? item.category : '';
+  var p = new V3(), q = new Quat();
+
+  if (cat === 'horns' || id.indexOf('HORN') !== -1 || id.indexOf('SPIKE') !== -1 || id.indexOf('CREST') !== -1 || id.indexOf('BOLT') !== -1) {
+    // HORNS & HOOD SPIKES (Positioned on front hood / roof edge)
+    var hy = 0.16, hz = 0.38;
+    if (id === 'CLASSIC_HORN' || id === 'DEVIL_HORNS') {
+      // Twin curved horns
+      for (var s = -1; s <= 1; s += 2) {
+        q.fromAxisAngle(0, 0, 1, s * 0.25);
+        p.set(s * 0.18, hy, hz);
+        B.cylinder(0.045, 0.005, 0.22, 10, p, q);
+      }
+    } else if (id === 'SPIKE_HORN' || id === 'ICE_SPIKE' || id === 'VOID_SPIKES') {
+      // Blade / Spike standing tall
+      p.set(0, hy + 0.12, hz);
+      q.fromAxisAngle(1, 0, 0, -0.2);
+      B.cylinder(0.065, 0.005, 0.32, 8, p, q);
+      if (id === 'VOID_SPIKES') {
+        for (var v = -1; v <= 1; v += 2) {
+          p.set(v * 0.12, hy + 0.08, hz - 0.08);
+          B.cylinder(0.045, 0.005, 0.22, 8, p, q);
+        }
+      }
+    } else if (id === 'SPIRAL_HORN' || id === 'UNICORN_HORN') {
+      // Single tall horn in center
+      p.set(0, hy + 0.15, hz);
+      q.fromAxisAngle(1, 0, 0, -0.3);
+      B.cylinder(0.055, 0.005, 0.38, 12, p, q);
+    } else if (id === 'LIGHTNING_BOLT') {
+      p.set(0, hy + 0.18, hz);
+      q.fromAxisAngle(0, 1, 0, 0);
+      B.lightningBolt(0.22, 0.05, p, q);
+    } else if (id === 'CROWN' || id === 'LEAF_CROWN') {
+      // Ring crest
+      p.set(0, hy + 0.08, hz);
+      B.cylinder(0.16, 0.18, 0.12, 12, p, null, false, false);
+      for (var k = 0; k < 6; k++) {
+        var a = k / 6 * TAU;
+        p.set(Math.cos(a) * 0.16, hy + 0.18, hz + Math.sin(a) * 0.16);
+        B.cylinder(0.025, 0.002, 0.08, 6, p);
+      }
+    } else {
+      // Default Horn / Spikes
+      for (var d = -1; d <= 1; d += 2) {
+        p.set(d * 0.16, hy + 0.10, hz);
+        q.fromAxisAngle(1, 0, 0, -0.2);
+        B.cylinder(0.05, 0.005, 0.25, 8, p, q);
+      }
+    }
+  } else if (cat === 'hats' || id.indexOf('HAT') !== -1 || id.indexOf('HELM') !== -1 || id.indexOf('CAP') !== -1 || id.indexOf('CROWN') !== -1 || id.indexOf('HALO') !== -1 || id.indexOf('BALLS') !== -1) {
+    // HATS & TOPPERS (Positioned on roof)
+    var ry = 0.30, rz = 0.02;
+    if (id === 'TOP_HAT' || id === 'BOWLER_HAT' || id === 'CHEF_HAT') {
+      // Brim + Crown Cylinder
+      p.set(0, ry, rz);
+      q.fromAxisAngle(1, 0, 0, Math.PI / 2);
+      B.cylinder(0.32, 0.32, 0.02, 16, p, q); // Brim
+      var hH = id === 'TOP_HAT' ? 0.35 : (id === 'CHEF_HAT' ? 0.42 : 0.22);
+      p.set(0, ry + hH * 0.5, rz);
+      B.cylinder(0.22, id === 'BOWLER_HAT' ? 0.18 : 0.22, hH, 16, p, q); // Crown
+    } else if (id === 'VIKING_HELM') {
+      // Helmet dome + twin horns
+      p.set(0, ry + 0.12, rz);
+      q.fromAxisAngle(1, 0, 0, Math.PI / 2);
+      B.cylinder(0.24, 0.12, 0.24, 16, p, q);
+      for (var v2 = -1; v2 <= 1; v2 += 2) {
+        var hq = new Quat().fromAxisAngle(0, 0, 1, v2 * 0.6);
+        p.set(v2 * 0.22, ry + 0.22, rz);
+        B.cylinder(0.05, 0.005, 0.28, 8, p, hq);
+      }
+    } else if (id === 'ROYAL_CROWN') {
+      p.set(0, ry + 0.08, rz);
+      q.fromAxisAngle(1, 0, 0, Math.PI / 2);
+      B.cylinder(0.26, 0.28, 0.16, 16, p, q, false, false);
+      for (var c2 = 0; c2 < 8; c2++) {
+        var ca = c2 / 8 * TAU;
+        p.set(Math.cos(ca) * 0.27, ry + 0.20, rz + Math.sin(ca) * 0.27);
+        B.cylinder(0.03, 0.005, 0.10, 6, p, q);
+      }
+    } else if (id === 'HALO') {
+      // Floating ring
+      p.set(0, ry + 0.25, rz);
+      q.fromAxisAngle(1, 0, 0, Math.PI / 2);
+      B.cylinder(0.28, 0.28, 0.04, 20, p, q, false, false);
+    } else if (id === 'ANTENNA_BALLS') {
+      for (var ab = -1; ab <= 1; ab += 2) {
+        p.set(ab * 0.15, ry + 0.20, rz);
+        B.cylinder(0.012, 0.012, 0.40, 6, p, null); // stem
+        p.set(ab * 0.15, ry + 0.42, rz);
+        B.cylinder(0.07, 0.07, 0.14, 10, p, null); // ball
+      }
+    } else {
+      // Default Hat / Beanie / Cap
+      p.set(0, ry + 0.10, rz);
+      q.fromAxisAngle(1, 0, 0, Math.PI / 2);
+      B.cylinder(0.28, 0.28, 0.03, 16, p, q);
+      p.set(0, ry + 0.20, rz);
+      B.cylinder(0.22, 0.12, 0.20, 16, p, q);
+    }
+  } else if (cat === 'tools' || id.indexOf('WRENCH') !== -1 || id.indexOf('AXE') !== -1 || id.indexOf('SWORD') !== -1 || id.indexOf('HAMMER') !== -1 || id.indexOf('ROCKET') !== -1 || id.indexOf('SHIELD') !== -1 || id.indexOf('STAFF') !== -1 || id.indexOf('LANCE') !== -1 || id.indexOf('BLASTER') !== -1 || id.indexOf('GUITAR') !== -1) {
+    // TOOLS & WEAPONS (Mounted on roof / side rack)
+    var ty = 0.32, tz = -0.05;
+    if (id === 'SWORD' || id === 'LANCE' || id === 'STAFF') {
+      // Shaft / Blade
+      p.set(0, ty + 0.12, tz);
+      q.fromAxisAngle(1, 0, 0, -0.3);
+      B.cylinder(0.025, 0.010, 0.85, 8, p, q);
+      // Guard / Orb
+      p.set(0, ty + 0.02, tz + 0.2);
+      B.cylinder(0.08, 0.08, 0.04, 10, p, q);
+    } else if (id === 'BATTLE_AXE' || id === 'SLEDGEHAMMER' || id === 'GIANT_WRENCH') {
+      // Heavy tool / Axe head
+      p.set(0, ty + 0.15, tz);
+      q.fromAxisAngle(1, 0, 0, 0.2);
+      B.cylinder(0.03, 0.03, 0.65, 8, p, q); // handle
+      p.set(0, ty + 0.38, tz - 0.12);
+      q.fromAxisAngle(0, 0, 1, Math.PI / 2);
+      B.cylinder(0.12, 0.12, 0.32, 10, p, q); // head
+    } else if (id === 'MINI_ROCKET' || id === 'BLASTER') {
+      // Rocket body + nose cone
+      p.set(0, ty + 0.12, tz);
+      q.fromAxisAngle(1, 0, 0, -Math.PI / 2);
+      B.cylinder(0.10, 0.10, 0.55, 12, p, q);
+      p.set(0, ty + 0.12, tz + 0.35);
+      B.cylinder(0.10, 0.01, 0.20, 12, p, q); // nose
+    } else if (id === 'BATTLE_SHIELD') {
+      p.set(0, ty + 0.18, tz);
+      q.fromAxisAngle(0, 1, 0, Math.PI / 2);
+      B.cylinder(0.28, 0.28, 0.04, 12, p, q);
+    } else {
+      // Default tool / guitar
+      p.set(0, ty + 0.15, tz);
+      q.fromAxisAngle(1, 0, 0, -0.2);
+      B.cylinder(0.035, 0.020, 0.70, 8, p, q);
+    }
+  } else if (cat === 'wings' || id.indexOf('WING') !== -1 || id.indexOf('JET') !== -1 || id.indexOf('THRUST') !== -1 || id.indexOf('PACK') !== -1 || id.indexOf('SAIL') !== -1) {
+    // WINGS & BOOSTERS (Mounted on rear sides)
+    var wy = 0.22, wz = -0.52;
+    if (id === 'ANGEL_WINGS' || id === 'DEMON_WINGS' || id === 'BUTTERFLY_WINGS' || id === 'DRAGON_WINGS' || id === 'VOID_WINGS' || id === 'NEON_WINGS') {
+      for (var wSide = -1; wSide <= 1; wSide += 2) {
+        var wq = new Quat().fromAxisAngle(0, 1, 0, wSide * 0.4);
+        var wq2 = new Quat().fromAxisAngle(0, 0, 1, wSide * 0.2);
+        wq.mul(wq, wq2);
+        p.set(wSide * 0.48, wy + 0.15, wz);
+        B.cylinder(0.025, 0.22, 0.65, 8, p, wq); // wing blade
+      }
+    } else if (id === 'JET_FLAMES' || id === 'ROCKET_THRUST' || id === 'HOVER_PACK') {
+      for (var jSide = -1; jSide <= 1; jSide += 2) {
+        p.set(jSide * 0.28, wy + 0.08, wz);
+        q.fromAxisAngle(1, 0, 0, -Math.PI / 2);
+        B.cylinder(0.12, 0.14, 0.38, 12, p, q); // thruster pod
+      }
+    } else {
+      // Sail / Fin
+      p.set(0, wy + 0.22, wz);
+      q.fromAxisAngle(0, 1, 0, 0);
+      B.cylinder(0.015, 0.015, 0.48, 6, p, q);
+    }
+  } else {
+    // Default fallback cosmetic box
+    p.set(0, 0.28, 0);
+    B.cylinder(0.15, 0.05, 0.25, 8, p, null);
+  }
+}
 
 /* ------------------------------------------------------------------ *
  * public entry point
  * ------------------------------------------------------------------ */
 
-/** Build every body and wheel once, up front, so the user can switch between
+/** Build every body, wheel and cosmetic once, up front, so the user can switch between
  *  them instantly without a hitch. */
 export function buildCarKit(R) {
   var anchor = wheelAnchor();
@@ -1755,6 +2456,21 @@ export function buildCarKit(R) {
     };
   }
 
+  // Build active player Ultra car if selected
+  var activeModel = CFG.customization && CFG.customization.model;
+  if (activeModel && isUltraCar(activeModel)) {
+    try {
+      var uMesh = buildUltraCarMesh(R, activeModel);
+      if (uMesh) {
+        models[activeModel] = uMesh;
+        models[String(activeModel).toLowerCase()] = uMesh;
+        models[String(activeModel).toUpperCase()] = uMesh;
+      }
+    } catch (err) {
+      console.warn("Failed to build active Ultra car in buildCarKit:", err);
+    }
+  }
+
   var wheels = {};
   for (var w = 0; w < WHEELS.length; w++) {
     var def = wdef(WHEELS[w]);
@@ -1771,5 +2487,57 @@ export function buildCarKit(R) {
     };
   }
 
-  return { models: models, wheels: wheels, anchor: anchor, order: BODIES.map(function (b) { return b.id; }), wheelOrder: WHEELS.map(function (x) { return x.id; }) };
+  var cosmetics = {};
+  if (typeof COSMETICS_LIBRARY !== 'undefined' && Array.isArray(COSMETICS_LIBRARY)) {
+    for (var c = 0; c < COSMETICS_LIBRARY.length; c++) {
+      var cItem = COSMETICS_LIBRARY[c];
+      var cb = new Builder();
+      buildCosmeticItem(cb, cItem);
+      cosmetics[cItem.id] = R.mesh(cb);
+    }
+  }
+
+  // Prebuild active player Ultra wheel if equipped
+  var activeWheel = CFG.customization && CFG.customization.wheel;
+  if (activeWheel && isUltraWheel(activeWheel)) {
+    try {
+      var wMesh = buildUltraWheelMesh(R, activeWheel);
+      if (wMesh) {
+        wheels[activeWheel] = wMesh;
+        wheels[String(activeWheel).toLowerCase()] = wMesh;
+        wheels[String(activeWheel).toUpperCase()] = wMesh;
+      }
+    } catch (err) {
+      console.warn("Failed to prebuild active Ultra wheel:", err);
+    }
+  }
+
+  // Prebuild active player Ultra topper & antenna if equipped
+  var activeHat = CFG.customization && CFG.customization.hat;
+  if (activeHat && activeHat !== 'none' && isUltraTopper(activeHat)) {
+    try {
+      var topMesh = buildUltraTopperMesh(R, activeHat);
+      if (topMesh) cosmetics[activeHat] = topMesh;
+    } catch (err) {
+      console.warn("Failed to prebuild active Ultra topper:", err);
+    }
+  }
+  var activeAntenna = CFG.customization && CFG.customization.antenna;
+  if (activeAntenna && activeAntenna !== 'none' && isUltraAntenna(activeAntenna)) {
+    try {
+      var antMesh = buildUltraAntennaMesh(R, activeAntenna);
+      if (antMesh) cosmetics[activeAntenna] = antMesh;
+    } catch (err) {
+      console.warn("Failed to prebuild active Ultra antenna:", err);
+    }
+  }
+
+  return {
+    models: models,
+    wheels: wheels,
+    cosmetics: cosmetics,
+    anchor: anchor,
+    order: BODIES.map(function (b) { return b.id; }),
+    wheelOrder: WHEELS.map(function (x) { return x.id; })
+  };
 }

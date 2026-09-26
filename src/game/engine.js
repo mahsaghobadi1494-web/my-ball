@@ -7,6 +7,7 @@ import { AudioManager } from './audio.js';
 import { Effects } from './effects.js';
 import { ReplayManager } from './replay.js';
 import { World } from './world.js';
+import { TouchInput } from './touchInput.js';
 
 export function Camera() {
   this.pos = new V3(0, 4, -12);
@@ -44,16 +45,14 @@ Camera.prototype.update = function (dt, playerCar, ball, arena) {
   var stiff = clamp(CFG.camera.stiffness || 1.0, 0.2, 2.5);
 
   if (this.customizerMode) {
-    // 360-degree turntable orbit around player car
-    if (!this.isDraggingOrbit) {
-      this.customizerOrbit = (this.customizerOrbit || (Math.PI * 0.35)) + dt * 0.3;
-    }
+    // Static showcase angle with manual mouse/touch orbit & zoom (auto-rotation disabled)
     var cDist = this.customizerDist || 4.5;
     var pitch = clamp(this.customizerPitch || 0.28, 0.05, 1.1);
     var cHeight = 0.4 + Math.sin(pitch) * cDist;
     var horizDist = Math.cos(pitch) * cDist;
-    var ox = Math.sin(this.customizerOrbit) * horizDist;
-    var oz = Math.cos(this.customizerOrbit) * horizDist;
+    var currentOrbit = (this.customizerOrbit !== undefined) ? this.customizerOrbit : (Math.PI * 0.35);
+    var ox = Math.sin(currentOrbit) * horizDist;
+    var oz = Math.cos(currentOrbit) * horizDist;
     targetPos.set(B.pos.x + ox, B.pos.y + cHeight, B.pos.z + oz);
     targetLook.set(B.pos.x, B.pos.y + 0.35, B.pos.z);
   } else if (this.ballcam && ball) {
@@ -222,6 +221,10 @@ export function InputHandler() {
   this.virtual = {
     throttle: 0,
     steer: 0,
+    gas: false,
+    brake: false,
+    steerLeft: false,
+    steerRight: false,
     pitch: 0,
     yaw: 0,
     roll: 0,
@@ -231,6 +234,7 @@ export function InputHandler() {
     slide: false,
     rollLeft: false,
     rollRight: false,
+    airRollHeld: false,
     ballcamToggle: false
   };
 
@@ -400,19 +404,77 @@ InputHandler.prototype.update = function (playerCar, camera) {
     if (gp.buttons[5] && gp.buttons[5].pressed) rollRight = true;
   }
 
-  // Merge Virtual Touch Inputs
-  if (v.throttle !== 0) throttle = v.throttle;
-  if (v.steer !== 0) steer = v.steer;
-  if (v.pitch !== 0) pitch = v.pitch;
-  if (v.yaw !== 0) yaw = v.yaw;
-  if (v.jump) jump = true;
-  if (v.boost) boost = true;
-  if (v.slide) slide = true;
-  if (v.rollLeft) rollLeft = true;
-  if (v.rollRight) rollRight = true;
-  if (v.ballcamToggle) {
+  // Direct Hardware Touch Input Polling (Zero-latency direct mobile polling)
+  var t = TouchInput.poll();
+
+  // Merge Virtual & Direct Touch Inputs
+  // 1. Throttle / Drive / Brake
+  var pedalThrottle = 0;
+  if (v.gas || v.fwd || t.gas) pedalThrottle += 1;
+  if (v.brake || v.reverse || t.brake) pedalThrottle -= 1;
+
+  if (pedalThrottle !== 0) {
+    // Dedicated Gas / Brake pedals have absolute authority when pressed
+    throttle = pedalThrottle;
+  } else if (Math.abs(t.throttle) > 0.04) {
+    // Analog joystick throttle active only when pedals are idle
+    throttle = t.throttle;
+  } else if (v.throttle !== 0) {
+    throttle = v.throttle;
+  }
+
+  // 2. Steer
+  var buttonSteer = 0;
+  if (v.steerLeft || t.steerLeft) buttonSteer -= 1;
+  if (v.steerRight || t.steerRight) buttonSteer += 1;
+
+  if (buttonSteer !== 0) {
+    steer = buttonSteer;
+  } else if (Math.abs(t.steer) > 0.02) {
+    steer = t.steer;
+  } else if (v.steer !== 0) {
+    steer = v.steer;
+  }
+
+  // 3. Air Control Modifier
+  if (v.airRollHeld || t.airRollHeld) {
+    airRollHeld = true;
+  }
+
+  if (airRollHeld) {
+    var pVal = t.pitch !== 0 ? t.pitch : v.pitch;
+    if (pVal !== 0 && pitch === 0) pitch = pVal;
+    if ((v.throttle !== 0 || t.throttle !== 0) && pitch === 0) pitch = (t.throttle !== 0 ? t.throttle : v.throttle);
+    if ((v.gas || v.fwd || t.gas) && pitch === 0) pitch = 1;
+    if ((v.brake || v.reverse || t.brake) && pitch === 0) pitch = -1;
+    if (v.steer < -0.2 || t.steer < -0.2 || v.steerLeft || t.steerLeft) rollLeft = true;
+    if (v.steer > 0.2 || t.steer > 0.2 || v.steerRight || t.steerRight) rollRight = true;
+    yaw = 0;
+  } else {
+    // When R/AirRoll is not held:
+    // Steer directly drives aerial yaw for seamless car rotation in the air
+    if (t.yaw !== 0) yaw = t.yaw;
+    else if (v.yaw !== 0) yaw = v.yaw;
+    else if (steer !== 0) yaw = steer;
+    else if (v.steerLeft || t.steerLeft) yaw -= 1;
+    else if (v.steerRight || t.steerRight) yaw += 1;
+  }
+
+  if (airRollHeld) {
+    if (t.pitch !== 0) pitch = t.pitch;
+    else if (v.pitch !== 0) pitch = v.pitch;
+  }
+
+  // 4. Actions
+  if (v.jump || t.jump) jump = true;
+  if (v.boost || t.boost) boost = true;
+  if (v.slide || t.slide) slide = true;
+  if (v.rollLeft || t.rollLeft) rollLeft = true;
+  if (v.rollRight || t.rollRight) rollRight = true;
+  if (v.ballcamToggle || t.ballcamToggle) {
     ballcamToggle = true;
     v.ballcamToggle = false;
+    t.ballcamToggle = false;
   }
 
   // Edge detection for jump
@@ -443,7 +505,7 @@ export function GameEngine(canvas, onStateChange) {
 
   this.audio = new AudioManager();
   this.effects = new Effects(1500);
-  this.replay = new ReplayManager(6, 6.0, 60);
+  this.replay = new ReplayManager(6, 25.0, 60);
 
   this.renderer = new Renderer(canvas);
   this.camera = new Camera();
@@ -526,11 +588,27 @@ GameEngine.prototype.init = function () {
   }
 };
 
-GameEngine.prototype.startMatch = function (teamSize, playerTeam, botSkill) {
-  this.audio.resume();
-  this.world.initMatch(teamSize, playerTeam, botSkill);
-  this.world.state = "COUNTDOWN";
-  this.world.stateTimer = CFG.match.countdown || 3.0;
+GameEngine.prototype.startMatch = function (teamSize, playerTeam, botSkill, mode) {
+  try {
+    if (this.audio) this.audio.resume();
+    this.camera.customizerMode = false;
+    this.camera.chaseYaw = undefined;
+    this.world.initMatch(teamSize, playerTeam, botSkill);
+    if (mode === "freeplay") {
+      this.world.state = "PLAYING";
+      this.world.stateTimer = 0;
+      this.world.countdownNum = 0;
+    } else {
+      this.world.state = "COUNTDOWN";
+      this.world.stateTimer = 2.0;
+      this.world.countdownNum = 2;
+    }
+    if (!this.running) this.start();
+    this.lastNotifiedState = null;
+    this.uiTimer = 1.0;
+  } catch (err) {
+    console.error("startMatch error:", err);
+  }
 };
 
 GameEngine.prototype.start = function () {
@@ -545,8 +623,12 @@ GameEngine.prototype.start = function () {
     self.lastTime = now;
     if (dt > 0.1) dt = 0.1;
 
-    self.update(dt);
-    self.render(dt);
+    try {
+      self.update(dt);
+      self.render(dt);
+    } catch (frameErr) {
+      console.error("Frame loop error:", frameErr);
+    }
 
     // FPS calculation
     self.framesCount++;
@@ -634,7 +716,11 @@ GameEngine.prototype.render = function (dt) {
 
   R.resize();
   if (typeof R.renderShadowMap === "function") {
-    R.renderShadowMap(this.props, W.cars, W.ball);
+    try {
+      R.renderShadowMap(this.props, W.cars, W.ball);
+    } catch (e) {
+      // Ignore shadow map errors to protect game frame loop
+    }
   }
   R.beginFrame(cam.pos, cam.target, cam.up, cam.fov, delta);
 
@@ -686,6 +772,19 @@ GameEngine.prototype.rebuildCarModels = function () {
       this.props = buildProps(this.renderer);
     } catch (e) {
       console.warn("rebuildCarModels error:", e);
+    }
+  }
+};
+
+GameEngine.prototype.rebuildPlayerCar = function () {
+  if (this.renderer) {
+    try {
+      if (typeof this.renderer.clearUltraCache === 'function') {
+        this.renderer.clearUltraCache();
+      }
+      this.rebuildCarModels();
+    } catch (e) {
+      console.warn("rebuildPlayerCar error:", e);
     }
   }
 };

@@ -4,12 +4,14 @@ import {
   Trophy, Play, Settings, HelpCircle, Activity,
   Volume2, VolumeX, Eye, RotateCcw, Pause, Sparkles,
   Zap, Disc, ChevronRight, Check, X, Shield, FastForward,
-  Sliders, Smartphone, Sun, Monitor, Car, Palette, Camera
+  Sliders, Smartphone, Sun, Monitor, Car, Palette, Camera,
+  RotateCw, Maximize2, Minimize2
 } from "lucide-react";
 import { CFG, DEFAULT_CFG, TEAM, TEAM_NAME, TEAM_COLOR, STADIUM_THEMES, CAR_WHEEL_DEFS } from "./game/config.js";
 import { GameEngine } from "./game/engine.js";
 import { RealTimeTuningPanel } from "./components/RealTimeTuningPanel";
 import { CarCustomizerDrawer } from "./components/CarCustomizerDrawer";
+import { CarCustomizerDrawerUltra } from "./components/CarCustomizerDrawerUltra";
 import { TouchControls } from "./components/TouchControls";
 import { TelemetryHUD } from "./components/TelemetryHUD";
 
@@ -24,6 +26,7 @@ export default function App() {
   const [botSkill, setBotSkill] = useState(2); // 0=Rookie, 1=Semi-Pro, 2=All-Star
   const [stadiumTheme, setStadiumTheme] = useState(CFG.gfx.stadiumTheme || "NEON_CHAMPIONSHIP");
   const [showCarCustomizer, setShowCarCustomizer] = useState(false);
+  const [showCarCustomizerUltra, setShowCarCustomizerUltra] = useState(false);
 
   // In-Game Live HUD stats
   const [score, setScore] = useState([0, 0]);
@@ -39,6 +42,14 @@ export default function App() {
   const [showTuningPanel, setShowTuningPanel] = useState(false);
   const [tuningPanelTab, setTuningPanelTab] = useState("graphics");
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth > window.innerHeight;
+    }
+    return true;
+  });
+  const [virtualLandscape, setVirtualLandscape] = useState(false);
+
   const [touchControlsEnabled, setTouchControlsEnabled] = useState(() => {
     try {
       const saved = localStorage.getItem("nvc_touch_controls");
@@ -64,12 +75,12 @@ export default function App() {
     perfMode: (CFG.gfx && CFG.gfx.perfMode) || "BALANCED",
     sunIntensity: (CFG.gfx && CFG.gfx.sunIntensity !== undefined) ? CFG.gfx.sunIntensity : 0.95,
     floodlightIntensity: (CFG.gfx && CFG.gfx.floodlightIntensity !== undefined) ? CFG.gfx.floodlightIntensity : 0.35,
-    carFlakes: (CFG.gfx && CFG.gfx.carFlakes !== undefined) ? CFG.gfx.carFlakes : 0.85,
+    carFlakes: (CFG.gfx && CFG.gfx.carFlakes !== undefined) ? CFG.gfx.carFlakes : 0.00,
     carAmbientOcclusion: (CFG.gfx && CFG.gfx.carAmbientOcclusion !== undefined) ? CFG.gfx.carAmbientOcclusion : 0.85,
     shadowMapping: (CFG.gfx && CFG.gfx.shadowMapping !== undefined) ? CFG.gfx.shadowMapping : true,
     shadowSoftness: (CFG.gfx && CFG.gfx.shadowSoftness !== undefined) ? CFG.gfx.shadowSoftness : 1.0,
-    carClearcoat: (CFG.gfx && CFG.gfx.carClearcoat !== undefined) ? CFG.gfx.carClearcoat : 0.80,
-    carGloss: (CFG.gfx && CFG.gfx.carGloss !== undefined) ? CFG.gfx.carGloss : 0.85
+    carClearcoat: (CFG.gfx && CFG.gfx.carClearcoat !== undefined) ? CFG.gfx.carClearcoat : 0.95,
+    carGloss: (CFG.gfx && CFG.gfx.carGloss !== undefined) ? CFG.gfx.carGloss : 0.96
   });
 
   useEffect(() => {
@@ -98,8 +109,8 @@ export default function App() {
         if (data.playerCar) {
           setPlayerStats(prev => {
             if (prev &&
-                prev.boost === data.playerCar.boost &&
-                prev.speed === data.playerCar.speed &&
+                Math.round(prev.boost) === Math.round(data.playerCar.boost) &&
+                Math.abs(prev.speed - data.playerCar.speed) < 0.6 &&
                 prev.isGrounded === data.playerCar.isGrounded) {
               return prev;
             }
@@ -137,7 +148,15 @@ export default function App() {
         setTuningPanelTab("camera");
         setShowTuningPanel(prev => !prev);
       } else if ((e.code === "KeyG" || e.code === "KeyM") && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        setShowCarCustomizer(prev => !prev);
+        setShowCarCustomizer(prev => {
+          if (!prev) setShowCarCustomizerUltra(false);
+          return !prev;
+        });
+      } else if (e.code === "KeyU" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setShowCarCustomizerUltra(prev => {
+          if (!prev) setShowCarCustomizer(false);
+          return !prev;
+        });
       }
     };
 
@@ -154,9 +173,9 @@ export default function App() {
   // Camera showcase mode when customizer drawer is open
   useEffect(() => {
     if (engineRef.current && engineRef.current.camera) {
-      engineRef.current.camera.customizerMode = showCarCustomizer;
+      engineRef.current.camera.customizerMode = showCarCustomizer || showCarCustomizerUltra;
     }
-  }, [showCarCustomizer]);
+  }, [showCarCustomizer, showCarCustomizerUltra]);
 
   // Sync announcements with game state
   useEffect(() => {
@@ -199,7 +218,12 @@ export default function App() {
 
     setMatchMode(mode);
     setActivePanel(null);
-    engineRef.current.startMatch(size, playerTeam, botSkill);
+    setShowCarCustomizer(false);
+    setGameState(mode === "freeplay" ? "PLAYING" : "COUNTDOWN");
+    if (engineRef.current.camera) {
+      engineRef.current.camera.customizerMode = false;
+    }
+    engineRef.current.startMatch(size, playerTeam, botSkill, mode);
   };
 
   const handleResume = () => {
@@ -221,12 +245,12 @@ export default function App() {
     }
   };
 
-  const handleToggleBallcam = () => {
+  const handleToggleBallcam = useCallback(() => {
     if (engineRef.current) {
       engineRef.current.camera.ballcam = !engineRef.current.camera.ballcam;
       setBallcam(engineRef.current.camera.ballcam);
     }
-  };
+  }, []);
 
   const handleUpdateConfig = (key, val) => {
     setCfgState(prev => ({ ...prev, [key]: val }));
@@ -313,15 +337,132 @@ export default function App() {
     return `${m}:${rem < 10 ? '0' : ''}${rem}`;
   };
 
-  // Virtual touch control handlers
-  const setVirtualInput = (key, val) => {
+  // Fullscreen & Orientation Management
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return typeof document !== "undefined" && !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+  });
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      const doc = document as any;
+      const docEl = document.documentElement as any;
+
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen({ navigationUI: "hide" }).catch(() => docEl.requestFullscreen());
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) {
+          await docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) {
+          await docEl.msRequestFullscreen();
+        }
+        setIsFullscreen(true);
+
+        // On mobile devices, try to lock orientation to landscape
+        if (screen.orientation && (screen.orientation as any).lock) {
+          try {
+            await (screen.orientation as any).lock("landscape");
+          } catch {}
+        }
+      } else {
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.mozCancelFullScreen) {
+          await doc.mozCancelFullScreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.warn("Fullscreen toggle error:", err);
+    }
+  }, []);
+
+  const toggleLandscapeFullscreen = useCallback(async () => {
+    if (virtualLandscape) {
+      setVirtualLandscape(false);
+      return;
+    }
+
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {}
+
+    try {
+      if (screen.orientation && (screen.orientation as any).lock) {
+        await (screen.orientation as any).lock("landscape");
+        return;
+      }
+    } catch (err) {}
+
+    // Fallback: If device is in portrait, force virtual 90deg landscape layout
+    if (window.innerHeight > window.innerWidth) {
+      setVirtualLandscape(true);
+    }
+  }, [virtualLandscape]);
+
+  useEffect(() => {
+    const handleOrientation = () => {
+      const landscape = window.innerWidth > window.innerHeight;
+      setIsLandscape(landscape);
+      if (landscape) {
+        setVirtualLandscape(false);
+      }
+      if (engineRef.current && engineRef.current.renderer) {
+        engineRef.current.renderer.resize();
+      }
+    };
+
+    const handleFsChange = () => {
+      const doc = document as any;
+      const fsActive = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+      setIsFullscreen(fsActive);
+      if (engineRef.current && engineRef.current.renderer) {
+        setTimeout(() => {
+          if (engineRef.current && engineRef.current.renderer) {
+            engineRef.current.renderer.resize();
+          }
+        }, 150);
+      }
+    };
+
+    window.addEventListener("resize", handleOrientation);
+    window.addEventListener("orientationchange", handleOrientation);
+    document.addEventListener("fullscreenchange", handleFsChange);
+    document.addEventListener("webkitfullscreenchange", handleFsChange);
+    document.addEventListener("mozfullscreenchange", handleFsChange);
+    document.addEventListener("MSFullscreenChange", handleFsChange);
+
+    return () => {
+      window.removeEventListener("resize", handleOrientation);
+      window.removeEventListener("orientationchange", handleOrientation);
+      document.removeEventListener("fullscreenchange", handleFsChange);
+      document.removeEventListener("webkitfullscreenchange", handleFsChange);
+      document.removeEventListener("mozfullscreenchange", handleFsChange);
+      document.removeEventListener("MSFullscreenChange", handleFsChange);
+    };
+  }, []);
+
+  // Virtual touch control handlers (Memoized for zero-lag performance)
+  const setVirtualInput = useCallback((key, val) => {
     if (engineRef.current && engineRef.current.input) {
       engineRef.current.input.virtual[key] = val;
     }
-  };
+  }, []);
 
   return (
-    <main id="app" className="relative w-full h-full overflow-hidden select-none font-sans text-neutral-100">
+    <main
+      id="app"
+      className={`relative w-full h-full overflow-hidden select-none font-sans text-neutral-100 ${
+        virtualLandscape && !isLandscape ? "virtual-landscape-container" : ""
+      }`}
+    >
       {/* 3D WebGL2 Canvas */}
       <canvas id="scene" ref={canvasRef} className="fixed inset-0 w-full h-full block touch-none z-0" />
 
@@ -350,7 +491,43 @@ export default function App() {
       )}
 
       {/* Floating Options & Tuning Dialog Button (Always Visible in Top Right) */}
-      <div className="fixed top-4 right-4 sm:top-5 sm:right-6 z-40 pointer-events-auto flex items-center gap-2">
+      <div className="fixed top-3 right-3 sm:top-5 sm:right-6 z-40 pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+        {/* Dedicated Fullscreen Button */}
+        <button
+          id="btn-toggle-fullscreen"
+          onClick={toggleFullscreen}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
+            isFullscreen
+              ? "bg-amber-400 text-neutral-950 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.4)]"
+              : "bg-neutral-950/90 hover:bg-neutral-900 border-amber-400/40 text-amber-300 hover:text-white"
+          }`}
+          title={isFullscreen ? "خروج از تمام‌صفحه (Exit Fullscreen)" : "حالت تمام‌صفحه (Fullscreen)"}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-950" />
+          ) : (
+            <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+          )}
+          <span className="hidden sm:inline font-mono">{isFullscreen ? "EXIT FULL" : "FULLSCREEN"}</span>
+          <span className="text-[10px] sm:hidden font-bold">{isFullscreen ? "خروج" : "تمام‌صفحه"}</span>
+        </button>
+
+        {/* Landscape Mode Button for Mobile */}
+        <button
+          id="btn-toggle-landscape"
+          onClick={toggleLandscapeFullscreen}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
+            isLandscape || virtualLandscape
+              ? "bg-emerald-400 text-neutral-950 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]"
+              : "bg-neutral-950/90 hover:bg-neutral-900 border-emerald-500/40 text-emerald-300 hover:text-white"
+          }`}
+          title="چرخش به حالت افقی (Landscape) برای بازی روی گوشی"
+        >
+          <RotateCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLandscape || virtualLandscape ? 'text-neutral-950' : 'text-emerald-400'}`} />
+          <span className="hidden sm:inline font-mono">LANDSCAPE</span>
+          <span className="text-[10px] sm:hidden font-bold">افقی</span>
+        </button>
+
         {/* Quick Mobile Controls Toggle Button */}
         <button
           id="btn-toggle-touch"
@@ -361,14 +538,14 @@ export default function App() {
               return next;
             });
           }}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-mono font-bold tracking-wider border shadow-2xl transition-all backdrop-blur-xl ${
             touchControlsEnabled
               ? "bg-[#42b8ff] text-neutral-950 border-[#42b8ff] shadow-[0_0_20px_rgba(66,184,255,0.4)]"
               : "bg-neutral-950/90 hover:bg-neutral-900 border-white/20 text-neutral-400 hover:text-white"
           }`}
           title="Toggle Mobile On-Screen Touch Controls (کنترل لمسی روی صفحه)"
         >
-          <Smartphone className={`w-4 h-4 ${touchControlsEnabled ? 'text-neutral-950' : 'text-[#42b8ff]'}`} />
+          <Smartphone className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${touchControlsEnabled ? 'text-neutral-950' : 'text-[#42b8ff]'}`} />
           <span className="hidden sm:inline font-mono">TOUCH</span>
           <span className={`w-2 h-2 rounded-full ${touchControlsEnabled ? 'bg-neutral-950' : 'bg-neutral-600'}`} />
         </button>
@@ -540,9 +717,23 @@ export default function App() {
               ballcam={ballcam}
               onToggleBallcam={handleToggleBallcam}
               boostAmount={playerStats.boost}
-              speed={playerStats.speed}
-              isGrounded={playerStats.isGrounded}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
             />
+          )}
+
+          {/* Mobile Portrait Suggestion Pill */}
+          {isTouchDevice && !isLandscape && !virtualLandscape && (
+            <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+              <button
+                type="button"
+                onClick={toggleLandscapeFullscreen}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-950/90 border border-emerald-400/50 text-emerald-300 font-mono text-[11px] font-bold shadow-2xl backdrop-blur-xl active:scale-95 transition-transform"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                <span>برای تجربه بهتر لمس کنید: حالت لنداسکیپ (افقی)</span>
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -554,7 +745,7 @@ export default function App() {
         <div
           id="menu"
           className={`screen z-20 flex flex-col justify-between p-6 sm:p-10 lg:p-16 overflow-y-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#173a63]/95 via-[#0b1b2d]/98 to-[#06101b] transition-all duration-300 ${
-            showCarCustomizer ? "opacity-0 pointer-events-none -translate-x-12" : "opacity-100 pointer-events-auto translate-x-0"
+            (showCarCustomizer || showCarCustomizerUltra) ? "opacity-0 pointer-events-none -translate-x-12" : "opacity-100 pointer-events-auto translate-x-0"
           }`}
         >
           {/* Header */}
@@ -609,12 +800,30 @@ export default function App() {
               {/* Utility Buttons */}
               <div className="flex gap-3 mt-6 flex-wrap">
                 <button
-                  onClick={() => setShowCarCustomizer(prev => !prev)}
+                  onClick={() => {
+                    setShowCarCustomizer(prev => {
+                      if (!prev) setShowCarCustomizerUltra(false);
+                      return !prev;
+                    });
+                  }}
                   className="btn flex items-center gap-2 px-4 py-2.5 rounded bg-gradient-to-r from-pink-600/30 via-pink-700/40 to-purple-600/30 hover:from-pink-600/50 hover:to-purple-600/50 border border-pink-400/60 text-xs font-mono font-bold uppercase tracking-wider text-white shadow-[0_0_20px_rgba(236,72,153,0.35)] transition"
-                  title="تغییر مدل ماشین و رنگ‌آمیزی تک‌تک قطعات"
+                  title="تغییر مدل ماشین و رنگ‌آمیزی تک‌تک قطعات [G]"
                 >
                   <Car className="w-4 h-4 text-pink-300 animate-pulse" />
                   <span>گاراژ و نقاشی ماشین (Paint Shop) [G]</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCarCustomizerUltra(prev => {
+                      if (!prev) setShowCarCustomizer(false);
+                      return !prev;
+                    });
+                  }}
+                  className="btn flex items-center gap-2 px-4 py-2.5 rounded bg-gradient-to-r from-purple-600/45 via-indigo-700/50 to-fuchsia-600/45 hover:from-purple-600/60 hover:to-fuchsia-600/60 border border-purple-400/80 text-xs font-mono font-bold uppercase tracking-wider text-white shadow-[0_0_25px_rgba(168,85,247,0.5)] transition"
+                  title="گاراژ فوق پیشرفته اولترا ورژن ۲ [U]"
+                >
+                  <Zap className="w-4 h-4 text-purple-300 animate-pulse" />
+                  <span>گاراژ فوق پیشرفته اولترا (Garage Ultra v2) [U]</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1324,6 +1533,30 @@ export default function App() {
         </button>
       )}
 
+      {/* Left Floating Trigger Button for Garage Ultra */}
+      {!showCarCustomizerUltra && (
+        <button
+          id="car-customizer-ultra-left-btn"
+          onClick={() => {
+            setShowCarCustomizerUltra(true);
+            setShowCarCustomizer(false);
+          }}
+          className="fixed top-[calc(50%+60px)] -translate-y-1/2 left-0 z-40 flex items-center gap-2 px-3 py-2.5 rounded-r-2xl bg-neutral-950/95 hover:bg-neutral-900 border-y border-r border-purple-500/40 hover:border-purple-500/80 text-purple-300 hover:text-white shadow-[10px_0_30px_rgba(0,0,0,0.85)] backdrop-blur-xl transition-all duration-200 group cursor-pointer"
+          title="گاراژ فوق پیشرفته اولترا [U]"
+        >
+          <div className="w-7 h-7 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400 group-hover:scale-110 shadow-[0_0_12px_rgba(168,85,247,0.3)] transition">
+            <Zap className="w-4 h-4 stroke-[2.2] animate-pulse" />
+          </div>
+          <div className="hidden sm:flex flex-col text-right pr-1">
+            <span className="text-xs font-bold text-white leading-tight flex items-center gap-1.5">
+              گاراژ Ultra
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            </span>
+            <span className="text-[9px] text-purple-300/80 font-mono">GARAGE ULTRA [U]</span>
+          </div>
+        </button>
+      )}
+
       {/* Floating 360-degree Garage Preview Banner */}
       {showCarCustomizer && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto bg-[#0b1b2d]/85 backdrop-blur-md border border-pink-500/40 rounded-full px-5 py-2 shadow-[0_0_25px_rgba(236,72,153,0.35)] flex items-center gap-3 animate-fade-in text-xs font-mono">
@@ -1339,6 +1572,21 @@ export default function App() {
         </div>
       )}
 
+      {/* Floating 360-degree Garage Ultra Preview Banner */}
+      {showCarCustomizerUltra && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-auto bg-slate-950/90 backdrop-blur-md border border-purple-500/40 rounded-full px-5 py-2 shadow-[0_0_25px_rgba(168,85,247,0.45)] flex items-center gap-3 animate-fade-in text-xs font-mono">
+          <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+          <span className="text-white font-bold">پیش‌نمایش گاراژ فوق پیشرفته اولترا (Garage Ultra v2)</span>
+          <span className="text-neutral-400 hidden sm:inline">| نسخه دوم • مدل‌های آیرودینامیک</span>
+          <button
+            onClick={() => setShowCarCustomizerUltra(false)}
+            className="ml-2 px-2.5 py-0.5 rounded bg-purple-600/70 hover:bg-purple-500 text-white text-[11px] font-bold transition"
+          >
+            {gameState === "MENU" ? "بازگشت به منو" : "بستن گاراژ"}
+          </button>
+        </div>
+      )}
+
       {/* Car Customizer Drawer on Left Side */}
       <CarCustomizerDrawer
         isOpen={showCarCustomizer}
@@ -1346,6 +1594,28 @@ export default function App() {
         engineRef={engineRef}
         onCustomizationChange={(key, val) => {
           // Live feedback: sync wheel radius if defined in CAR_WHEEL_DEFS
+          if (key === "wheel" && CAR_WHEEL_DEFS[val]) {
+            const r = CAR_WHEEL_DEFS[val].radius || 0.38;
+            CFG.vehicle.wheel.radius = r;
+            if (engineRef.current && engineRef.current.world && engineRef.current.world.cars) {
+              engineRef.current.world.cars.forEach(car => {
+                if (car.wheels) {
+                  car.wheels.forEach(w => {
+                    w.radius = r;
+                  });
+                }
+              });
+            }
+          }
+        }}
+      />
+
+      {/* Car Customizer Drawer Ultra on Left Side */}
+      <CarCustomizerDrawerUltra
+        isOpen={showCarCustomizerUltra}
+        onClose={() => setShowCarCustomizerUltra(false)}
+        engineRef={engineRef}
+        onCustomizationChange={(key, val) => {
           if (key === "wheel" && CAR_WHEEL_DEFS[val]) {
             const r = CAR_WHEEL_DEFS[val].radius || 0.38;
             CFG.vehicle.wheel.radius = r;

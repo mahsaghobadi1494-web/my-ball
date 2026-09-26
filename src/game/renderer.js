@@ -2,6 +2,7 @@
 import { TAU, PI, rad, clamp, lerp, V3, Quat, M4, m4perspective, m4ortho, m4lookAt, m4mul, m4compose, m3fromM4, tv, tc } from './math.js';
 import { CFG, TEAM_COLOR, STADIUM_THEMES } from './config.js';
 import { buildCarKit } from './carModels.js';
+import { isUltraCar, buildUltraCarMesh, isUltraWheel, buildUltraWheelMesh, isUltraTopper, buildUltraTopperMesh, isUltraAntenna, buildUltraAntennaMesh, getCarAccessoriesMounts, stepAntennaSway, clearUltraMeshCache, FA_FINISH_NAMES, FA_RIM_FINISH_NAMES } from './ultraCarAdapter.js';
 
 function parseHex(h, fallback) {
   if (!h || typeof h !== 'string') return fallback;
@@ -2343,262 +2344,438 @@ var FS_MAIN = [
   "  vec3 base = uColor * tex.rgb;",
   // =========================================================================
   // HIGH-PRECISION 3D SURFACE PROCEDURAL CAR VINYL DECALS
-  // Uses vLocalPos (x=width, y=height, z=length) & vLocalN for distortion-free mapping!
+  // Uses vLocalPos & vLocalN for distortion-free mapping on all car types!
   // =========================================================================
   "  float vMask = 0.0;",
   "  float vGlow = 0.0;",
   "  if (uVinylId > 0.5) {",
   "    float vScale = max(uVinylScale, 0.1);",
-  "    float distCenter = abs(vLocalPos.x); // Exact 0.0 at Hood/Roof center line",
-  "    float zPos = vLocalPos.z;           // +1.2 at Hood Nose, -1.2 at Rear Bumper",
-  "    float yPos = vLocalPos.y;           // +0.6 at Roof Top, -0.2 at Side Skirt",
+  "    float distCenter = abs(vLocalPos.x);",
+  "    float zPos = vLocalPos.z;",
+  "    float yPos = vLocalPos.y;",
   "",
-  "    // Hood / Roof Projection (Centered at Hood x=0.0)",
-  "    vec2 hUV = vec2(vLocalPos.x / (0.65 * vScale), (zPos + 1.2) / 2.4);",
+  "    // Normalized space adapting between Ultra compact models (~0.4 x 0.6) and classic models (~0.7 x 1.2)",
+  "    float carLen = abs(zPos) > 0.75 ? 2.4 : 1.25;",
+  "    float carWid = abs(vLocalPos.x) > 0.45 ? 0.75 : 0.42;",
+  "    float normZ = clamp((zPos + (carLen * 0.5)) / carLen, 0.0, 1.0);",
+  "    float normX = clamp(distCenter / carWid, 0.0, 1.0);",
+  "    vec2 hUV = vec2(vLocalPos.x / (carWid * vScale), normZ);",
+  "    vec2 sUV = vec2(normZ, clamp((yPos + 0.2) / 0.8, 0.0, 1.0));",
   "",
-  "    // Side Door Projection",
-  "    vec2 sUV = vec2((zPos + 1.2) / 2.4, (yPos + 0.2) / 0.8);",
+  "    float isTop = smoothstep(0.08, 0.40, vLocalN.y);",
+  "    float isSide = smoothstep(0.08, 0.40, abs(vLocalN.x));",
+  "    float anyBody = max(isTop, isSide * 0.85);",
   "",
-  "    float isTop = smoothstep(0.10, 0.45, vLocalN.y);",
-  "    float isSide = smoothstep(0.10, 0.45, abs(vLocalN.x));",
-  "",
-  "    // 1. RACING_STRIPES (Twin GT Center Stripes)",
-  "    if (uVinylId > 0.5 && uVinylId < 1.5) {",
-  "      float s1 = smoothstep(0.015, 0.005, abs(distCenter - 0.08 * vScale) - 0.035 * vScale);",
-  "      float p1 = smoothstep(0.008, 0.002, abs(distCenter - 0.140 * vScale) - 0.006 * vScale);",
+  "    // 1. DATASTREAM (Epic Matrix Binary Cascades)",
+  "    if (uVinylId >= 0.5 && uVinylId < 1.5) {",
+  "      float tD = uVinylAnimated > 0.5 ? uTime * 4.5 : 0.0;",
+  "      float colIdx = floor(normX * 18.0 * vScale);",
+  "      float colSpeed = fract(sin(colIdx * 19.31) * 437.5) * 1.5 + 0.8;",
+  "      float stream = fract(normZ * 2.5 - tD * 0.4 * colSpeed);",
+  "      float bit = step(0.65, fract(sin(colIdx * 7.1 + floor(normZ * 16.0 - tD * 3.0)) * 938.1));",
+  "      vMask = smoothstep(0.3, 0.0, stream) * bit * anyBody;",
+  "      vGlow = vMask * 2.5;",
+  "    }",
+  "    // 2. LAVAFLOW (Legendary Molten Magma Surge)",
+  "    else if (uVinylId >= 1.5 && uVinylId < 2.5) {",
+  "      float tL = uVinylAnimated > 0.5 ? uTime * 2.2 : 0.0;",
+  "      vec2 lCoord = vec2(normX * 8.0, normZ * 6.0) * vScale;",
+  "      float nA = sin(lCoord.x * 2.0 + lCoord.y * 1.5 + tL) * 0.5 + 0.5;",
+  "      float nB = cos(lCoord.x * 3.2 - lCoord.y * 2.4 - tL * 0.8) * 0.5 + 0.5;",
+  "      float crack = abs(nA - nB);",
+  "      vMask = smoothstep(0.12, 0.02, crack) * anyBody;",
+  "      float pulse = sin(tL * 2.5 + normZ * 8.0) * 0.5 + 0.5;",
+  "      vGlow = vMask * (2.4 + pulse * 1.8);",
+  "    }",
+  "    // 3. PORTAL (Legendary Cosmic Swirling Vortex)",
+  "    else if (uVinylId >= 2.5 && uVinylId < 3.5) {",
+  "      float tP = uVinylAnimated > 0.5 ? uTime * 3.0 : 0.0;",
+  "      vec2 pCenter = vec2(vLocalPos.x * 2.2, (zPos - 0.1) * 1.8);",
+  "      float r = length(pCenter);",
+  "      float a = atan(pCenter.y, pCenter.x);",
+  "      float spiral = sin(r * 18.0 - a * 3.0 - tP * 3.14) * 0.5 + 0.5;",
+  "      float core = smoothstep(0.35, 0.05, r);",
+  "      vMask = clamp(spiral * smoothstep(0.9, 0.2, r) + core * 1.2, 0.0, 1.0) * isTop;",
+  "      vGlow = (core * 3.0 + spiral * 1.5);",
+  "    }",
+  "    // 4. AURORAVEIL (Epic Dancing Polar Aurora Veil)",
+  "    else if (uVinylId >= 3.5 && uVinylId < 4.5) {",
+  "      float tA = uVinylAnimated > 0.5 ? uTime * 2.8 : 0.0;",
+  "      float wave = sin(normZ * 12.0 - tA + normX * 8.0) * 0.12 + cos(normZ * 22.0 + tA * 1.4) * 0.06;",
+  "      float veil = smoothstep(0.08, 0.01, abs(normX - 0.5 + wave));",
+  "      vMask = veil * anyBody;",
+  "      vGlow = veil * (2.2 + sin(tA * 2.0 + normZ * 10.0) * 0.8);",
+  "    }",
+  "    // 5. HYPERSPACE (Epic Warp Speed Star Streaks)",
+  "    else if (uVinylId >= 4.5 && uVinylId < 5.5) {",
+  "      float tH = uVinylAnimated > 0.5 ? uTime * 8.0 : 0.0;",
+  "      float streakId = floor(normX * 24.0 * vScale);",
+  "      float sSpeed = fract(sin(streakId * 13.7) * 987.2) * 2.0 + 1.0;",
+  "      float streak = smoothstep(0.25, 0.0, fract(normZ * 4.0 - tH * 0.5 * sSpeed));",
+  "      vMask = streak * step(0.4, fract(sin(streakId * 7.9) * 431.1)) * anyBody;",
+  "      vGlow = vMask * 2.6;",
+  "    }",
+  "    // 6. CIRCUITBOARD / QUANTUM_CIRCUIT (Golden PCB Logic Tracks)",
+  "    else if (uVinylId >= 5.5 && uVinylId < 6.5) {",
+  "      float tC = uVinylAnimated > 0.5 ? uTime * 3.5 : 0.0;",
+  "      vec2 cCell = fract(vec2(normX * 12.0, normZ * 16.0) * vScale);",
+  "      float trk = smoothstep(0.08, 0.02, abs(cCell.x - 0.5)) + smoothstep(0.08, 0.02, abs(cCell.y - 0.5));",
+  "      float node = smoothstep(0.24, 0.12, length(cCell - 0.5));",
+  "      float pulse = smoothstep(0.2, 0.04, length(cCell - vec2(fract(tC * 0.3), 0.5)));",
+  "      vMask = clamp(max(trk * 0.75, node) + pulse * 1.2, 0.0, 1.0) * anyBody;",
+  "      vGlow = (node * 1.6 + pulse * 3.2);",
+  "    }",
+  "    // 7. PULSEWAVE (Sonic Audio Equalizer Waveform)",
+  "    else if (uVinylId >= 6.5 && uVinylId < 7.5) {",
+  "      float tPW = uVinylAnimated > 0.5 ? uTime * 4.2 : 0.0;",
+  "      float freq = sin(normZ * 24.0 - tPW) * 0.20 + sin(normZ * 48.0 + tPW * 1.5) * 0.10;",
+  "      float wave = smoothstep(0.05, 0.01, abs(normX - 0.45 - freq));",
+  "      vMask = wave * anyBody;",
+  "      vGlow = wave * 2.4;",
+  "    }",
+  "    // 8. MATRIXRAIN (Cascading Digital Matrix Drops)",
+  "    else if (uVinylId >= 7.5 && uVinylId < 8.5) {",
+  "      float tM = uVinylAnimated > 0.5 ? uTime * 5.0 : 0.0;",
+  "      vec2 mUV = vec2(normX * 16.0, normZ * 12.0) * vScale;",
+  "      float colSpeed = fract(sin(floor(mUV.x) * 45.13) * 912.4) * 2.0 + 1.0;",
+  "      float drop = fract(mUV.y * 0.2 - tM * 0.35 * colSpeed);",
+  "      float charHash = fract(sin(dot(floor(vec2(mUV.x, mUV.y - tM * 3.0)), vec2(13.1, 71.7))) * 31415.9);",
+  "      if (charHash > 0.5) vMask = pow(1.0 - drop, 2.5) * anyBody;",
+  "      vGlow = vMask * 2.8;",
+  "    }",
+  "    // 9. VOIDCORE (Gravitational Singularity Rift)",
+  "    else if (uVinylId >= 8.5 && uVinylId < 9.5) {",
+  "      float tV = uVinylAnimated > 0.5 ? uTime * 3.0 : 0.0;",
+  "      vec2 vCenter = vec2(vLocalPos.x * 2.5, (zPos - 0.1) * 2.0);",
+  "      float vDist = length(vCenter);",
+  "      float vRing = smoothstep(0.02, 0.005, abs(fract(vDist * 6.0 - tV * 0.4) - 0.5) - 0.38);",
+  "      vMask = vRing * smoothstep(0.8, 0.1, vDist) * isTop;",
+  "      vGlow = vMask * 2.8;",
+  "    }",
+  "    // 10. CYBERDECK (Futuristic HUD Telemetry Grid)",
+  "    else if (uVinylId >= 9.5 && uVinylId < 10.5) {",
+  "      vec2 cdUV = vec2(normX * 10.0, normZ * 8.0) * vScale;",
+  "      float slash = smoothstep(0.03, 0.008, abs(fract(cdUV.x + cdUV.y * 0.5) - 0.5) - 0.35);",
+  "      float gridL = smoothstep(0.04, 0.01, min(abs(fract(cdUV.x) - 0.5), abs(fract(cdUV.y) - 0.5)));",
+  "      vMask = max(slash * 0.8, gridL) * anyBody;",
+  "      vGlow = vMask * 2.0;",
+  "    }",
+  "    // 11. BIOHAZARD (Radioactive Toxic Hazard Rings)",
+  "    else if (uVinylId >= 10.5 && uVinylId < 11.5) {",
+  "      float tB = uVinylAnimated > 0.5 ? uTime * 3.5 : 0.0;",
+  "      vec2 bCenter = vec2(vLocalPos.x * 2.5, (zPos - 0.1) * 2.0);",
+  "      float bDist = length(bCenter);",
+  "      float bAng = atan(bCenter.y, bCenter.x) + tB * 0.2;",
+  "      float blades = sin(bAng * 3.0) * 0.5 + 0.5;",
+  "      float ring = smoothstep(0.03, 0.008, abs(bDist - 0.30));",
+  "      vMask = clamp(blades * smoothstep(0.40, 0.15, bDist) + ring, 0.0, 1.0) * isTop;",
+  "      vGlow = vMask * (2.5 + sin(tB * 2.0) * 0.8);",
+  "    }",
+  "    // 12. RACING_STRIPES (Twin GT Center Stripes)",
+  "    else if (uVinylId >= 11.5 && uVinylId < 12.5) {",
+  "      float s1 = smoothstep(0.015, 0.005, abs(normX - 0.18 * vScale) - 0.08 * vScale);",
+  "      float p1 = smoothstep(0.008, 0.002, abs(normX - 0.32 * vScale) - 0.015 * vScale);",
   "      vMask = max(s1, p1) * isTop;",
   "    }",
-  "    // 2. CYBER_GRID (Matrix Pulse Grid)",
-  "    else if (uVinylId >= 1.5 && uVinylId < 2.5) {",
-  "      vec2 gUV = vLocalPos.xz * 12.0 * vScale;",
+  "    // 13. CYBER_GRID (Matrix Pulse Grid)",
+  "    else if (uVinylId >= 12.5 && uVinylId < 13.5) {",
+  "      vec2 gUV = vec2(normX * 14.0, normZ * 14.0) * vScale;",
   "      if (uVinylAnimated > 0.5) gUV.y -= uTime * 2.2;",
   "      vec2 gGrid = abs(fract(gUV - 0.5) - 0.5) / (fwidth(gUV) + 0.001);",
   "      float gLine = 1.0 - min(min(gGrid.x, gGrid.y), 1.0);",
-  "      float pulse = sin(zPos * 10.0 - uTime * 6.0) * 0.5 + 0.5;",
-  "      vMask = clamp(gLine, 0.0, 1.0) * (0.6 + 0.4 * pulse);",
+  "      float pulse = sin(normZ * 10.0 - uTime * 6.0) * 0.5 + 0.5;",
+  "      vMask = clamp(gLine, 0.0, 1.0) * (0.6 + 0.4 * pulse) * anyBody;",
   "      vGlow = vMask * (1.5 + 1.5 * pulse);",
   "    }",
-  "    // 3. FLAME_SURGE (Dynamic Flowing Flames)",
-  "    else if (uVinylId >= 2.5 && uVinylId < 3.5) {",
+  "    // 14. FLAME_SURGE (Dynamic Flowing Flames)",
+  "    else if (uVinylId >= 13.5 && uVinylId < 14.5) {",
   "      float animY = uVinylAnimated > 0.5 ? uTime * 3.5 : 0.0;",
-  "      float wave1 = sin(distCenter * 25.0 - animY + zPos * 8.0) * 0.08;",
-  "      float wave2 = cos(distCenter * 45.0 + animY * 1.5 - zPos * 12.0) * 0.04;",
-  "      float flameLimit = 0.50 - (distCenter * 1.2) + wave1 + wave2;",
-  "      float fMask = smoothstep(flameLimit - 0.05, flameLimit + 0.02, hUV.y);",
-  "      vMask = (1.0 - fMask) * max(isTop, isSide * 0.8);",
-  "      vGlow = vMask * (1.8 + sin(uTime * 10.0 + distCenter * 20.0) * 0.6);",
+  "      float wave1 = sin(normX * 18.0 - animY + normZ * 8.0) * 0.10;",
+  "      float wave2 = cos(normX * 32.0 + animY * 1.5 - normZ * 12.0) * 0.05;",
+  "      float flameLimit = 0.65 - (normX * 0.8) + wave1 + wave2;",
+  "      float fMask = smoothstep(flameLimit - 0.06, flameLimit + 0.02, normZ);",
+  "      vMask = (1.0 - fMask) * anyBody;",
+  "      vGlow = vMask * (1.8 + sin(uTime * 10.0 + normX * 15.0) * 0.6);",
   "    }",
-  "    // 4. LIGHTNING_STORM (Electric Plasma Bolts)",
-  "    else if (uVinylId >= 3.5 && uVinylId < 4.5) {",
+  "    // 15. LIGHTNING_STORM (Electric Plasma Bolts)",
+  "    else if (uVinylId >= 14.5 && uVinylId < 15.5) {",
   "      float tE = uVinylAnimated > 0.5 ? uTime * 9.0 : 0.0;",
-  "      float jag1 = sin(zPos * 25.0 + floor(tE) * 17.13) * 0.10 + sin(zPos * 50.0 - tE * 2.0) * 0.04;",
-  "      float bolt1 = smoothstep(0.020, 0.003, abs(distCenter - 0.12 - jag1));",
-  "      float jag2 = cos(zPos * 35.0 + floor(tE * 1.3) * 23.41) * 0.08;",
-  "      float bolt2 = smoothstep(0.016, 0.002, abs(distCenter - 0.26 - jag2));",
-  "      vMask = max(bolt1, bolt2);",
+  "      float jag1 = sin(normZ * 20.0 + floor(tE) * 17.13) * 0.12 + sin(normZ * 40.0 - tE * 2.0) * 0.05;",
+  "      float bolt1 = smoothstep(0.025, 0.005, abs(normX - 0.35 - jag1));",
+  "      float jag2 = cos(normZ * 28.0 + floor(tE * 1.3) * 23.41) * 0.10;",
+  "      float bolt2 = smoothstep(0.020, 0.004, abs(normX - 0.65 - jag2));",
+  "      vMask = max(bolt1, bolt2) * anyBody;",
   "      vGlow = vMask * (2.2 + sin(uTime * 20.0) * 0.8);",
   "    }",
-  "    // 5. WAVE_FLOW (Holo Wave Stream)",
-  "    else if (uVinylId >= 4.5 && uVinylId < 5.5) {",
+  "    // 16. WAVE_FLOW (Holo Wave Stream)",
+  "    else if (uVinylId >= 15.5 && uVinylId < 16.5) {",
   "      float tW = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
-  "      float wSin = sin(zPos * 18.0 - tW + sin(distCenter * 12.0) * 2.5);",
-  "      float wCos = cos(distCenter * 20.0 + zPos * 10.0 - tW * 0.8);",
-  "      vMask = smoothstep(0.4, 0.9, wSin * 0.5 + wCos * 0.5);",
+  "      float wSin = sin(normZ * 16.0 - tW + sin(normX * 10.0) * 2.5);",
+  "      float wCos = cos(normX * 16.0 + normZ * 8.0 - tW * 0.8);",
+  "      vMask = smoothstep(0.35, 0.85, wSin * 0.5 + wCos * 0.5) * anyBody;",
   "      vGlow = pow(vMask, 2.0) * (1.4 + sin(tW * 1.5) * 0.4);",
   "    }",
-  "    // 6. CARBON_HEX (Hex Honeycomb Carbon)",
-  "    else if (uVinylId >= 5.5 && uVinylId < 6.5) {",
-  "      vec2 cUV = vLocalPos.xz * 18.0 * vScale;",
+  "    // 17. CARBON_HEX (Hex Honeycomb Carbon)",
+  "    else if (uVinylId >= 16.5 && uVinylId < 17.5) {",
+  "      vec2 cUV = vec2(normX * 16.0, normZ * 22.0) * vScale;",
   "      vec2 hFract = abs(fract(cUV) - 0.5);",
   "      float hexDist = max(hFract.x * 0.866025 + hFract.y * 0.5, hFract.y);",
-  "      vMask = smoothstep(0.40, 0.48, hexDist);",
+  "      vMask = smoothstep(0.40, 0.48, hexDist) * anyBody;",
   "    }",
-  "    // 7. CAMO_TACTICAL (Urban Tactical Camo)",
-  "    else if (uVinylId >= 6.5 && uVinylId < 7.5) {",
-  "      vec2 cUV = floor(vLocalPos.xz * 10.0 * vScale);",
+  "    // 18. CAMO_TACTICAL (Urban Tactical Camo)",
+  "    else if (uVinylId >= 17.5 && uVinylId < 18.5) {",
+  "      vec2 cUV = floor(vec2(normX * 10.0, normZ * 12.0) * vScale);",
   "      float cHash = fract(sin(dot(cUV, vec2(127.1, 311.7))) * 43758.5453);",
-  "      vMask = smoothstep(0.45, 0.55, cHash);",
+  "      vMask = smoothstep(0.45, 0.55, cHash) * anyBody;",
   "    }",
-  "    // 8. DIGITAL_MATRIX (Digital Rain Matrix)",
-  "    else if (uVinylId >= 7.5 && uVinylId < 8.5) {",
+  "    // 19. DIGITAL_MATRIX",
+  "    else if (uVinylId >= 18.5 && uVinylId < 19.5) {",
   "      float tM = uVinylAnimated > 0.5 ? uTime * 5.0 : 0.0;",
-  "      vec2 mUV = vec2(vLocalPos.x * 15.0, zPos * 10.0) * vScale;",
+  "      vec2 mUV = vec2(normX * 15.0, normZ * 10.0) * vScale;",
   "      float colSpeed = fract(sin(floor(mUV.x) * 45.13) * 912.4) * 2.0 + 1.0;",
   "      float drop = fract(mUV.y * 0.15 - tM * 0.3 * colSpeed);",
   "      float charHash = fract(sin(dot(floor(vec2(mUV.x, mUV.y - tM * 3.0)), vec2(13.1, 71.7))) * 31415.9);",
-  "      if (charHash > 0.55) vMask = pow(1.0 - drop, 3.0);",
+  "      if (charHash > 0.55) vMask = pow(1.0 - drop, 3.0) * anyBody;",
   "      vGlow = vMask * 2.4;",
   "    }",
-  "    // 9. SPEED_APEX (Apex Wings)",
-  "    else if (uVinylId >= 8.5 && uVinylId < 9.5) {",
-  "      float aZ = (zPos + 0.8) * 1.2 * vScale;",
-  "      float apex1 = smoothstep(0.025, 0.005, abs(distCenter - aZ * 0.4) - 0.03);",
-  "      float apex2 = smoothstep(0.025, 0.005, abs(distCenter - (aZ - 0.3) * 0.5) - 0.025);",
+  "    // 20. SPEED_APEX (Apex Wings)",
+  "    else if (uVinylId >= 19.5 && uVinylId < 20.5) {",
+  "      float apex1 = smoothstep(0.03, 0.008, abs(normX - normZ * 0.7) - 0.04);",
+  "      float apex2 = smoothstep(0.03, 0.008, abs(normX - (normZ - 0.25) * 0.8) - 0.03);",
   "      vMask = max(apex1, apex2) * isTop;",
   "    }",
-  "    // 10. SUNBURST_RAYS (Sunburst Rays)",
-  "    else if (uVinylId >= 9.5 && uVinylId < 10.5) {",
-  "      float angle = atan(zPos - 0.3, distCenter);",
+  "    // 21. SUNBURST_RAYS",
+  "    else if (uVinylId >= 20.5 && uVinylId < 21.5) {",
+  "      float angle = atan(normZ - 0.5, normX);",
   "      float rays = sin(angle * 16.0 * vScale);",
   "      vMask = smoothstep(0.3, 0.7, rays) * isTop;",
   "    }",
-  "    // 11. DRAGON_FIRE (Mythic Dragon Breath & Animated Blazing Fire Streams)",
-  "    else if (uVinylId >= 10.5 && uVinylId < 11.5) {",
+  "    // 22. DRAGON_FIRE",
+  "    else if (uVinylId >= 21.5 && uVinylId < 22.5) {",
   "      float tD = uVinylAnimated > 0.5 ? uTime * 8.0 : 0.0;",
-  "      vec2 dHeadP = vec2(distCenter * 2.2, (zPos - 0.4) * 1.8);",
-  "      float dHead = smoothstep(0.22, 0.15, length(dHeadP));",
-  "      float hornL = smoothstep(0.025, 0.005, abs(distCenter - (zPos - 0.2) * 0.5 - 0.08) - 0.02) * step(0.2, zPos) * step(zPos, 0.7);",
-  "      float fSpread = (zPos - 0.3) * 0.8;",
-  "      float fTurb = sin(zPos * 25.0 - tD * 2.0 + distCenter * 20.0) * 0.05;",
-  "      float flameBreath = smoothstep(fSpread + 0.08 + fTurb, fSpread - 0.02 + fTurb, distCenter) * step(0.3, zPos);",
-  "      vMask = clamp(dHead + hornL + flameBreath, 0.0, 1.0) * max(isTop, isSide * 0.8);",
-  "      vGlow = (flameBreath * 2.8 + dHead * 1.5) * (1.0 + 0.3 * sin(tD * 1.5));",
+  "      float fSpread = normZ * 0.8;",
+  "      float fTurb = sin(normZ * 25.0 - tD * 2.0 + normX * 20.0) * 0.06;",
+  "      float flame = smoothstep(fSpread + 0.10 + fTurb, fSpread - 0.02 + fTurb, normX);",
+  "      vMask = flame * anyBody;",
+  "      vGlow = flame * (2.5 + 0.5 * sin(tD * 1.5));",
   "    }",
-  "    // 12. PHOENIX_BLAZE (Immortal Phoenix Wing Crest & Solar Flares)",
-  "    else if (uVinylId >= 11.5 && uVinylId < 12.5) {",
+  "    // 23. PHOENIX_BLAZE",
+  "    else if (uVinylId >= 22.5 && uVinylId < 23.5) {",
   "      float tP = uVinylAnimated > 0.5 ? uTime * 6.0 : 0.0;",
-  "      float wingZ = abs(zPos - 0.3);",
-  "      float wingSpan = sin(distCenter * 10.0 * vScale + tP * 0.4) * 0.08;",
-  "      float wingArch = smoothstep(0.035, 0.008, abs(wingZ - (distCenter * 0.7 + wingSpan)) - 0.025);",
-  "      float crestCore = smoothstep(0.18, 0.04, length(vec2(distCenter * 2.5, (zPos - 0.3) * 2.0)));",
-  "      vMask = clamp(max(wingArch, crestCore), 0.0, 1.0) * isTop;",
-  "      vGlow = vMask * (2.2 + sin(tP + distCenter * 10.0) * 0.8);",
+  "      float wingArch = smoothstep(0.04, 0.01, abs(abs(normZ - 0.5) - (normX * 0.6)) - 0.03);",
+  "      vMask = wingArch * isTop;",
+  "      vGlow = vMask * (2.2 + sin(tP + normX * 10.0) * 0.8);",
   "    }",
-  "    // 13. HERO_SPIDER_WEB (Superhero Spider-Web Suit & Neon Spider Emblem)",
-  "    else if (uVinylId >= 12.5 && uVinylId < 13.5) {",
-  "      vec2 centerP = vec2(0.0, 0.4);",
-  "      vec2 toC = vec2(distCenter, zPos - centerP.y);",
+  "    // 24. HERO_SPIDER_WEB",
+  "    else if (uVinylId >= 23.5 && uVinylId < 24.5) {",
+  "      vec2 toC = vec2(normX, normZ - 0.5);",
   "      float dC = length(toC);",
-  "      float webRings = smoothstep(0.015, 0.003, abs(fract(dC * 12.0 * vScale) - 0.5) - 0.42);",
+  "      float webRings = smoothstep(0.02, 0.005, abs(fract(dC * 10.0 * vScale) - 0.5) - 0.40);",
   "      float webAngle = atan(toC.y, toC.x);",
-  "      float webSpokes = smoothstep(0.018, 0.004, abs(sin(webAngle * 10.0)) - 0.92);",
-  "      float spiderBody = smoothstep(0.08, 0.02, dC);",
-  "      vMask = clamp(max(webRings * webSpokes, spiderBody), 0.0, 1.0) * max(isTop, isSide * 0.6);",
-  "      vGlow = spiderBody * 2.5 + webRings * 0.6;",
+  "      float webSpokes = smoothstep(0.02, 0.005, abs(sin(webAngle * 8.0)) - 0.90);",
+  "      vMask = (webRings * webSpokes) * anyBody;",
+  "      vGlow = vMask * 2.0;",
   "    }",
-  "    // 14. HERO_LIGHTNING_BOLT (Superhero Thunderbolt & Electric Shockwaves)",
-  "    else if (uVinylId >= 13.5 && uVinylId < 14.5) {",
+  "    // 25. HERO_LIGHTNING_BOLT",
+  "    else if (uVinylId >= 24.5 && uVinylId < 25.5) {",
   "      float tZ = uVinylAnimated > 0.5 ? uTime * 10.0 : 0.0;",
-  "      float boltPath = (zPos > 0.3) ? (zPos - 0.3) * 0.3 - 0.05 : (0.3 - zPos) * 0.4 + 0.04;",
-  "      float boltMain = smoothstep(0.035 * vScale, 0.005, abs(distCenter - abs(boltPath)) - 0.025 * vScale);",
-  "      float crackle = sin(zPos * 40.0 + floor(tZ) * 23.1) * 0.05;",
-  "      float boltArc = smoothstep(0.02, 0.002, abs(distCenter - 0.22 - crackle));",
-  "      vMask = max(boltMain, boltArc);",
-  "      vGlow = vMask * (2.8 + sin(uTime * 25.0) * 0.8);",
+  "      float crackle = sin(normZ * 30.0 + floor(tZ) * 20.0) * 0.08;",
+  "      float bolt = smoothstep(0.03, 0.005, abs(normX - 0.35 - crackle));",
+  "      vMask = bolt * anyBody;",
+  "      vGlow = bolt * 2.8;",
   "    }",
-  "    // 15. HERO_COSMIC_STAR (Cosmic Star Shield & Orbital Rings)",
-  "    else if (uVinylId >= 14.5 && uVinylId < 15.5) {",
-  "      float tS = uVinylAnimated > 0.5 ? uTime * 3.0 : 0.0;",
-  "      vec2 sP = vec2(distCenter, zPos - 0.4);",
+  "    // 26. HERO_COSMIC_STAR / STARBURST",
+  "    else if (uVinylId >= 25.5 && uVinylId < 26.5) {",
+  "      vec2 sP = vec2(normX, normZ - 0.5);",
   "      float sDist = length(sP);",
-  "      float sAng = atan(sP.y, sP.x) + tS * 0.3;",
-  "      float starR = 0.16 + sin(sAng * 5.0) * 0.07;",
-  "      float star = smoothstep(starR + 0.01, starR - 0.01, sDist);",
-  "      float orbRing = smoothstep(0.018, 0.004, abs(sDist - 0.32) - 0.012);",
-  "      vMask = clamp(max(star, orbRing), 0.0, 1.0) * isTop;",
-  "      vGlow = star * 2.5 + orbRing * 1.6;",
+  "      float sAng = atan(sP.y, sP.x);",
+  "      float star = smoothstep(0.22 + sin(sAng * 5.0) * 0.08, 0.10, sDist);",
+  "      vMask = star * isTop;",
+  "      vGlow = star * 2.5;",
   "    }",
-  "    // 16. HERO_BAT_WING (Dark Knight Bat Wings Emblem)",
-  "    else if (uVinylId >= 15.5 && uVinylId < 16.5) {",
-  "      float bZ = (zPos - 0.4) * 2.0;",
-  "      float bX = distCenter * 2.2;",
-  "      float topEdge = 0.12 - bX * 0.2 + (bX < 0.15 ? (0.15 - bX) * 0.8 : 0.0);",
-  "      float botEdge = -0.15 + sin(bX * 20.0) * 0.06 + bX * 0.3;",
-  "      float batWing = step(botEdge, bZ) * step(bZ, topEdge) * step(bX, 0.65);",
-  "      vMask = batWing * isTop;",
-  "      vGlow = batWing * 1.8;",
+  "    // 27. HERO_BAT_WING",
+  "    else if (uVinylId >= 26.5 && uVinylId < 27.5) {",
+  "      float bZ = (normZ - 0.5) * 2.0;",
+  "      float bat = step(-0.15 + normX * 0.3, bZ) * step(bZ, 0.15 - normX * 0.15) * step(normX, 0.7);",
+  "      vMask = bat * isTop;",
+  "      vGlow = bat * 1.8;",
   "    }",
-  "    // 17. CUTE_STARS_GALAXY (Kawaii Twinkling Stars & Rainbow Sparkle Stream)",
-  "    else if (uVinylId >= 16.5 && uVinylId < 17.5) {",
-  "      float tK = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
-  "      vec2 kGrid = vLocalPos.xz * 12.0 * vScale;",
+  "    // 28. CUTE_STARS_GALAXY",
+  "    else if (uVinylId >= 27.5 && uVinylId < 28.5) {",
+  "      vec2 kGrid = vec2(normX * 12.0, normZ * 14.0) * vScale;",
   "      vec2 kLocal = fract(kGrid) - 0.5;",
   "      float kHash = fract(sin(dot(floor(kGrid), vec2(12.9898, 78.233))) * 43758.5453);",
-  "      float kStarDist = abs(kLocal.x) + abs(kLocal.y);",
-  "      float twinkle = sin(tK * 3.0 + kHash * 20.0) * 0.5 + 0.5;",
-  "      float kStar = (kHash > 0.40) ? smoothstep(0.28 * twinkle, 0.05, kStarDist) : 0.0;",
-  "      vMask = kStar;",
-  "      vGlow = kStar * 2.5 * (0.8 + 0.4 * twinkle);",
+  "      float kStar = (kHash > 0.45) ? smoothstep(0.25, 0.05, abs(kLocal.x) + abs(kLocal.y)) : 0.0;",
+  "      vMask = kStar * anyBody;",
+  "      vGlow = kStar * 2.2;",
   "    }",
-  "    // 18. CUTE_MONSTER_SMILE (Playful Cartoon Monster Teeth & Eyes)",
-  "    else if (uVinylId >= 17.5 && uVinylId < 18.5) {",
-  "      float mouthZ = zPos - 0.7 + pow(distCenter * 1.5, 2.0) * 0.2;",
-  "      float mouthOpen = smoothstep(0.08, 0.05, abs(mouthZ) - 0.04) * step(distCenter, 0.35);",
-  "      float teeth = abs(sin(distCenter * 40.0)) * mouthOpen;",
-  "      vec2 eyeL = vec2(distCenter - 0.16, (zPos - 0.4) * 1.5);",
-  "      float eyeOut = smoothstep(0.08, 0.05, length(eyeL));",
-  "      float pupil = smoothstep(0.035, 0.020, length(eyeL));",
-  "      vMask = clamp(mouthOpen * teeth + (eyeOut - pupil), 0.0, 1.0);",
-  "      vGlow = vMask * 1.3;",
+  "    // 29. CUTE_MONSTER_SMILE",
+  "    else if (uVinylId >= 28.5 && uVinylId < 29.5) {",
+  "      float mouth = smoothstep(0.08, 0.04, abs(normZ - 0.7 + pow(normX, 2.0) * 0.2) - 0.04) * step(normX, 0.6);",
+  "      float teeth = abs(sin(normX * 30.0)) * mouth;",
+  "      vMask = teeth * anyBody;",
+  "      vGlow = teeth * 1.5;",
   "    }",
-  "    // 19. CUTE_CANDY_SWEETS (Dripping Frosting Glaze & Rainbow Candy Sprinkles)",
-  "    else if (uVinylId >= 18.5 && uVinylId < 19.5) {",
-  "      float drip = sin(distCenter * 15.0) * 0.08 + cos(zPos * 20.0) * 0.04;",
-  "      float glaze = smoothstep(0.3 + drip, 0.25 + drip, yPos);",
-  "      vec2 sGrid = vLocalPos.xz * 20.0;",
-  "      float sHash = fract(sin(dot(floor(sGrid), vec2(37.1, 89.3))) * 23421.6);",
-  "      float sprinkle = (sHash > 0.65) ? smoothstep(0.2, 0.05, length(fract(sGrid) - 0.5)) : 0.0;",
-  "      vMask = clamp(glaze * 0.8 + sprinkle, 0.0, 1.0);",
-  "      vGlow = sprinkle * 1.8;",
+  "    // 30. CUTE_CANDY_SWEETS",
+  "    else if (uVinylId >= 29.5 && uVinylId < 30.5) {",
+  "      float drip = sin(normX * 15.0) * 0.08 + cos(normZ * 18.0) * 0.04;",
+  "      float glaze = smoothstep(0.4 + drip, 0.35 + drip, sUV.y);",
+  "      vMask = glaze * anyBody;",
+  "      vGlow = glaze * 1.5;",
   "    }",
-  "    // 20. PIXEL_ARCADE_8BIT (Retro 8-Bit Arcade Invaders & Pixel Hearts)",
-  "    else if (uVinylId >= 19.5 && uVinylId < 20.5) {",
-  "      vec2 pUV = floor(vLocalPos.xz * 16.0 * vScale);",
-  "      float pInvader = 0.0;",
+  "    // 31. PIXEL_ARCADE_8BIT",
+  "    else if (uVinylId >= 30.5 && uVinylId < 31.5) {",
+  "      vec2 pUV = floor(vec2(normX * 16.0, normZ * 16.0) * vScale);",
   "      vec2 pCell = mod(pUV, 8.0);",
-  "      vec2 pSym = vec2(abs(pCell.x - 3.5), pCell.y);",
-  "      if (pSym.y == 1.0 && pSym.x < 1.0) pInvader = 1.0;",
-  "      if (pSym.y == 2.0 && pSym.x < 2.0) pInvader = 1.0;",
-  "      if (pSym.y == 3.0 && (pSym.x < 3.5 && pSym.x > 1.0)) pInvader = 1.0;",
-  "      if (pSym.y == 4.0 && pSym.x < 3.0) pInvader = 1.0;",
-  "      if (pSym.y == 5.0 && pSym.x > 1.5) pInvader = 1.0;",
-  "      if (pSym.y == 6.0 && (pSym.x < 0.8 || pSym.x > 2.5)) pInvader = 1.0;",
+  "      float pInvader = (pCell.y >= 2.0 && pCell.y <= 5.0 && abs(pCell.x - 3.5) <= 2.5) ? 1.0 : 0.0;",
   "      vMask = pInvader * isTop;",
-  "      vGlow = pInvader * (2.0 + sin(uTime * 8.0) * 0.6);",
+  "      vGlow = pInvader * 2.2;",
   "    }",
-  "    // 21. CUTE_PAW_PRINTS (Walking Kitty/Puppy Paw Prints)",
-  "    else if (uVinylId >= 20.5 && uVinylId < 21.5) {",
-  "      vec2 pawUV = vec2(distCenter * 8.0, zPos * 6.0);",
-  "      vec2 pawCell = fract(pawUV) - 0.5;",
-  "      float pawHash = fract(sin(dot(floor(pawUV), vec2(23.7, 67.1))) * 54321.1);",
-  "      float mainPad = smoothstep(0.18, 0.08, length(pawCell + vec2(0.0, 0.08)));",
-  "      float toe1 = smoothstep(0.08, 0.02, length(pawCell - vec2(-0.16, 0.16)));",
-  "      float toe2 = smoothstep(0.09, 0.02, length(pawCell - vec2(-0.06, 0.24)));",
-  "      float toe3 = smoothstep(0.09, 0.02, length(pawCell - vec2( 0.06, 0.24)));",
-  "      float toe4 = smoothstep(0.08, 0.02, length(pawCell - vec2( 0.16, 0.16)));",
-  "      float paw = (pawHash > 0.35) ? max(mainPad, max(max(toe1, toe2), max(toe3, toe4))) : 0.0;",
-  "      vMask = paw * isTop;",
+  "    // 32. CUTE_PAW_PRINTS",
+  "    else if (uVinylId >= 31.5 && uVinylId < 32.5) {",
+  "      vec2 pawUV = vec2(normX * 8.0, normZ * 8.0);",
+  "      vec2 pCell = fract(pawUV) - 0.5;",
+  "      float paw = smoothstep(0.18, 0.08, length(pCell));",
+  "      vMask = paw * anyBody;",
   "    }",
-  "    // 22. LAVA_MAGMA (Volcanic Molten Magma Fissures)",
-  "    else if (uVinylId >= 21.5 && uVinylId < 22.5) {",
-  "      float tL = uVinylAnimated > 0.5 ? uTime * 2.5 : 0.0;",
-  "      vec2 lUV = vLocalPos.xz * 12.0 * vScale;",
-  "      float n1 = sin(lUV.x * 2.0 + lUV.y * 1.5 - tL * 0.8) * 0.5 + 0.5;",
-  "      float n2 = cos(lUV.x * 3.0 - lUV.y * 2.5 + tL * 1.2) * 0.5 + 0.5;",
-  "      float crack = abs(n1 - n2);",
-  "      float magma = smoothstep(0.14, 0.02, crack);",
-  "      float pulse = sin(tL * 2.0 + zPos * 8.0) * 0.5 + 0.5;",
-  "      vMask = magma;",
-  "      vGlow = magma * (2.5 + pulse * 1.5);",
+  "    // 33. LAVA_MAGMA",
+  "    else if (uVinylId >= 32.5 && uVinylId < 33.5) {",
+  "      vec2 lUV = vec2(normX * 10.0, normZ * 12.0) * vScale;",
+  "      float n1 = sin(lUV.x * 2.0 + lUV.y * 1.5) * 0.5 + 0.5;",
+  "      float n2 = cos(lUV.x * 3.0 - lUV.y * 2.5) * 0.5 + 0.5;",
+  "      float crack = smoothstep(0.14, 0.02, abs(n1 - n2));",
+  "      vMask = crack * anyBody;",
+  "      vGlow = crack * 2.5;",
   "    }",
-  "    // 23. QUANTUM_CIRCUIT (Quantum Golden PCB Microchip Tracks)",
-  "    else if (uVinylId >= 22.5 && uVinylId < 23.5) {",
-  "      float tQ = uVinylAnimated > 0.5 ? uTime * 4.0 : 0.0;",
-  "      vec2 qUV = vLocalPos.xz * 14.0 * vScale;",
-  "      vec2 qCell = fract(qUV);",
+  "    // 34. QUANTUM_CIRCUIT",
+  "    else if (uVinylId >= 33.5 && uVinylId < 34.5) {",
+  "      vec2 qCell = fract(vec2(normX * 12.0, normZ * 14.0) * vScale);",
   "      float track = smoothstep(0.08, 0.02, abs(qCell.x - 0.5)) + smoothstep(0.08, 0.02, abs(qCell.y - 0.5));",
-  "      float node = smoothstep(0.25, 0.15, length(qCell - 0.5));",
-  "      float dataPkt = smoothstep(0.2, 0.05, length(qCell - vec2(fract(tQ * 0.4), 0.5)));",
-  "      vMask = clamp(max(track * 0.8, node) + dataPkt, 0.0, 1.0);",
-  "      vGlow = (node * 1.5 + dataPkt * 3.0);",
+  "      vMask = track * anyBody;",
+  "      vGlow = track * 2.2;",
   "    }",
-  "    // 24. NEON_TOKYO_DRIFT (Tokyo Midnight Drift Speed Slashes)",
-  "    else if (uVinylId >= 23.5) {",
+  "    // 35. NEON_TOKYO_DRIFT / KANJI",
+  "    else if (uVinylId >= 34.5 && uVinylId < 35.5) {",
   "      float slash1 = smoothstep(0.035, 0.008, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 6.0) - 0.25);",
   "      float slash2 = smoothstep(0.025, 0.005, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 8.5) - 0.15);",
-  "      float slash3 = smoothstep(0.020, 0.005, abs((sUV.x + sUV.y * 0.8) * 10.0 * vScale - 10.5) - 0.10);",
-  "      vMask = max(max(slash1, slash2), slash3) * isSide;",
-  "      vGlow = vMask * 1.8;",
+  "      vMask = max(slash1, slash2) * isSide;",
+  "      vGlow = vMask * 2.0;",
+  "    }",
+  "    // 36. GLITCH SCREEN",
+  "    else if (uVinylId >= 35.5 && uVinylId < 36.5) {",
+  "      float gTime = uVinylAnimated > 0.5 ? floor(uTime * 14.0) : 0.0;",
+  "      float gLine = fract(sin(floor(normZ * 24.0) + gTime) * 43758.5453);",
+  "      float gShift = step(0.72, gLine) * (sin(normZ * 40.0) * 0.15);",
+  "      float gBand = step(0.85, fract(normZ * 12.0 + gShift));",
+  "      vMask = gBand * anyBody;",
+  "      vGlow = gBand * 2.4;",
+  "    }",
+  "    // 37. SPECTRUM WAVE",
+  "    else if (uVinylId >= 36.5 && uVinylId < 37.5) {",
+  "      float sPhase = (normZ * 8.0 - (uVinylAnimated > 0.5 ? uTime * 3.0 : 0.0)) * vScale;",
+  "      float sWave = sin(sPhase) * 0.5 + 0.5;",
+  "      float sRibbon = smoothstep(0.08, 0.02, abs(normX - 0.4 - sin(sPhase * 0.5) * 0.25));",
+  "      vMask = sRibbon * anyBody;",
+  "      vGlow = sRibbon * 2.2;",
+  "    }",
+  "    // 38. NEBULA PULSE",
+  "    else if (uVinylId >= 37.5 && uVinylId < 38.5) {",
+  "      vec2 nUV = vec2(normX * 6.0, normZ * 8.0) * vScale;",
+  "      float nPulse = uVinylAnimated > 0.5 ? sin(uTime * 2.0) * 0.3 + 0.7 : 1.0;",
+  "      float nCloud = sin(nUV.x + sin(nUV.y)) * cos(nUV.y * 1.5);",
+  "      float nMask = smoothstep(-0.2, 0.6, nCloud) * nPulse;",
+  "      vMask = nMask * isTop;",
+  "      vGlow = nMask * 1.8;",
+  "    }",
+  "    // 39. HOLOFOIL",
+  "    else if (uVinylId >= 38.5 && uVinylId < 39.5) {",
+  "      float hAngle = dot(vLocalN, vec3(0.0, 1.0, 0.0));",
+  "      float hStripe = sin((normZ * 20.0 + hAngle * 6.0) * vScale) * 0.5 + 0.5;",
+  "      vMask = smoothstep(0.3, 0.8, hStripe) * anyBody;",
+  "      vGlow = vMask * 1.6;",
+  "    }",
+  "    // 40. DAYTONA DUAL STRIPES",
+  "    else if (uVinylId >= 39.5 && uVinylId < 40.5) {",
+  "      float dStripe1 = smoothstep(0.06, 0.04, abs(normX - 0.22));",
+  "      float dStripe2 = smoothstep(0.06, 0.04, abs(normX + 0.22));",
+  "      float dPin1 = smoothstep(0.015, 0.005, abs(normX - 0.32));",
+  "      float dPin2 = smoothstep(0.015, 0.005, abs(normX + 0.32));",
+  "      vMask = max(max(dStripe1, dStripe2), max(dPin1, dPin2)) * isTop;",
+  "    }",
+  "    // 41. RALLY CROSS HASH STRIPES",
+  "    else if (uVinylId >= 40.5 && uVinylId < 41.5) {",
+  "      float rSlash = fract((normX * 1.2 + normZ * 2.5) * 4.0 * vScale);",
+  "      float rHash = smoothstep(0.45, 0.50, rSlash) * smoothstep(0.85, 0.80, rSlash);",
+  "      vMask = rHash * step(0.3, normZ) * step(normZ, 0.85) * anyBody;",
+  "    }",
+  "    // 42. LEMANS HERITAGE",
+  "    else if (uVinylId >= 41.5 && uVinylId < 42.5) {",
+  "      float lmBand = smoothstep(0.18, 0.15, abs(normX));",
+  "      float lmSide = smoothstep(0.03, 0.01, abs(normX - 0.22));",
+  "      vMask = max(lmBand, lmSide) * isTop;",
+  "    }",
+  "    // 43. VIPER DOUBLE STRIPES",
+  "    else if (uVinylId >= 42.5 && uVinylId < 43.5) {",
+  "      float vTwin = smoothstep(0.08, 0.06, abs(abs(normX) - 0.18));",
+  "      vMask = vTwin * isTop;",
+  "    }",
+  "    // 44. URBAN CAMO",
+  "    else if (uVinylId >= 43.5 && uVinylId < 44.5) {",
+  "      vec2 uUV = floor(vec2(normX * 8.0, normZ * 10.0) * vScale);",
+  "      float uH = fract(sin(dot(uUV, vec2(127.1, 311.7))) * 43758.5453);",
+  "      vMask = step(0.55, uH) * anyBody;",
+  "    }",
+  "    // 45. WOODLAND CAMO",
+  "    else if (uVinylId >= 44.5 && uVinylId < 45.5) {",
+  "      vec2 wUV = vec2(normX * 6.0, normZ * 8.0) * vScale;",
+  "      float wBlob = sin(wUV.x) * cos(wUV.y) + sin(wUV.x * 2.0 + wUV.y);",
+  "      vMask = smoothstep(0.1, 0.4, wBlob) * anyBody;",
+  "    }",
+  "    // 46. DAZZLE CAMO",
+  "    else if (uVinylId >= 45.5 && uVinylId < 46.5) {",
+  "      float dAngle = (normZ > 0.0) ? (normX + normZ * 1.5) : (normX - normZ * 1.5);",
+  "      float dZebra = sin(dAngle * 24.0 * vScale);",
+  "      vMask = smoothstep(-0.1, 0.1, dZebra) * anyBody;",
+  "    }",
+  "    // 47. LOW POLY SHARDS",
+  "    else if (uVinylId >= 46.5 && uVinylId < 47.5) {",
+  "      vec2 polyUV = vec2(normX * 10.0, normZ * 14.0) * vScale;",
+  "      vec2 fPoly = fract(polyUV);",
+  "      float tri = step(fPoly.x, fPoly.y);",
+  "      float pHash = fract(sin(dot(floor(polyUV), vec2(41.2, 78.9))) * 12345.6);",
+  "      vMask = (pHash > 0.45 ? tri : (1.0 - tri)) * anyBody;",
+  "    }",
+  "    // 48. TRIBAL FLAMES",
+  "    else if (uVinylId >= 47.5 && uVinylId < 48.5) {",
+  "      float fT = normZ * 4.0;",
+  "      float fBarbs = sin(fT * 6.0) * 0.15 + cos(fT * 3.0) * 0.1;",
+  "      float tribal = smoothstep(0.08, 0.02, abs(normX - 0.35 - fBarbs));",
+  "      vMask = tribal * step(0.1, normZ) * anyBody;",
+  "      vGlow = tribal * 1.8;",
+  "    }",
+  "    // 49. SHARK TEETH WARHAWK",
+  "    else if (uVinylId >= 48.5 && uVinylId < 49.5) {",
+  "      float toothX = fract((normZ - 0.3) * 12.0);",
+  "      float teeth = abs(toothX - 0.5) * 2.0;",
+  "      float mouth = step(teeth, (sUV.y - 0.2) * 4.0) * step(0.35, normZ) * step(normZ, 0.75);",
+  "      vMask = mouth * isSide;",
+  "    }",
+  "    // 50. RETROWAVE SUNSET",
+  "    else if (uVinylId >= 49.5 && uVinylId < 50.5) {",
+  "      vec2 sunP = vec2(normX, normZ - 0.45);",
+  "      float sunD = length(sunP);",
+  "      float sunMask = smoothstep(0.32, 0.30, sunD) * step(0.0, sunP.y);",
+  "      float sunSlices = step(0.35, fract(sunP.y * 18.0));",
+  "      float sunGrid = step(0.92, fract(normZ * 20.0)) * step(sunP.y, 0.0);",
+  "      vMask = max(sunMask * sunSlices, sunGrid) * isTop;",
+  "      vGlow = vMask * 2.5;",
+  "    }",
+  "    // 51. VAPORWAVE GRID",
+  "    else if (uVinylId >= 50.5) {",
+  "      vec2 vGrid = fract(vec2(normX * 16.0, normZ * 20.0) * vScale);",
+  "      float vWire = max(smoothstep(0.1, 0.02, vGrid.x), smoothstep(0.1, 0.02, vGrid.y));",
+  "      vMask = vWire * anyBody;",
+  "      vGlow = vWire * 2.2;",
   "    }",
   "",
   "    if (vMask > 0.001) {",
@@ -2906,7 +3083,16 @@ var FS_LINE = [
 export function Renderer(canvas) {
   this.canvas = canvas;
   var opts = { antialias: true, alpha: false, powerPreference: "high-performance", depth: true, stencil: false };
-  var gl = canvas.getContext("webgl2", opts);
+  var gl = null;
+  try {
+    gl = canvas.getContext("webgl2", opts);
+  } catch (e) {}
+  if (!gl) {
+    try { gl = canvas.getContext("webgl2"); } catch (e) {}
+  }
+  if (!gl) {
+    try { gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl"); } catch (e) {}
+  }
   if (!gl) throw new Error("WebGL2 is not available in this browser.");
   this.gl = gl;
   this.time = 0;
@@ -2956,8 +3142,8 @@ export function Renderer(canvas) {
   this.whiteTex = white;
   this.initParticles(4096);
   this.initLines(24000);
-  this.initShadowMap();
-  this.initGrass();
+  try { this.initShadowMap(); } catch (e) { console.warn("ShadowMap init fallback:", e); }
+  try { this.initGrass(); } catch (e) { console.warn("Grass init fallback:", e); }
   this.texCache = {};
   this.curProg = null;
   this.curTex = null;
@@ -2994,7 +3180,7 @@ Renderer.prototype.mesh = function (builder) {
   gl.bindVertexArray(vao);
   var vb = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vb);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(builder.v), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(builder.v), builder.dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
@@ -3003,7 +3189,7 @@ Renderer.prototype.mesh = function (builder) {
   var big = builder.n > 65535;
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, big ? new Uint32Array(builder.i) : new Uint16Array(builder.i), gl.STATIC_DRAW);
   gl.bindVertexArray(null);
-  return { vao: vao, count: builder.i.length, type: big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
+  return { vao: vao, count: builder.i.length, type: big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, vb: vb, ib: ib };
 };
 Renderer.prototype.texture = function (canvas, repeat, mips) {
   var gl = this.gl, t = gl.createTexture();
@@ -3170,6 +3356,9 @@ Renderer.prototype.draw = function (mesh, pos, quat, scale, mat) {
   gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
   this.drawCalls++;
 };
+Renderer.prototype.clearUltraCache = function () {
+  clearUltraMeshCache(this.gl);
+};
 Renderer.prototype.initGrass = function () {
   var gl = this.gl;
   // 6-vertex rounded-top smooth 3D grass blade geometry (4 triangles, 12 indices)
@@ -3224,8 +3413,16 @@ Renderer.prototype.initGrass = function () {
   this.grassChunks = [];
   this.grassCount = 0;
   this.frustumPlanes = new Float32Array(24);
-  var initialCount = (CFG.gfx && CFG.gfx.grassBladeCount) || 1500000;
-  this.generateGrassInstances(initialCount);
+  var isMobile = typeof navigator !== "undefined" && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1 || (typeof window !== "undefined" && window.innerWidth < 800));
+  var initialCount = (CFG.gfx && CFG.gfx.grassBladeCount) || (isMobile ? 35000 : 350000);
+  if (isMobile) {
+    initialCount = Math.min(initialCount, 40000);
+  }
+  try {
+    this.generateGrassInstances(initialCount);
+  } catch (err) {
+    console.warn("Grass instance generation skipped:", err);
+  }
 };
 Renderer.prototype.generateGrassInstances = function (count) {
   var gl = this.gl;
@@ -3564,7 +3761,7 @@ Renderer.prototype.drawShadowMesh = function (mesh, pos, quat, scale) {
 };
 Renderer.prototype.renderShadowMap = function (props, cars, ball) {
   var gfx = CFG.gfx || {};
-  if (gfx.shadowMapping === false) return;
+  if (gfx.shadowMapping === false || !this.shadowFBO || !this.progShadow || !this.uShadow) return;
   var gl = this.gl;
   gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFBO);
   gl.viewport(0, 0, this.shadowSize, this.shadowSize);
@@ -3840,17 +4037,12 @@ export function buildProps(R) {
 
 
   // ==========================================
-  // 4. GLOWING HEADLIGHTS & TAILLIGHTS
+  // 4. GLOWING HEADLIGHTS
   // ==========================================
   var l = new Builder();
   // Front LED Headlights
   l.boxRot(0.05, 0.018, 0.018, new V3(-0.18, 0.065, 0.54), -14, -8, 0);
   l.boxRot(0.05, 0.018, 0.018, new V3(0.18, 0.065, 0.54), -14, 8, 0);
-  // Rear Taillights
-  l.boxRot(0.045, 0.016, 0.014, new V3(-0.21, 0.10, -0.54), 8, 0, 0);
-  l.boxRot(0.045, 0.016, 0.014, new V3(0.21, 0.10, -0.54), 8, 0, 0);
-  // Rear center high neon brake light bar
-  l.boxRot(0.13, 0.010, 0.012, new V3(0, 0.135, -0.48), 0, 0, 0);
   var lightsMesh = R.mesh(l);
 
 
@@ -4081,6 +4273,17 @@ var _vScratch1 = new V3();
 var _vScratch2 = new V3();
 var _vScratch3 = new V3();
 var _vScratch4 = new V3();
+var _vTopperMount = new V3();
+var _vAntennaMount = new V3();
+var _vTopperPos = new V3();
+var _vAntennaPos = new V3();
+var _vPayloadPos = new V3();
+var _vTopperScale = new V3();
+var _vAntennaScale = new V3();
+var _qPayload = new Quat();
+var _qTiltX = new Quat();
+var _qTiltZ = new Quat();
+var _qTiltComb = new Quat();
 var _vCarDrawPos = new V3();
 var _wheelScale = new V3();
 var _metallicCol = [0, 0, 0];
@@ -4122,6 +4325,17 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
     });
   }
 
+  // 2b. VIP Luxury Glass Skyboxes (Warm golden illuminated interior suites)
+  if (meshes.vipSuites) {
+    this.draw(meshes.vipSuites, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [1.0, 0.92, 0.75],
+      emissive: [0.45, 0.38, 0.22],
+      metallic: 0.85,
+      spec: 0.90,
+      rim: 0.35
+    });
+  }
+
   // 4. Floodlight Truss Towers (6 towers: 4 corners + 2 center long sides)
   if (meshes.trusses) {
     this.draw(meshes.trusses, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
@@ -4132,7 +4346,42 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
     });
   }
 
-  // 4b. 3D Stadium Roof Space-Truss Architecture & Majestic Canopy Arches
+  // 4b. Monumental Steel Super-Arches & Suspension Cable Network
+  if (meshes.roofSuperArch) {
+    this.draw(meshes.roofSuperArch, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [0.72, 0.78, 0.88],
+      emissive: [0.15, 0.18, 0.24],
+      metallic: 0.92,
+      spec: 0.95,
+      clearcoat: 0.8,
+      rim: 0.55
+    });
+  }
+
+  // 4c. Translucent ETFE Glass Canopy Membrane Shell
+  if (meshes.roofCanopy) {
+    this.draw(meshes.roofCanopy, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [0.88, 0.92, 0.98],
+      emissive: [0.15, 0.18, 0.25],
+      opacity: 0.85,
+      blend: "alpha",
+      spec: 0.85,
+      rim: 0.60,
+      cull: false
+    });
+  }
+
+  // 4d. Under-Canopy Pitch Spotlights & Light Strips
+  var rPulse = 0.85 + Math.sin(this.time * 2.8) * 0.15;
+  if (meshes.roofSpotlights) {
+    this.draw(meshes.roofSpotlights, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
+      color: [0.95, 0.98, 1.0],
+      emissive: [1.2 * rPulse, 1.3 * rPulse, 1.5 * rPulse],
+      spec: 0.95
+    });
+  }
+
+  // 4e. 3D Stadium Roof Space-Truss Architecture & Majestic Canopy Arches
   if (meshes.roofTruss) {
     this.draw(meshes.roofTruss, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
       color: [0.42, 0.48, 0.56],
@@ -4143,7 +4392,6 @@ Renderer.prototype.drawArena = function (meshes, arena, props, cars, ball) {
     });
   }
   if (meshes.roofNeon) {
-    var rPulse = 0.85 + Math.sin(this.time * 2.8) * 0.15;
     this.draw(meshes.roofNeon, _vPos.set(0, 0, 0), _qIdentity, _vOne, {
       color: [0.90, 0.95, 1.0],
       emissive: [0.35 * rPulse, 0.65 * rPulse, 1.2 * rPulse],
@@ -4330,12 +4578,19 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
   var hR = (haloRadius || 0.35) * hMult;
   var cR = (coreRadius || 0.09) * tMult;
 
+  colInfo = colInfo || {};
+  var colHalo = colInfo.halo || [0.2, 0.8, 1.0];
+  var colHaloEmiss = colInfo.haloEmiss || [colHalo[0] * 2.0, colHalo[1] * 2.0, colHalo[2] * 2.0];
+  var colCoreEmiss = colInfo.coreEmiss || [4.0, 4.0, 4.0];
+  var colFlareEmiss = colInfo.flareEmiss || [colHalo[0] * 3.0, colHalo[1] * 3.0, colHalo[2] * 3.0];
+  var colImpactEmiss = colInfo.impactEmiss || [colHalo[0] * 2.5, colHalo[1] * 2.5, colHalo[2] * 2.5];
+
   // 1. Outer Volumetric Glowing Halo Envelope (Additive blooming cylinder)
   if (props && props.laserHalo) {
     _vScale.set(hR, hR, len);
     this.draw(props.laserHalo, p1, qRot, _vScale, {
-      color: colInfo.halo,
-      emissive: [colInfo.haloEmiss[0] * bMult, colInfo.haloEmiss[1] * bMult, colInfo.haloEmiss[2] * bMult],
+      color: colHalo,
+      emissive: [colHaloEmiss[0] * bMult, colHaloEmiss[1] * bMult, colHaloEmiss[2] * bMult],
       opacity: 0.62 * oMult,
       blend: "add",
       cull: false,
@@ -4348,7 +4603,7 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
     _vScale.set(cR, cR, len);
     this.draw(props.laserCore, p1, qRot, _vScale, {
       color: [1.0, 1.0, 1.0],
-      emissive: [colInfo.coreEmiss[0] * bMult, colInfo.coreEmiss[1] * bMult, colInfo.coreEmiss[2] * bMult],
+      emissive: [colCoreEmiss[0] * bMult, colCoreEmiss[1] * bMult, colCoreEmiss[2] * bMult],
       opacity: 0.95 * oMult,
       blend: "add",
       cull: false,
@@ -4360,7 +4615,7 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
   if (props && props.laserFlare) {
     this.draw(props.laserFlare, p1, _qIdentity, _vScale.set(0.65 * sMult, 0.65 * sMult, 0.65 * sMult), {
       color: [1.0, 1.0, 1.0],
-      emissive: [colInfo.flareEmiss[0] * bMult, colInfo.flareEmiss[1] * bMult, colInfo.flareEmiss[2] * bMult],
+      emissive: [colFlareEmiss[0] * bMult, colFlareEmiss[1] * bMult, colFlareEmiss[2] * bMult],
       opacity: 0.88 * oMult,
       blend: "add",
       cull: false,
@@ -4369,8 +4624,8 @@ Renderer.prototype.drawLaserBeam = function (p1, p2, colInfo, props, haloRadius,
 
     // 4. Ground/Canopy Focal Energy Impact Spot
     this.draw(props.laserFlare, p2, _qIdentity, _vScale.set(0.85 * sMult, 0.85 * sMult, 0.85 * sMult), {
-      color: colInfo.halo,
-      emissive: [colInfo.impactEmiss[0] * bMult, colInfo.impactEmiss[1] * bMult, colInfo.impactEmiss[2] * bMult],
+      color: colHalo,
+      emissive: [colImpactEmiss[0] * bMult, colImpactEmiss[1] * bMult, colImpactEmiss[2] * bMult],
       opacity: 0.72 * oMult,
       blend: "add",
       cull: false,
@@ -4561,13 +4816,17 @@ Renderer.prototype.drawBoostPads = function (props, pads) {
   var bigLightningPalette = {
     halo: [1.0, 0.65, 0.08],     // Golden Sunburst halo
     haloEmiss: [4.0, 2.2, 0.05],  // Blazing amber glow
-    coreEmiss: [6.0, 5.5, 4.0]    // Brilliant white-gold core
+    coreEmiss: [6.0, 5.5, 4.0],   // Brilliant white-gold core
+    flareEmiss: [4.5, 2.8, 0.2],
+    impactEmiss: [4.0, 2.0, 0.1]
   };
 
   var smallLightningPalette = {
     halo: [0.15, 0.85, 1.0],      // Fresh, high-tech Electric Cyan
     haloEmiss: [0.8, 3.5, 7.0],
-    coreEmiss: [5.0, 5.0, 5.0]
+    coreEmiss: [5.0, 5.0, 5.0],
+    flareEmiss: [0.5, 3.0, 5.0],
+    impactEmiss: [0.3, 2.5, 4.5]
   };
 
   for (var i = 0; i < pads.length; i++) {
@@ -4828,32 +5087,47 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   var flapScaleKey = (CFG.vehicle && CFG.vehicle.flapScale !== undefined) ? CFG.vehicle.flapScale.toFixed(2) : "1";
   var flapWidthScaleKey = (CFG.vehicle && CFG.vehicle.flapWidthScale !== undefined) ? CFG.vehicle.flapWidthScale.toFixed(2) : "1";
   var flapThickScaleKey = (CFG.vehicle && CFG.vehicle.flapThickScale !== undefined) ? CFG.vehicle.flapThickScale.toFixed(2) : "1";
-  var checkKey = W_cfg.radius + "_" + W_cfg.rest + "_" + W_cfg.attachX + "_" + W_cfg.attachY + "_" + W_cfg.attachZ + "_" + hideFlapsKey + "_" + flapOffsetYKey + "_" + flapScaleKey + "_" + flapWidthScaleKey + "_" + flapThickScaleKey;
+  var playerModelKey = (CFG.customization && CFG.customization.model) ? CFG.customization.model : "OCTANE";
+  var playerWheelKey = (CFG.customization && CFG.customization.wheel) ? CFG.customization.wheel : "SPORT";
+  var playerHatKey = (CFG.customization && CFG.customization.hat) ? CFG.customization.hat : "none";
+  var playerAntennaKey = (CFG.customization && CFG.customization.antenna) ? CFG.customization.antenna : "none";
+  var playerHornKey = (CFG.customization && CFG.customization.horn) ? CFG.customization.horn : "none";
+  var playerToolKey = (CFG.customization && CFG.customization.tool) ? CFG.customization.tool : "none";
+  var playerWingKey = (CFG.customization && CFG.customization.wing) ? CFG.customization.wing : "none";
+  var playerFinishKey = (CFG.customization && CFG.customization.finish) ? CFG.customization.finish : "cobalt";
+  var playerRimFinishKey = (CFG.customization && CFG.customization.rimFinish) ? CFG.customization.rimFinish : "none";
+  var playerHubColKey = (CFG.customization && CFG.customization.hubColor) ? CFG.customization.hubColor : "none";
+  var playerWheelColKey = (CFG.customization && CFG.customization.wheelColor) ? CFG.customization.wheelColor : "none";
+  var playerPaletteKey = (CFG.customization && CFG.customization.palette) ? CFG.customization.palette : "cobalt";
+  var checkKey = W_cfg.radius + "_" + W_cfg.rest + "_" + W_cfg.attachX + "_" + W_cfg.attachY + "_" + W_cfg.attachZ + "_" + hideFlapsKey + "_" + flapOffsetYKey + "_" + flapScaleKey + "_" + flapWidthScaleKey + "_" + flapThickScaleKey + "_" + playerModelKey + "_" + playerWheelKey + "_" + playerHatKey + "_" + playerAntennaKey + "_" + playerHornKey + "_" + playerToolKey + "_" + playerWingKey + "_" + playerFinishKey + "_" + playerRimFinishKey + "_" + playerHubColKey + "_" + playerWheelColKey + "_" + playerPaletteKey;
   if (props && !props._lastWheelCheck) {
     props._lastWheelCheck = checkKey;
   } else if (props && props._lastWheelCheck !== checkKey) {
     props._lastWheelCheck = checkKey;
     try {
+      // Clear Ultra model and wheel VAO caches first so they are re-instantiated fresh
+      clearUltraMeshCache(this.gl);
+
       var newKit = buildCarKit(this);
       if (newKit) {
         // Clean up old model VAOs to prevent memory leaks
         if (props.carKit && props.carKit.models) {
           for (var mid in props.carKit.models) {
             var oldM = props.carKit.models[mid];
-            if (oldM.body && oldM.body.vao) this.gl.deleteVertexArray(oldM.body.vao);
-            if (oldM.accent && oldM.accent.vao) this.gl.deleteVertexArray(oldM.accent.vao);
-            if (oldM.glass && oldM.glass.vao) this.gl.deleteVertexArray(oldM.glass.vao);
-            if (oldM.lights && oldM.lights.vao) this.gl.deleteVertexArray(oldM.lights.vao);
-            if (oldM.thruster && oldM.thruster.vao) this.gl.deleteVertexArray(oldM.thruster.vao);
-            if (oldM.trim && oldM.trim.vao) this.gl.deleteVertexArray(oldM.trim.vao);
+            if (oldM.body && oldM.body.vao) { try { this.gl.deleteVertexArray(oldM.body.vao); } catch(e){} }
+            if (oldM.accent && oldM.accent.vao) { try { this.gl.deleteVertexArray(oldM.accent.vao); } catch(e){} }
+            if (oldM.glass && oldM.glass.vao) { try { this.gl.deleteVertexArray(oldM.glass.vao); } catch(e){} }
+            if (oldM.lights && oldM.lights.vao) { try { this.gl.deleteVertexArray(oldM.lights.vao); } catch(e){} }
+            if (oldM.thruster && oldM.thruster.vao) { try { this.gl.deleteVertexArray(oldM.thruster.vao); } catch(e){} }
+            if (oldM.trim && oldM.trim.vao) { try { this.gl.deleteVertexArray(oldM.trim.vao); } catch(e){} }
           }
         }
         // Clean up old wheel VAOs
         if (props.carKit && props.carKit.wheels) {
           for (var wid in props.carKit.wheels) {
             var oldW = props.carKit.wheels[wid];
-            if (oldW.wheel && oldW.wheel.vao) this.gl.deleteVertexArray(oldW.wheel.vao);
-            if (oldW.hub && oldW.hub.vao) this.gl.deleteVertexArray(oldW.hub.vao);
+            if (oldW.wheel && oldW.wheel.vao) { try { this.gl.deleteVertexArray(oldW.wheel.vao); } catch(e){} }
+            if (oldW.hub && oldW.hub.vao) { try { this.gl.deleteVertexArray(oldW.hub.vao); } catch(e){} }
           }
         }
         props.carKit = newKit;
@@ -4889,8 +5163,40 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
     ? (cust.wheel || 'SPORT')
     : (BOT_WHEELS[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % BOT_WHEELS.length] || 'SPORT');
 
-  var kitM = (props.carKit && props.carKit.models && props.carKit.models[modelId]) || null;
-  var kitW = (props.carKit && props.carKit.wheels && props.carKit.wheels[wheelId]) || null;
+  var kitM = (props.carKit && props.carKit.models && (props.carKit.models[modelId] || props.carKit.models[modelId.toLowerCase()] || props.carKit.models[modelId.toUpperCase()])) || null;
+  if ((!kitM || !kitM.body || !kitM.body.vao) && isUltraCar(modelId)) {
+    try {
+      kitM = buildUltraCarMesh(this, modelId);
+      if (kitM && props.carKit && props.carKit.models) {
+        props.carKit.models[modelId] = kitM;
+        props.carKit.models[modelId.toLowerCase()] = kitM;
+      }
+    } catch (e) {
+      console.warn("Failed to load Ultra car on demand:", modelId, e);
+    }
+  }
+  if (!kitM && props.carKit && props.carKit.models) {
+    kitM = props.carKit.models['OCTANE'] || null;
+  }
+
+  var kitW = null;
+  if (isUltraWheel(wheelId)) {
+    try {
+      kitW = buildUltraWheelMesh(this, wheelId);
+      if (kitW && props.carKit && props.carKit.wheels) {
+        props.carKit.wheels[wheelId] = kitW;
+        props.carKit.wheels[wheelId.toLowerCase()] = kitW;
+      }
+    } catch (e) {
+      console.warn("Failed to load Ultra wheel on demand:", wheelId, e);
+    }
+  }
+  if (!kitW && props.carKit && props.carKit.wheels) {
+    kitW = props.carKit.wheels[wheelId] || props.carKit.wheels[wheelId.toLowerCase()] || props.carKit.wheels[wheelId.toUpperCase()] || null;
+  }
+  if (!kitW && props.carKit && props.carKit.wheels) {
+    kitW = props.carKit.wheels['SPORT'] || null;
+  }
 
   var meshBody = (kitM && kitM.body) || props.body;
   var meshAccent = (kitM && kitM.accent) || props.accent;
@@ -4919,73 +5225,207 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   var carFlakes = (CFG.gfx && CFG.gfx.carFlakes !== undefined) ? CFG.gfx.carFlakes : 0.80;
   var carBump = (CFG.gfx && CFG.gfx.carBump !== undefined) ? CFG.gfx.carBump : 0.90;
   var carAO = (CFG.gfx && CFG.gfx.carAmbientOcclusion !== undefined) ? CFG.gfx.carAmbientOcclusion : 0.80;
+  var rimMetallic = 0.85;
+  var rimGloss = 0.95;
+  var rimClearcoat = 0.85;
 
-  if (isPlayer && cust.useCustomPaint) {
-    if (cust.bodyColor) bodyCol = parseHex(cust.bodyColor, bodyCol);
-    if (cust.accentColor) accentCol = parseHex(cust.accentColor, accentCol);
-    if (cust.trimColor) trimCol = parseHex(cust.trimColor, trimCol);
-    if (cust.glassColor) glassCol = parseHex(cust.glassColor, glassCol);
-    if (cust.lightsColor) lightsCol = parseHex(cust.lightsColor, lightsCol);
-    if (cust.thrusterColor) thrusterCol = parseHex(cust.thrusterColor, thrusterCol);
-    if (cust.hubColor) hubCol = parseHex(cust.hubColor, hubCol);
-    if (cust.wheelColor) wheelCol = parseHex(cust.wheelColor, wheelCol);
+  if (isPlayer) {
+    // 1. Process Material Finishes
+    if (cust.finish && FA_FINISH_NAMES) {
+      var finObj = FA_FINISH_NAMES[String(cust.finish).toLowerCase()];
+      if (finObj) {
+        if (finObj.metal !== undefined) carMetallic = finObj.metal;
+        if (finObj.rough !== undefined) carGloss = 1.0 - (finObj.rough * 0.9);
+        if (finObj.clearcoat !== undefined) carClearcoat = finObj.clearcoat;
+        if (finObj.flakes !== undefined) carFlakes = finObj.flakes;
+      }
+    }
 
-    if (cust.metallic !== undefined) carMetallic = cust.metallic;
-    if (cust.gloss !== undefined) carGloss = cust.gloss;
-    if (cust.flakes !== undefined) carFlakes = cust.flakes;
-    if (cust.clearcoat !== undefined) carClearcoat = cust.clearcoat;
-    if (cust.bump !== undefined) carBump = cust.bump;
+    // 2. Process Rim Finishes
+    if (cust.rimFinish && FA_RIM_FINISH_NAMES) {
+      var rimObj = FA_RIM_FINISH_NAMES[String(cust.rimFinish).toLowerCase()];
+      if (rimObj) {
+        if (!cust.hubColor && rimObj.color) {
+          hubCol = parseHex(rimObj.color, hubCol);
+        }
+        if (rimObj.metal !== undefined) rimMetallic = rimObj.metal;
+        if (rimObj.rough !== undefined) rimGloss = 1.0 - (rimObj.rough * 0.9);
+      }
+    }
+
+    // 3. User RGB Color Overrides
+    if (cust.useCustomPaint) {
+      if (cust.bodyColor) bodyCol = parseHex(cust.bodyColor, bodyCol);
+      if (cust.accentColor) accentCol = parseHex(cust.accentColor, accentCol);
+      if (cust.secondaryColor && !cust.accentColor) accentCol = parseHex(cust.secondaryColor, accentCol);
+      if (cust.trimColor) trimCol = parseHex(cust.trimColor, trimCol);
+      if (cust.glassColor) glassCol = parseHex(cust.glassColor, glassCol);
+      if (cust.lightsColor) lightsCol = parseHex(cust.lightsColor, lightsCol);
+      if (cust.thrusterColor) thrusterCol = parseHex(cust.thrusterColor, thrusterCol);
+      if (cust.hubColor) hubCol = parseHex(cust.hubColor, hubCol);
+      if (cust.wheelColor) wheelCol = parseHex(cust.wheelColor, wheelCol);
+
+      if (cust.metallic !== undefined) carMetallic = cust.metallic;
+      if (cust.gloss !== undefined) carGloss = cust.gloss;
+      if (cust.flakes !== undefined) carFlakes = cust.flakes;
+      if (cust.clearcoat !== undefined) carClearcoat = cust.clearcoat;
+      if (cust.bump !== undefined) carBump = cust.bump;
+    }
   }
 
-  // High-Precision Procedural Car Vinyls & Dynamic Animated Livery
+  // Comprehensive Procedural Car Decals Dictionary (All 62 Decals & Liveries)
   var VINYL_MAP = {
     "NONE": 0.0,
-    "RACING_STRIPES": 1.0,
-    "CYBER_GRID": 2.0,
-    "FLAME_SURGE": 3.0,
-    "LIGHTNING_STORM": 4.0,
-    "WAVE_FLOW": 5.0,
-    "CARBON_HEX": 6.0,
-    "CAMO_TACTICAL": 7.0,
-    "DIGITAL_MATRIX": 8.0,
-    "SPEED_APEX": 9.0,
-    "SUNBURST_RAYS": 10.0,
-    "DRAGON_FIRE": 11.0,
-    "PHOENIX_BLAZE": 12.0,
-    "HERO_SPIDER_WEB": 13.0,
-    "HERO_LIGHTNING_BOLT": 14.0,
-    "HERO_COSMIC_STAR": 15.0,
-    "HERO_BAT_WING": 16.0,
-    "CUTE_STARS_GALAXY": 17.0,
-    "CUTE_MONSTER_SMILE": 18.0,
-    "CUTE_CANDY_SWEETS": 19.0,
-    "PIXEL_ARCADE_8BIT": 20.0,
-    "CUTE_PAW_PRINTS": 21.0,
-    "LAVA_MAGMA": 22.0,
-    "QUANTUM_CIRCUIT": 23.0,
-    "NEON_TOKYO_DRIFT": 24.0
+    // Animated & Legendary
+    "DATASTREAM": 1.0,
+    "LAVAFLOW": 2.0,
+    "PORTAL": 3.0,
+    "AURORAVEIL": 4.0,
+    "AURORA": 4.0,
+    "HYPERSPACE": 5.0,
+    "CIRCUITBOARD": 6.0,
+    "PULSEWAVE": 7.0,
+    "MATRIXRAIN": 8.0,
+    "VOIDCORE": 9.0,
+    "CYBERDECK": 10.0,
+    "BIOHAZARD": 11.0,
+    // Racing & Tactical
+    "RACING_STRIPES": 12.0,
+    "STRIPES": 12.0,
+    "CYBER_GRID": 13.0,
+    "GRID": 13.0,
+    "FLAME_SURGE": 14.0,
+    "FLAME": 14.0,
+    "FLAMES": 14.0,
+    "INFERNO": 14.0,
+    "LIGHTNING_STORM": 15.0,
+    "LIGHTNING": 15.0,
+    "WAVE_FLOW": 16.0,
+    "WAVE": 16.0,
+    "CARBON_HEX": 17.0,
+    "HEX": 17.0,
+    "CARBON": 17.0,
+    "CARBONWRAP": 17.0,
+    "CAMO_TACTICAL": 18.0,
+    "CAMO": 18.0,
+    "CAMO_DESERT": 18.0,
+    "DIGITAL_MATRIX": 19.0,
+    "MATRIX": 19.0,
+    "CAMO_DIGITAL": 19.0,
+    "SPEED_APEX": 20.0,
+    "SPEED": 20.0,
+    "SUNBURST_RAYS": 21.0,
+    "SUNBURST": 21.0,
+    "DRAGON_FIRE": 22.0,
+    "DRAGON": 22.0,
+    "PHOENIX_BLAZE": 23.0,
+    "PHOENIX": 23.0,
+    // Hero & Kawaii
+    "HERO_SPIDER_WEB": 24.0,
+    "SPIDER": 24.0,
+    "HERO_LIGHTNING_BOLT": 25.0,
+    "HERO_COSMIC_STAR": 26.0,
+    "STARBURST": 26.0,
+    "HERO_BAT_WING": 27.0,
+    "BAT": 27.0,
+    "CUTE_STARS_GALAXY": 28.0,
+    "STARS": 28.0,
+    "CUTE_MONSTER_SMILE": 29.0,
+    "MONSTER": 29.0,
+    "CUTE_CANDY_SWEETS": 30.0,
+    "CANDY": 30.0,
+    "PIXEL_ARCADE_8BIT": 31.0,
+    "PIXEL": 31.0,
+    "CUTE_PAW_PRINTS": 32.0,
+    "PAW": 32.0,
+    "LAVA_MAGMA": 33.0,
+    "LAVA": 33.0,
+    "QUANTUM_CIRCUIT": 34.0,
+    "CIRCUIT": 34.0,
+    "NEON_TOKYO_DRIFT": 35.0,
+    "NEON": 35.0,
+    "DRIFT": 35.0,
+    "KANJI_DRIFT": 35.0,
+    "KANJI": 35.0,
+    "GLITCH": 36.0,
+    "SPECTRUM": 37.0,
+    "NEBULA": 38.0,
+    "NEBULAPULSE": 38.0,
+    "HOLOFOIL": 39.0,
+    "HOLO": 39.0,
+    "STRIPES_MONZA": 12.0,
+    "MONZA": 12.0,
+    "STRIPES_DAYTONA": 40.0,
+    "DAYTONA": 40.0,
+    "STRIPES_RALLY": 41.0,
+    "RALLY": 41.0,
+    "STRIPES_LEMANS": 42.0,
+    "LEMANS": 42.0,
+    "STRIPES_VIPER": 43.0,
+    "VIPER": 43.0,
+    "HEXGRID": 13.0,
+    "CAMO_URBAN": 44.0,
+    "URBAN": 44.0,
+    "CAMO_WOODLAND": 45.0,
+    "WOODLAND": 45.0,
+    "DAZZLE": 46.0,
+    "POLYGONS": 47.0,
+    "SHARDS": 47.0,
+    "FLAMES_CLASSIC": 14.0,
+    "FLAMES_TRIBAL": 48.0,
+    "TRIBAL": 48.0,
+    "SHARKTEETH": 49.0,
+    "SHARK": 49.0,
+    "RETROWAVE": 50.0,
+    "VAPORWAVE": 51.0
   };
 
   var vinylId = 0.0;
-  var vinylColor = [1.0, 1.0, 1.0];
-  var vinylEmissive = 0.0;
+  var vinylColor = [0.35, 0.88, 1.0];
+  var vinylEmissive = 0.5;
   var vinylScale = 1.0;
-  var vinylAnimated = false;
+  var vinylAnimated = true;
 
   if (isPlayer) {
-    var vKey = cust.vinyl || "NONE";
+    var rawV = cust.vinyl || cust.decal || "NONE";
+    var vKey = String(rawV).toUpperCase().replace(/[-\s]/g, '_');
     vinylId = VINYL_MAP[vKey] !== undefined ? VINYL_MAP[vKey] : 0.0;
-    if (cust.vinylColor) vinylColor = parseHex(cust.vinylColor, [1.0, 1.0, 1.0]);
-    if (cust.vinylEmissive !== undefined) vinylEmissive = cust.vinylEmissive;
+    if (vinylId === 0.0) {
+      for (var k in VINYL_MAP) {
+        if (k !== 'NONE' && (vKey.indexOf(k) !== -1 || k.indexOf(vKey) !== -1)) {
+          vinylId = VINYL_MAP[k];
+          break;
+        }
+      }
+    }
+
+    if (cust.vinylColor) {
+      vinylColor = parseHex(cust.vinylColor, vinylColor);
+    } else if (cust.accentColor) {
+      vinylColor = parseHex(cust.accentColor, vinylColor);
+    } else if (cust.secondaryColor) {
+      vinylColor = parseHex(cust.secondaryColor, vinylColor);
+    } else {
+      vinylColor = (team === 0 ? [0.30, 0.85, 1.0] : [1.0, 0.75, 0.25]);
+    }
+
+    if (cust.vinylEmissive !== undefined) {
+      vinylEmissive = cust.vinylEmissive;
+    } else if (vinylId >= 1.0 && vinylId <= 11.0) {
+      vinylEmissive = 1.4; // Epic & Legendary glow brighter
+    } else {
+      vinylEmissive = 0.6;
+    }
+
     if (cust.vinylScale !== undefined) vinylScale = cust.vinylScale;
     if (cust.vinylAnimated !== undefined) vinylAnimated = !!cust.vinylAnimated;
   } else {
-    // Bots can have distinctive dynamic vinyls based on their car index
+    // Bots have dynamic liveries matching their team
     var botVinyls = ["RACING_STRIPES", "CYBER_GRID", "FLAME_SURGE", "LIGHTNING_STORM", "WAVE_FLOW", "CARBON_HEX", "SPEED_APEX"];
     var botVKey = botVinyls[(car.carIndex !== undefined ? car.carIndex : car.id || 0) % botVinyls.length];
     vinylId = VINYL_MAP[botVKey] || 0.0;
     vinylColor = (team === 0 ? [0.4, 0.85, 1.0] : [1.0, 0.75, 0.3]);
-    vinylEmissive = 0.45;
+    vinylEmissive = 0.55;
     vinylScale = 1.0;
     vinylAnimated = true;
   }
@@ -5070,53 +5510,36 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   }
 
   // 5. Clean Radiant Car Headlights & Taillights (Self-illuminating object meshes)
-  if (meshHeadlights || meshTaillights) {
-    if (meshHeadlights) {
-      // Front Headlights fixture object
-      this.draw(meshHeadlights, carDrawPos, B.quat, _vScale, {
-        color: lightsCol,
-        emissive: [lightsCol[0] * 2.2, lightsCol[1] * 2.2, lightsCol[2] * 2.2],
-        spec: 1.0,
-        clearcoat: 1.0
-      });
-    }
-    if (meshTaillights) {
-      // Rear Taillights fixture object (Clean warm yellowish-white self-glow on brake)
-      var tailCol = isBraking ? [1.0, 0.96, 0.78] : [0.85, 0.18, 0.14];
-      var tailEmissive = isBraking
-        ? [2.8, 2.6, 1.8] // Warm yellowish-white self-luminous glow directly on the light mesh
-        : [1.1, 0.20, 0.15]; // Sleek ambient red running light
-
-      this.draw(meshTaillights, carDrawPos, B.quat, _vScale, {
-        color: tailCol,
-        emissive: tailEmissive,
-        spec: 1.0,
-        clearcoat: 1.0
-      });
-    }
-  } else if (meshLights) {
-    // Fallback unified light mesh
-    var activeLightsCol = isBraking ? [1.0, 0.96, 0.78] : lightsCol;
-    var activeEmissive = isBraking
-      ? [2.8, 2.6, 1.8]
-      : [lightsCol[0] * 2.0, lightsCol[1] * 2.0, lightsCol[2] * 2.0];
-
-    this.draw(meshLights, carDrawPos, B.quat, _vScale, {
-      color: activeLightsCol,
-      emissive: activeEmissive,
+  if (meshHeadlights) {
+    // Front Headlights fixture object
+    this.draw(meshHeadlights, carDrawPos, B.quat, _vScale, {
+      color: lightsCol,
+      emissive: [lightsCol[0] * 2.2, lightsCol[1] * 2.2, lightsCol[2] * 2.2],
       spec: 1.0,
       clearcoat: 1.0
     });
   }
 
-  // 6. Rocket Thruster Exhaust Core
+  // 6. Orange Cone Lights / Thruster Exhaust (The car's authentic rear lights on the black box)
   if (meshThruster) {
-    var thrusterEmissive = boostActive
-      ? [thrusterCol[0] * 3.5, thrusterCol[1] * 2.5, thrusterCol[2] * 1.5]
-      : [thrusterCol[0] * 0.45, thrusterCol[1] * 0.35, thrusterCol[2] * 0.2];
+    var finalThrusterCol, finalThrusterEmissive;
+    if (boostActive) {
+      // Hot fiery boost flare
+      finalThrusterCol = [1.0, 0.85, 0.20];
+      finalThrusterEmissive = [5.0, 4.0, 1.0];
+    } else if (isBraking) {
+      // BRAKE LIGHT ON: Glowing vivid orange-red brake light directly on the cone
+      finalThrusterCol = [1.0, 0.36, 0.05];
+      finalThrusterEmissive = [4.5, 1.5, 0.2];
+    } else {
+      // BRAKE LIGHT OFF: Dark / unlit natural orange cone on the black housing
+      finalThrusterCol = [0.40, 0.15, 0.02];
+      finalThrusterEmissive = [0.0, 0.0, 0.0];
+    }
+
     this.draw(meshThruster, carDrawPos, B.quat, _vScale, {
-      color: boostActive ? [1.0, 0.8, 0.2] : thrusterCol,
-      emissive: thrusterEmissive,
+      color: finalThrusterCol,
+      emissive: finalThrusterEmissive,
       spec: 1.0
     });
   }
@@ -5125,20 +5548,36 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
   for (var w = 0; w < 4; w++) {
     var wheel = car.wheels[w];
     if (!wheel) continue;
-    var curR = wheel.radius || V.wheel.radius;
+    // Calculate visual wheel radius curR.
+    // If it's a model with specified wheelMounts.r, scale it proportionally with the current physical wheel radius.
+    // Otherwise, use the physical wheel radius directly.
+    var currentPhysicalR = wheel.radius || V.wheel.radius || 0.157;
+    var curR = (kitM && kitM.wheelMounts && kitM.wheelMounts.r)
+      ? (kitM.wheelMounts.r * (currentPhysicalR / 0.157))
+      : currentPhysicalR;
     _wheelScale.set(CAR_SCALE * curR, CAR_SCALE * curR, CAR_SCALE * curR);
 
-    // Determine custom visual X offset for this model (e.g. to match fender arches)
-    var customX = (kitM && kitM.archX !== undefined) ? (kitM.archX + 0.025) : null;
+    // Determine custom visual attachment points for this model to match wheel arches
+    var sx = (wheel.local.x > 0 || (w % 2 === 1)) ? 1 : -1;
+    var isFront = (w < 2);
+    var localX = sx * ((kitM && kitM.archX !== undefined) ? (kitM.archX + 0.02) : Math.abs(wheel.local.x));
+    var localZ = wheel.local.z;
+    var localY = wheel.local.y;
 
-    var sx = (wheel.local.x > 0) ? 1 : -1;
-    var localX = (customX !== null) ? (sx * customX) : wheel.local.x;
+    if (kitM && kitM.wheelMounts) {
+      localZ = isFront ? kitM.wheelMounts.zf : kitM.wheelMounts.zr;
+      localX = sx * (kitM.wheelMounts.x + 0.015);
+      if (kitM.wheelMounts.y !== undefined) {
+        localY = kitM.wheelMounts.y;
+      }
+    }
 
     // Direct, mathematically correct local-to-world rotation keeping suspension movement aligned with car's orientation
     var comp = wheel.compression || 0;
-    var restTravel = V.wheel.rest - comp;
+    var userRideHeight = (isPlayer && cust && cust.rideHeight !== undefined) ? cust.rideHeight : 1.0;
+    var restTravel = (V.wheel.rest - comp) * userRideHeight;
     var localPos = _vScratch4;
-    localPos.set(localX, wheel.local.y - restTravel, wheel.local.z);
+    localPos.set(localX, localY - restTravel, localZ);
 
     var attachRot = B.quat.rotate(localPos, _vScratch3);
     var relX = attachRot.x * CAR_SCALE;
@@ -5146,32 +5585,122 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
     var relZ = attachRot.z * CAR_SCALE;
     _vScratch1.set(carDrawPos.x + relX, carDrawPos.y + relY, carDrawPos.z + relZ);
 
-    // Rotate wheel around steer (Y) and rolling spin (X)
+    // Rotate wheel around steer (Y) and rolling spin (X) + optional camber
     _qScratch1.fromAxisAngle(0, 1, 0, wheel.steer || 0);
     _qScratch2.fromAxisAngle(1, 0, 0, wheel.spin || 0);
     _qScratch3.mul(B.quat, _qScratch1).mul(_qScratch3, _qScratch2);
 
-    if (meshWheel) {
-      this.draw(meshWheel, _vScratch1, _qScratch3, _wheelScale, {
-        color: wheelCol,
-        tex: this.texCarWheel,
-        bump: carBump * 0.90,
-        spec: 0.30,
-        ao: 0.95
-      });
+    var userCamber = (isPlayer && cust && cust.wheelCamber !== undefined) ? cust.wheelCamber : 0.0;
+    if (userCamber !== 0.0) {
+      _qScratch1.fromAxisAngle(0, 0, 1, sx * userCamber);
+      _qScratch3.mul(_qScratch3, _qScratch1);
     }
 
-    if (meshHub) {
-      this.draw(meshHub, _vScratch1, _qScratch3, _wheelScale, {
-        color: hubCol,
-        tex: this.texCarWheel,
-        bump: carBump * 0.65,
-        emissive: [hubCol[0] * 0.25, hubCol[1] * 0.25, hubCol[2] * 0.25],
-        spec: 0.95,
-        clearcoat: 0.85,
-        metallic: 0.80,
-        rim: 0.45
-      });
+    if (kitW && kitW.parts && kitW.parts.length > 0) {
+      // High-Fidelity Multi-Slot Ultra Wheel Rendering
+      for (var pi = 0; pi < kitW.parts.length; pi++) {
+        var p = kitW.parts[pi];
+        if (!p || !p.mesh || !p.mesh.count) continue;
+        var pOpts = Object.assign({}, p.opts || {});
+        var sName = (p.slot || "").toLowerCase();
+
+        if (p.opts && p.opts.isCustomPhysicalSlot) {
+          // Pure, uncorrupted physical item material (dough, rice, nori, fur, sprinkles, glaze, leaves, salmon, gears, etc.)
+          pOpts.tex = p.opts.tex || null;
+          pOpts.color = p.opts.color || [0.85, 0.85, 0.85];
+          pOpts.ao = p.opts.ao !== undefined ? p.opts.ao : 0.95;
+          if (p.opts.emissive) pOpts.emissive = p.opts.emissive;
+          if (p.opts.metallic !== undefined) pOpts.metallic = p.opts.metallic;
+          if (p.opts.spec !== undefined) pOpts.spec = p.opts.spec;
+          if (p.opts.clearcoat !== undefined) pOpts.clearcoat = p.opts.clearcoat;
+          if (p.opts.bump !== undefined) pOpts.bump = p.opts.bump;
+        } else if ((p.opts && p.opts.isTyreSlot)) {
+          // Pure matte/satin rubber tyre material
+          pOpts.tex = this.texCarWheel;
+          pOpts.bump = p.opts.bump !== undefined ? p.opts.bump : 0.85;
+          pOpts.ao = 0.95;
+          pOpts.spec = p.opts.spec !== undefined ? p.opts.spec : 0.25;
+          pOpts.metallic = p.opts.metallic !== undefined ? p.opts.metallic : 0.04;
+          pOpts.clearcoat = p.opts.clearcoat !== undefined ? p.opts.clearcoat : 0.1;
+          if (cust && cust.wheelColor) {
+            pOpts.color = parseHex(cust.wheelColor, p.opts.color || [0.10, 0.10, 0.12]);
+          } else {
+            pOpts.color = p.opts.color || wheelCol || [0.10, 0.10, 0.12];
+          }
+        } else if (p.opts && p.opts.isRimSlot) {
+          // Standard rim / lip / cap / spokes slot
+          pOpts.tex = this.texCarWheel;
+          pOpts.bump = p.opts.bump !== undefined ? p.opts.bump : 0.4;
+          var rf = (cust && cust.rimFinish) ? String(cust.rimFinish).toLowerCase() : 'native';
+          if (rf !== 'native' && rf !== 'default' && rf !== 'auto' && FA_RIM_FINISH_NAMES && FA_RIM_FINISH_NAMES[rf]) {
+            var userRimObj = FA_RIM_FINISH_NAMES[rf];
+            pOpts.color = parseHex(userRimObj.color, p.opts.color || [0.88, 0.90, 0.95]);
+            pOpts.metallic = userRimObj.metal !== undefined ? userRimObj.metal : rimMetallic;
+            pOpts.spec = userRimObj.rough !== undefined ? (1.0 - userRimObj.rough * 0.9) : rimGloss;
+          } else if (cust && cust.hubColor) {
+            pOpts.color = parseHex(cust.hubColor, p.opts.color || [0.88, 0.90, 0.95]);
+            pOpts.metallic = rimMetallic;
+            pOpts.spec = rimGloss;
+          } else {
+            pOpts.color = p.opts.color || hubCol || [0.88, 0.90, 0.95];
+            pOpts.metallic = p.opts.metallic !== undefined ? p.opts.metallic : rimMetallic;
+            pOpts.spec = p.opts.spec !== undefined ? p.opts.spec : rimGloss;
+          }
+          pOpts.clearcoat = p.opts.clearcoat !== undefined ? p.opts.clearcoat : rimClearcoat;
+        } else if (sName === 'accent') {
+          pOpts.color = accentCol;
+          pOpts.spec = 0.85;
+          pOpts.metallic = 0.50;
+        } else {
+          // General fallback for any other wheel slot (face, disc, caliper, blade, shroud, gear, lug, etc.)
+          pOpts.tex = this.texCarWheel;
+          pOpts.color = p.opts.color || hubCol || [0.85, 0.85, 0.85];
+          pOpts.metallic = p.opts.metallic !== undefined ? p.opts.metallic : rimMetallic;
+          pOpts.spec = p.opts.spec !== undefined ? p.opts.spec : rimGloss;
+          pOpts.clearcoat = p.opts.clearcoat !== undefined ? p.opts.clearcoat : 0.5;
+          if (p.opts.emissive) pOpts.emissive = p.opts.emissive;
+          if (p.opts.bump !== undefined) pOpts.bump = p.opts.bump;
+        }
+
+        this.draw(p.mesh, _vScratch1, _qScratch3, _wheelScale, pOpts);
+      }
+    } else {
+      // Classic 2-Part Fallback
+      if (meshWheel) {
+        var finalWheelCol = wheelCol;
+        if (cust && cust.wheelColor) {
+          finalWheelCol = parseHex(cust.wheelColor, wheelCol);
+        }
+        this.draw(meshWheel, _vScratch1, _qScratch3, _wheelScale, {
+          color: finalWheelCol,
+          tex: this.texCarWheel,
+          bump: carBump * 0.90,
+          spec: 0.30,
+          ao: 0.95
+        });
+      }
+
+      if (meshHub) {
+        var finalHubCol = hubCol;
+        if (cust && cust.hubColor) {
+          finalHubCol = parseHex(cust.hubColor, hubCol);
+        } else if (cust && cust.rimFinish && FA_RIM_FINISH_NAMES) {
+          var rfObj = FA_RIM_FINISH_NAMES[String(cust.rimFinish).toLowerCase()];
+          if (rfObj && rfObj.color) {
+            finalHubCol = parseHex(rfObj.color, hubCol);
+          }
+        }
+        this.draw(meshHub, _vScratch1, _qScratch3, _wheelScale, {
+          color: finalHubCol,
+          tex: this.texCarWheel,
+          bump: carBump * 0.65,
+          emissive: [finalHubCol[0] * 0.15, finalHubCol[1] * 0.15, finalHubCol[2] * 0.15],
+          spec: rimGloss,
+          clearcoat: rimClearcoat,
+          metallic: rimMetallic,
+          rim: 0.45
+        });
+      }
     }
 
     // 7.1 Four corner fenders / wheel bumpers (fender arches and brake calipers)
@@ -5212,6 +5741,202 @@ Renderer.prototype.drawVehicle = function (props, car, team) {
           rim: 0.25
         });
       }
+    }
+  }
+
+  // 8. Draw Equipped 3D Cosmetics (Hat, Antenna, Horn, Tool, Wing)
+  if (props.carKit && props.carKit.cosmetics) {
+    var self = this;
+    var drawCosmeticItem = function(item, defaultOpts) {
+      if (!item) return;
+      if (item.parts && Array.isArray(item.parts)) {
+        for (var p = 0; p < item.parts.length; p++) {
+          var part = item.parts[p];
+          if (part && part.mesh && part.mesh.count) {
+            self.draw(part.mesh, carDrawPos, B.quat, _vScale, part.opts || defaultOpts);
+          }
+        }
+      } else if (item.vao && item.count) {
+        self.draw(item, carDrawPos, B.quat, _vScale, defaultOpts);
+      }
+    };
+
+    var activeModelId = isPlayer ? (cust.model || 'OCTANE') : (car.model || 'OCTANE');
+    var carMounts = getCarAccessoriesMounts(activeModelId);
+
+    var cHat = isPlayer ? cust.hat : 'none';
+    var cAntenna = isPlayer ? (cust.antenna || 'none') : 'none';
+    var cHorn = isPlayer ? cust.horn : 'none';
+    var cTool = isPlayer ? cust.tool : 'none';
+    var cWing = isPlayer ? cust.wing : 'none';
+
+    // TOPPERS / HATS (Positioned at specific car's roof apex, user adjustable scale & offset)
+    if (cHat && cHat !== 'none') {
+      var hatItem = props.carKit.cosmetics[cHat];
+      if (!hatItem && isUltraTopper(cHat)) {
+        try {
+          hatItem = buildUltraTopperMesh(this, cHat);
+          if (hatItem) props.carKit.cosmetics[cHat] = hatItem;
+        } catch (e) {
+          console.warn("Failed to load Ultra topper on demand:", cHat, e);
+        }
+      }
+      if (hatItem) {
+        if (hatItem.isUltraTopper) {
+          var userTopperMult = (cust && cust.topperScale !== undefined) ? cust.topperScale : 2.125;
+          var userTopperOffsetY = (cust && cust.topperOffsetY !== undefined) ? cust.topperOffsetY : 0.0;
+          var TOPPER_SCALE = CAR_SCALE * userTopperMult;
+          _vTopperScale.set(TOPPER_SCALE, TOPPER_SCALE, TOPPER_SCALE);
+
+          var tM = carMounts.topper;
+          _vTopperMount.set(tM.x * CAR_SCALE, (tM.y + userTopperOffsetY) * CAR_SCALE, tM.z * CAR_SCALE);
+          B.quat.rotate(_vTopperMount, _vScratch1);
+          _vTopperPos.set(carDrawPos.x + _vScratch1.x, carDrawPos.y + _vScratch1.y, carDrawPos.z + _vScratch1.z);
+
+          if (hatItem.parts && Array.isArray(hatItem.parts)) {
+            for (var hp = 0; hp < hatItem.parts.length; hp++) {
+              var hPart = hatItem.parts[hp];
+              if (hPart && hPart.mesh && hPart.mesh.count) {
+                self.draw(hPart.mesh, _vTopperPos, B.quat, _vTopperScale, hPart.opts);
+              }
+            }
+          }
+        } else {
+          drawCosmeticItem(hatItem, {
+            color: [0.95, 0.82, 0.22],
+            emissive: [0.25, 0.20, 0.05],
+            spec: 0.90,
+            clearcoat: 0.85
+          });
+        }
+      }
+    }
+
+    // ANTENNAS (Dynamic Cantilever Whip & Spring Physics with Acceleration Sway, user adjustable scale & sensitivity)
+    if (cAntenna && cAntenna !== 'none') {
+      var antItem = props.carKit.cosmetics[cAntenna];
+      if (!antItem && isUltraAntenna(cAntenna)) {
+        try {
+          antItem = buildUltraAntennaMesh(this, cAntenna);
+          if (antItem) props.carKit.cosmetics[cAntenna] = antItem;
+        } catch (e) {
+          console.warn("Failed to load Ultra antenna on demand:", cAntenna, e);
+        }
+      }
+      if (antItem) {
+        if (antItem.isUltraAntenna) {
+          var userAntennaMult = (cust && cust.antennaScale !== undefined) ? cust.antennaScale : 1.20;
+          var userAntennaSwaySens = (cust && cust.antennaSwaySens !== undefined) ? cust.antennaSwaySens : 1.0;
+          var ANTENNA_SCALE = CAR_SCALE * userAntennaMult;
+          _vAntennaScale.set(ANTENNA_SCALE, ANTENNA_SCALE, ANTENNA_SCALE);
+
+          var now = performance.now();
+          var dt = car._lastSwayTime ? (now - car._lastSwayTime) * 0.001 : 0.016;
+          car._lastSwayTime = now;
+          dt = Math.max(0.001, Math.min(0.05, dt));
+
+          if (!car._prevVel) car._prevVel = new V3(B.vel.x, B.vel.y, B.vel.z);
+          var aX = (B.vel.x - car._prevVel.x) / dt;
+          var aY = (B.vel.y - car._prevVel.y) / dt;
+          var aZ = (B.vel.z - car._prevVel.z) / dt;
+          car._prevVel.set(B.vel.x, B.vel.y, B.vel.z);
+
+          // Local inertial acceleration
+          var aFwd = aX * B.fwd.x + aY * B.fwd.y + aZ * B.fwd.z;
+          var aRight = aX * B.right.x + aY * B.right.y + aZ * B.right.z;
+          var fwdSpeed = B.vel.dot(B.fwd);
+
+          // Aerodynamic drag bends backward as car speeds up
+          var windLoadZ = (fwdSpeed / 18.0);
+          var loadZ = - (aFwd * 0.08 + windLoadZ * 1.2) * userAntennaSwaySens;
+          var loadX = - (aRight * 0.09 + (B.angVel ? B.angVel.y : 0) * 0.40) * userAntennaSwaySens;
+
+          // Natural subtle breathing breeze / engine vibration when car is parked/in garage
+          var idleT = now * 0.003;
+          loadZ += Math.sin(idleT * 2.1) * 0.045 * userAntennaSwaySens;
+          loadX += Math.cos(idleT * 1.7) * 0.035 * userAntennaSwaySens;
+
+          loadZ = Math.max(-2.5, Math.min(2.5, loadZ));
+          loadX = Math.max(-2.5, Math.min(2.5, loadX));
+
+          var swayState = stepAntennaSway(car, dt, loadX, loadZ);
+          var poseInfo = antItem.updateSway ? antItem.updateSway(this.gl, swayState) : { tipOffset: [0, 0.17, 0], tilt: [0, 0, 0] };
+
+          var aM = carMounts.antenna;
+          // 1. Draw mast at vehicle's antenna mount point
+          _vAntennaMount.set(aM.x * CAR_SCALE, aM.y * CAR_SCALE, aM.z * CAR_SCALE);
+          B.quat.rotate(_vAntennaMount, _vScratch1);
+          _vAntennaPos.set(carDrawPos.x + _vScratch1.x, carDrawPos.y + _vScratch1.y, carDrawPos.z + _vScratch1.z);
+
+          if (antItem.mastParts) {
+            for (var mp = 0; mp < antItem.mastParts.length; mp++) {
+              var mPart = antItem.mastParts[mp];
+              if (mPart && mPart.mesh && mPart.mesh.count) {
+                self.draw(mPart.mesh, _vAntennaPos, B.quat, _vAntennaScale, mPart.opts);
+              }
+            }
+          }
+
+          // 2. Draw payload at mast tip with lean angle
+          var tipOff = poseInfo.tipOffset;
+          _vAntennaMount.set(
+            aM.x * CAR_SCALE + tipOff[0] * ANTENNA_SCALE,
+            aM.y * CAR_SCALE + tipOff[1] * ANTENNA_SCALE,
+            aM.z * CAR_SCALE + tipOff[2] * ANTENNA_SCALE
+          );
+          B.quat.rotate(_vAntennaMount, _vScratch1);
+          _vPayloadPos.set(carDrawPos.x + _vScratch1.x, carDrawPos.y + _vScratch1.y, carDrawPos.z + _vScratch1.z);
+
+          _qTiltX.fromAxisAngle(1, 0, 0, poseInfo.tilt[0]);
+          _qTiltZ.fromAxisAngle(0, 0, 1, poseInfo.tilt[2]);
+          _qTiltComb.mul(_qTiltX, _qTiltZ);
+          _qPayload.mul(B.quat, _qTiltComb);
+
+          if (antItem.payloadParts) {
+            for (var pp = 0; pp < antItem.payloadParts.length; pp++) {
+              var pPart = antItem.payloadParts[pp];
+              if (pPart && pPart.mesh && pPart.mesh.count) {
+                self.draw(pPart.mesh, _vPayloadPos, _qPayload, _vAntennaScale, pPart.opts);
+              }
+            }
+          }
+        } else {
+          drawCosmeticItem(antItem, {
+            color: [0.88, 0.90, 0.95],
+            emissive: [0.15, 0.15, 0.20],
+            spec: 0.95,
+            clearcoat: 0.85
+          });
+        }
+      }
+    }
+
+    if (cHorn && cHorn !== 'none' && props.carKit.cosmetics[cHorn]) {
+      drawCosmeticItem(props.carKit.cosmetics[cHorn], {
+        color: [0.90, 0.22, 0.18],
+        emissive: [0.30, 0.08, 0.06],
+        spec: 0.95,
+        clearcoat: 0.90
+      });
+    }
+
+    if (cTool && cTool !== 'none' && props.carKit.cosmetics[cTool]) {
+      drawCosmeticItem(props.carKit.cosmetics[cTool], {
+        color: [0.85, 0.88, 0.92],
+        emissive: [0.15, 0.15, 0.20],
+        spec: 0.95,
+        clearcoat: 0.85,
+        metallic: 0.80
+      });
+    }
+
+    if (cWing && cWing !== 'none' && props.carKit.cosmetics[cWing]) {
+      drawCosmeticItem(props.carKit.cosmetics[cWing], {
+        color: [0.12, 0.85, 0.95],
+        emissive: [0.20, 0.50, 0.80],
+        spec: 0.90,
+        clearcoat: 0.90
+      });
     }
   }
 };

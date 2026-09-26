@@ -105,6 +105,9 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     airRoll: CFG.vehicle.air.roll,
     driveAccel: CFG.vehicle.driveAccel,
     driveSpeedCap: CFG.vehicle.driveSpeedCap,
+    steerSens: (CFG.input && CFG.input.steerSens !== undefined) ? CFG.input.steerSens : 1.0,
+    steerMax: CFG.vehicle.steerMax !== undefined ? CFG.vehicle.steerMax : 0.55,
+    steerMin: CFG.vehicle.steerMin !== undefined ? CFG.vehicle.steerMin : 0.28,
 
     // 4. Boost & Engine
     boostAccel: CFG.vehicle.boost.accel,
@@ -269,6 +272,18 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
     if (key === "flapOffsetY") CFG.vehicle.flapOffsetY = val;
     if (key === "hideWheelFlaps") CFG.vehicle.hideWheelFlaps = val;
 
+    // Steering Parameters
+    if (key === "steerSens") {
+      if (!CFG.input) CFG.input = {};
+      CFG.input.steerSens = val;
+    }
+    if (key === "steerMax") {
+      CFG.vehicle.steerMax = val;
+    }
+    if (key === "steerMin") {
+      CFG.vehicle.steerMin = val;
+    }
+
     // Sync with compiled Three.js engine objects if they exist
     if (window.teObj) {
       if (key === "chassisHx") window.teObj.hitbox.x = val * 280.95;
@@ -347,9 +362,26 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
   const handleLoadZeroPreset = () => {
     const loaded = loadZeroPreset();
     if (loaded) {
+      if (engineRef && engineRef.current) {
+        if (typeof engineRef.current.rebuildCarModels === "function") {
+          engineRef.current.rebuildCarModels();
+        }
+        if (engineRef.current.world && engineRef.current.world.cars) {
+          engineRef.current.world.cars.forEach(car => {
+            if (car.wheels) {
+              car.wheels.forEach(w => {
+                w.radius = CFG.vehicle.wheel.radius;
+              });
+            }
+            if (car.body && typeof car.body.setBoxInertia === "function") {
+              car.body.setBoxInertia(CFG.vehicle.hx, CFG.vehicle.hy, CFG.vehicle.hz, CFG.vehicle.inertiaScale);
+            }
+          });
+        }
+      }
       setValues(getInitialValues());
-      if (onConfigChange) onConfigChange();
-      setZeroNotice("تنظیمات تغییرات صفر اعمال شد!");
+      if (onConfigChange) onConfigChange("reset", true);
+      setZeroNotice("تنظیمات رسمی نسخه ۴ با موفقیت اعمال و لود شد!");
       setTimeout(() => setZeroNotice(""), 2500);
     }
   };
@@ -1774,6 +1806,86 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                         updateParam("driveAccel", v, val => { CFG.vehicle.driveAccel = val; });
                       }}
                       className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-white"
+                    />
+                  </div>
+
+                  {/* --- Steering Configuration (تنظیمات فرمان‌پذیری) --- */}
+                  <div className="pt-2 border-t border-white/5 space-y-1">
+                    <span className="text-[10px] font-bold text-[#99fa47] tracking-wider uppercase">تنظیمات فرمان‌پذیری (Steering & Handling)</span>
+                  </div>
+
+                  {/* Steering Sensitivity */}
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-[#99fa47]/10 to-transparent border border-[#99fa47]/20 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-neutral-200 font-medium">ضریب حساسیت فرمان (Steering Sensitivity)</span>
+                        <span className="text-[10px] text-neutral-400">حساسیت و سرعت چرخش با پدال/کلید/دسته</span>
+                      </div>
+                      <span className="text-[#99fa47] font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-[#99fa47]/30">
+                        {values.steerSens.toFixed(2)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.10"
+                      max="3.00"
+                      step="0.05"
+                      value={values.steerSens}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        updateParam("steerSens", v);
+                      }}
+                      className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-[#99fa47]"
+                    />
+                  </div>
+
+                  {/* Max Steer Angle */}
+                  <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-neutral-200 font-medium">حداکثر زاویه چرخش فرمان (Max Steer Angle)</span>
+                        <span className="text-[10px] text-neutral-400">حداکثر زاویه تایرها در سرعت بسیار پایین</span>
+                      </div>
+                      <span className="text-[#99fa47] font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-[#99fa47]/30">
+                        {(values.steerMax * 57.3).toFixed(1)}° ({values.steerMax.toFixed(3)} rad)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.10"
+                      max="1.10"
+                      step="0.01"
+                      value={values.steerMax}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        updateParam("steerMax", v);
+                      }}
+                      className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-[#99fa47]"
+                    />
+                  </div>
+
+                  {/* Min Steer Angle (At High Speed) */}
+                  <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-neutral-200 font-medium">حداقل زاویه چرخش در سرعت بالا (Min Steer Angle)</span>
+                        <span className="text-[10px] text-neutral-400">حداکثر زاویه تایرها در سرعت بالا (برای جلوگیری از چرخش ناگهانی)</span>
+                      </div>
+                      <span className="text-[#99fa47] font-mono font-bold text-[11px] bg-black/50 px-1.5 py-0.5 rounded border border-[#99fa47]/30">
+                        {(values.steerMin * 57.3).toFixed(1)}° ({values.steerMin.toFixed(3)} rad)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.80"
+                      step="0.01"
+                      value={values.steerMin}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        updateParam("steerMin", v);
+                      }}
+                      className="w-full h-1.5 bg-neutral-800 rounded appearance-none cursor-pointer accent-[#99fa47]"
                     />
                   </div>
                 </div>
@@ -3478,16 +3590,16 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                   <div className="p-3 rounded-xl bg-gradient-to-r from-amber-950/70 via-neutral-900/95 to-neutral-900/90 border-2 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.15)] space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 font-mono">
-                        <Sparkles className="w-4 h-4 text-amber-400" /> پریست «تغییرات صفر» (Zero Changes Preset)
+                        <Sparkles className="w-4 h-4 text-amber-400" /> پریست مبنا و رسمی نسخه ۴ (Version 4 Official Base)
                       </div>
                       {hasZero && (
                         <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-400/40">
-                          ذخیره شده ✓
+                          فعال در لود ✓
                         </span>
                       )}
                     </div>
                     <p className="text-[11px] text-neutral-300 leading-relaxed">
-                      تنظیمات شخصی، فیزیک، نورپردازی، ابعاد و زوایای دوربین خود را به عنوان نقطه مبنای پایدار ذخیره یا بازیابی کنید تا هرگز تغییرات شما از دست نرود.
+                      تمامی تنظیمات اورجینال فیزیک، ابعاد استادیوم، فرمان، نورپردازی و متریال‌های نسخه ۴ ذخیره شده و در هر بار لود بازی به عنوان تنظیمات اولیه بالا می‌آید.
                     </p>
 
                     {zeroNotice && (
@@ -3502,7 +3614,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                         className="p-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold font-mono text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
                       >
                         <Save className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>ذخیره تغییرات صفر</span>
+                        <span>ذخیره نسخه ۴</span>
                       </button>
 
                       <button
@@ -3515,7 +3627,7 @@ export function RealTimeTuningPanel({ engineRef, onConfigChange, isOpen, onClose
                         }`}
                       >
                         <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>بازیابی تغییرات صفر</span>
+                        <span>بازیابی تنظیمات نسخه ۴</span>
                       </button>
                     </div>
                   </div>

@@ -205,6 +205,134 @@ Effects.prototype.goalBurst = function (pos, team) {
   }
 };
 
+// Grand celebratory goal effects launcher
+Effects.prototype.playCelebration = function (effectId, pos, team) {
+  var eff = String(effectId || 'donutstorm').toLowerCase();
+  var teamCol = TEAM_COLOR[team] || [0.2, 0.8, 1.0];
+  var px = pos ? pos.x : 0;
+  var py = pos ? pos.y : 2.0;
+  var pz = pos ? pos.z : 0;
+
+  // Base goal burst & confetti for all
+  this.goalBurst({ x: px, y: py, z: pz }, team);
+  this.confettiBurst({ x: px, y: py, z: pz }, team);
+
+  var n = Math.floor(280 * CFG.gfx.particles);
+
+  if (eff.includes('donut') || eff.includes('cookie') || eff.includes('pastry')) {
+    var donutColors = [[1.0, 0.45, 0.70], [0.45, 0.25, 0.15], [1.0, 0.85, 0.20], [0.20, 0.85, 1.0], [0.95, 0.95, 0.95]];
+    for (var di = 0; di < n; di++) {
+      var pd = this.spawn();
+      if (!pd) break;
+      pd.pos.set(px + this.rng.range(-2, 2), py + this.rng.range(0.5, 4), pz + this.rng.range(-2, 2));
+      var spd = this.rng.range(8, 26);
+      var angD = this.rng.next() * TAU;
+      pd.vel.set(Math.cos(angD) * spd, this.rng.range(6, 22), Math.sin(angD) * spd);
+      var cD = donutColors[di % donutColors.length];
+      pd.col[0] = cD[0]; pd.col[1] = cD[1]; pd.col[2] = cD[2];
+      pd.size = this.rng.range(0.35, 0.95);
+      pd.max = this.rng.range(1.6, 3.5);
+      pd.life = 0; pd.grav = 3.5; pd.drag = 0.85; pd.fade = 0.95; pd.grow = 0.2;
+    }
+  } else if (eff.includes('dragon') || eff.includes('hellfire') || eff.includes('inferno') || eff.includes('meteor') || eff.includes('fire') || eff.includes('flame')) {
+    for (var k = 0; k < n; k++) {
+      var p3 = this.spawn();
+      if (!p3) break;
+      p3.pos.set(px + this.rng.range(-2.5, 2.5), py + this.rng.range(0.5, 5), pz + this.rng.range(-2.5, 2.5));
+      p3.vel.set(this.rng.range(-22, 22), this.rng.range(12, 32), this.rng.range(-22, 22));
+      p3.col[0] = 1.0; p3.col[1] = this.rng.range(0.15, 0.85); p3.col[2] = 0.02;
+      p3.size = this.rng.range(0.4, 1.3);
+      p3.max = this.rng.range(1.2, 2.8);
+      p3.life = 0; p3.grav = -2.0; p3.drag = 1.1; p3.fade = 1.0; p3.grow = 0.7;
+    }
+  } else if (eff.includes('gravity') || eff.includes('vortex') || eff.includes('void') || eff.includes('blackhole') || eff.includes('abyss')) {
+    for (var j = 0; j < n; j++) {
+      var p2 = this.spawn();
+      if (!p2) break;
+      var r = this.rng.range(3, 16);
+      var ang = this.rng.next() * TAU;
+      p2.pos.set(px + Math.cos(ang) * r, py + this.rng.range(1, 10), pz + Math.sin(ang) * r);
+      p2.vel.set(-Math.cos(ang) * (r * 2.5), -1.8, -Math.sin(ang) * (r * 2.5));
+      p2.col[0] = 0.45; p2.col[1] = 0.05; p2.col[2] = 0.85;
+      p2.size = this.rng.range(0.3, 0.9);
+      p2.max = this.rng.range(1.5, 2.8);
+      p2.life = 0; p2.grav = -0.4; p2.drag = 0.6; p2.fade = 1.0; p2.grow = 0.2;
+    }
+  } else if (eff.includes('snow') || eff.includes('subzero') || eff.includes('crystal') || eff.includes('ice') || eff.includes('frost')) {
+    for (var l = 0; l < n; l++) {
+      var p4 = this.spawn();
+      if (!p4) break;
+      p4.pos.set(px + this.rng.range(-3, 3), py + this.rng.range(1, 8), pz + this.rng.range(-3, 3));
+      p4.vel.set(this.rng.range(-16, 16), this.rng.range(4, 20), this.rng.range(-16, 16));
+      p4.col[0] = 0.75; p4.col[1] = 0.95; p4.col[2] = 1.0;
+      p4.size = this.rng.range(0.25, 0.65);
+      p4.max = this.rng.range(1.8, 3.5);
+      p4.life = 0; p4.grav = 4.0; p4.drag = 0.9; p4.fade = 0.9; p4.stretch = 2.2;
+    }
+  } else if (eff.includes('electro') || eff.includes('lightning') || eff.includes('atomizer') || eff.includes('plasma') || eff.includes('pulse')) {
+    for (var ei = 0; ei < n; ei++) {
+      var pe = this.spawn();
+      if (!pe) break;
+      pe.pos.set(px + this.rng.range(-2, 2), py + this.rng.range(1, 9), pz + this.rng.range(-2, 2));
+      var eAng = this.rng.next() * TAU;
+      var eSp = this.rng.range(16, 36);
+      pe.vel.set(Math.cos(eAng) * eSp, this.rng.range(-6, 16), Math.sin(eAng) * eSp);
+      pe.col[0] = 0.1; pe.col[1] = 0.9; pe.col[2] = 1.0;
+      pe.size = this.rng.range(0.25, 0.7);
+      pe.max = this.rng.range(0.9, 2.0);
+      pe.life = 0; pe.grav = 0.5; pe.drag = 1.2; pe.fade = 1.0; pe.stretch = 4.0;
+    }
+  } else if (eff.includes('gold') || eff.includes('treasure') || eff.includes('coin') || eff.includes('rich')) {
+    for (var gi = 0; gi < n; gi++) {
+      var pg = this.spawn();
+      if (!pg) break;
+      pg.pos.set(px + this.rng.range(-2, 2), py + this.rng.range(2, 8), pz + this.rng.range(-2, 2));
+      pg.vel.set(this.rng.range(-12, 12), this.rng.range(8, 24), this.rng.range(-12, 12));
+      pg.col[0] = 1.0; pg.col[1] = 0.85; pg.col[2] = 0.15;
+      pg.size = this.rng.range(0.3, 0.75);
+      pg.max = this.rng.range(2.0, 4.0);
+      pg.life = 0; pg.grav = 4.5; pg.drag = 0.9; pg.fade = 0.95; pg.grow = 0.1;
+    }
+  } else if (eff.includes('sakura') || eff.includes('flower') || eff.includes('petal')) {
+    for (var si = 0; si < n; si++) {
+      var ps = this.spawn();
+      if (!ps) break;
+      ps.pos.set(px + this.rng.range(-4, 4), py + this.rng.range(3, 12), pz + this.rng.range(-4, 4));
+      ps.vel.set(this.rng.range(-8, 8), this.rng.range(2, 10), this.rng.range(-8, 8));
+      ps.col[0] = 1.0; ps.col[1] = 0.60; ps.col[2] = 0.78;
+      ps.size = this.rng.range(0.2, 0.5);
+      ps.max = this.rng.range(2.5, 5.0);
+      ps.life = 0; ps.grav = 1.2; ps.drag = 1.5; ps.fade = 0.9;
+    }
+  } else if (eff.includes('skull') || eff.includes('acid') || eff.includes('nuclear') || eff.includes('toxic')) {
+    for (var m = 0; m < n; m++) {
+      var p5 = this.spawn();
+      if (!p5) break;
+      p5.pos.set(px + this.rng.range(-2, 2), py + 1.5, pz + this.rng.range(-2, 2));
+      var ang2 = this.rng.next() * TAU;
+      var sp2 = this.rng.range(10, 28);
+      p5.vel.set(Math.cos(ang2) * sp2, this.rng.range(4, 16), Math.sin(ang2) * sp2);
+      p5.col[0] = 0.15; p5.col[1] = 0.98; p5.col[2] = 0.2;
+      p5.size = this.rng.range(0.35, 0.9);
+      p5.max = this.rng.range(1.2, 2.5);
+      p5.life = 0; p5.grav = 1.2; p5.drag = 1.4; p5.fade = 1.0; p5.grow = 0.5;
+    }
+  } else {
+    var rainbow = [[1, 0, 0], [1, 0.5, 0], [1, 1, 0], [0, 1, 0], [0, 0.8, 1], [0.8, 0, 1], [1, 0.85, 0.1]];
+    for (var rIdx = 0; rIdx < n; rIdx++) {
+      var p6 = this.spawn();
+      if (!p6) break;
+      p6.pos.set(px + this.rng.range(-2.5, 2.5), py + this.rng.range(2, 9), pz + this.rng.range(-2.5, 2.5));
+      p6.vel.set(this.rng.range(-15, 15), this.rng.range(6, 22), this.rng.range(-15, 15));
+      var rc = rainbow[rIdx % rainbow.length];
+      p6.col[0] = rc[0]; p6.col[1] = rc[1]; p6.col[2] = rc[2];
+      p6.size = this.rng.range(0.25, 0.75);
+      p6.max = this.rng.range(1.8, 3.6);
+      p6.life = 0; p6.grav = 2.5; p6.drag = 1.0; p6.fade = 1.0; p6.grow = 0.15;
+    }
+  }
+};
+
 // Grand celebratory stadium confetti cannons showering across the pitch
 Effects.prototype.confettiBurst = function (pos, team) {
   var col = TEAM_COLOR[team] || [0.2, 0.8, 1.0];

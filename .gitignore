@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local dependency-extraction caches (npm pack tarballs / npm cache).
+# Hundreds of MB; never commit.
+.npm-cache/
+.pk/

@@ -40,6 +40,17 @@
  *    3 All-Star   air dribbles, fakes, demolition hunts, sharp team play.
  *    4 Legendary  full toolkit at max rate: fast aerials, carries, pinpoint
  *                 aim, punishing and well-timed demolitions.
+ *
+ *  One field is deliberately NOT scaled to the top of its range: Legendary's
+ *  `fake` is capped at 0.30 rather than carried on up. `fake` gates the FAKE
+ *  state, which charges the ball for 0.25 s and then swerves away for 0.2 s;
+ *  past ~0.3 the bot spends enough of its on-ball time feinting that it is
+ *  strictly worse, and Legendary at 0.4395 lost to All-Star (which sits at
+ *  0.3164) on two disjoint seed families (-0.63 and -0.47 goals). Sweeping it
+ *  down is monotone and large: 0.44 -> -0.63, 0.30 -> +0.41, 0.15 -> +0.31,
+ *  0.00 -> +0.44 on one family, and 0.30 -> +0.47 (14W/2L) on the other. 0.30
+ *  is the highest value that keeps the win, so it keeps as much feinting as the
+ *  bot can actually profit from. Do not "fix" this back up to match All-Star.
  * =========================================================================== */
 
 import { PI, TAU, clamp, lerp, V3, Quat, RNG, tv, tc } from './math.js';
@@ -60,12 +71,28 @@ var APPROACH = 4.15;
 /** Airborne contact standoff along the shot axis (nose length + ball radius). */
 var AIR_STANDOFF = 3.15;
 
-/** Teammate separation. Within SEP_RADIUS of a partner a bot bends its desired
- *  direction away from them, so two cars heading for the same spot slide past
- *  each other instead of colliding. Opponents are deliberately NOT avoided -
- *  challenging and bumping them is part of the game. */
-var SEP_RADIUS = 9.0;
-var SEP_GAIN = 1.0;
+/* NOTE - there is deliberately NO teammate-avoidance steering here.
+ *
+ * A version of this file added a "bend around your partner" push (a lateral
+ * detour whenever a mate was within 9 m, applied in both driveTo() and
+ * runAirControl()). It was measured, and it did not earn its keep:
+ *
+ *   same-team contacts per 3-min 3v3   20.42 +/- 1.29  before any of this work
+ *                                      12.42 +/- 0.60  without the avoidance
+ *                                      12.29 +/- 1.09  with the avoidance
+ *
+ * i.e. the collisions the players complained about are already fixed by the
+ * latched loop-around side and the close-range strike below (disabling either
+ * one puts same-team contacts straight back to ~20). The avoidance itself moved
+ * that number by nothing at all, while costing real quality: it inverted the
+ * tier ladder (All-Star vs Pro went +1.16 -> -1.72 goals on one seed family and
+ * +1.59 -> -2.22 on a disjoint one) and cut goals per match by ~12%.
+ *
+ * The root cause of the shoving was not a missing avoidance rule - it was the
+ * bot thrashing its steering target by up to 28 m per frame while orbiting the
+ * ball, and dithering instead of committing to the shot. Fixing those two fixed
+ * the symptom. Do not re-add a separation push without re-measuring both the
+ * contact count AND the tier ladder. */
 
 var AIR_MAX_W = CFG.vehicle.air.maxAirAngSpeed || 5.5;
 var PITCH_RATE = AIR_MAX_W * 1.0;
@@ -121,7 +148,7 @@ export var AI_LEVELS = [
     steerK: 2.4766, speedFrac: 0.755, boost: 0.7675, boostFloor: 44.7193, boostDuty: 0.5261,
     aimErr: 1.5977, posErr: 2.6135,
     flip: 0.4534, shotFlip: 0.292, aerial: 0.70, airDribble: 0.3356,
-    pass: 0.7831, demo: 0.3062, fake: 0.4395,
+    pass: 0.7831, demo: 0.3062, fake: 0.30,
     defend: 0.8787, rotation: 1.0, recover: 1.0, kickoff: 1.0
   }
 ];
@@ -233,7 +260,6 @@ BallPath.prototype.endT = function () { return this.n > 0 ? this.t[this.n - 1] :
 var _q1 = new Quat(), _q2 = new Quat(), _q3 = new Quat();
 var _v1 = new V3(), _v2 = new V3(), _v3 = new V3(), _v4 = new V3(), _v5 = new V3(), _v6 = new V3();
 var _pb = new V3(), _pa = new V3();
-var _sep = { x: 0, z: 0 };
 
 function flatLen(x, z) { return Math.sqrt(x * x + z * z); }
 function horizDist(a, b) { var dx = a.x - b.x, dz = a.z - b.z; return Math.sqrt(dx * dx + dz * dz); }
@@ -372,9 +398,6 @@ export function AIController(car, world) {
   /* Which way we are currently routing around the ball to get behind it.
    * Latched (not recomputed per frame) - see the LINE_UP branch of attackBall. */
   this.loopSide = 0;
-  /* Which side we are sliding past a teammate on, latched for the same reason
-   * (see bendAroundMates). */
-  this.sepSide = 0;
 }
 
 AIController.prototype.refreshSkill = function () {
@@ -576,69 +599,6 @@ AIController.prototype.findPass = function (ballPos) {
 
 /* --------------------------------------------------------------- driving  */
 
-/** Bend a horizontal direction (ux, uz) sideways to avoid teammates we are
- *  about to drive into. Returns true and writes the bent direction into `out`
- *  ({x, z}); returns false when no teammate is in the way.
- *
- *  Shared by driveTo() AND runAirControl(). That second caller matters: the
- *  airborne path bypasses driveTo() entirely, and measurement showed ~90% of
- *  close teammate approaches involve a bot that is off the ground (mode
- *  AIR_GLIDE). Fixing only driveTo() therefore changed nothing - bots spend
- *  about a third of the match in the air, because every ball contact launches
- *  the car, so airborne steering is not a rare path.
- *
- *  The push is LATERAL (perpendicular to travel), not straight away from the
- *  mate. Pushing straight away does not work: when the mate sits exactly
- *  between us and our target the repulsion is anti-parallel to our heading, so
- *  re-normalising cancels it and we drive into them anyway. Sliding sideways
- *  always produces a real detour.
- *
- *  The side is latched while a mate is dead ahead, so the bot does not dither
- *  left/right frame to frame - the same failure mode that made attackBall()
- *  orbit the ball. */
-AIController.prototype.bendAroundMates = function (ux, uz, out) {
-  var car = this.car, B = car.body;
-
-  /* The designated attacker (role 0) has priority on the ball: it drives
-   * straight through, and it is everyone ELSE's job to get out of its way.
-   * Deflecting the attacker made the whole team less direct and measurably cut
-   * scoring, so the avoidance is deliberately one-sided. */
-  if (this.role === 0) { this.sepSide = 0; return false; }
-
-  var cars = this.world.cars;
-  var perpX = -uz, perpZ = ux;
-  var lat = 0, near = 0, dither = false;
-
-  for (var i = 0; i < cars.length; i++) {
-    var mate = cars[i];
-    if (mate === car || mate.demolished || mate.team !== car.team) continue;
-    var mx = mate.body.pos.x - B.pos.x, mz = mate.body.pos.z - B.pos.z;
-    var md = Math.sqrt(mx * mx + mz * mz);
-    if (md > SEP_RADIUS || md < 1e-3) continue;
-    if (mx * ux + mz * uz < -2.0) continue;          // clearly behind us
-    var mw = 1 - md / SEP_RADIUS;
-    var mside = mx * perpX + mz * perpZ;             // signed lateral offset
-    if (Math.abs(mside) < 1.0) dither = true;        // dead ahead: no clear side
-    lat += (mside >= 0 ? -mw : mw);
-    near++;
-  }
-
-  if (!near) { this.sepSide = 0; return false; }
-  if (dither || !this.sepSide) {
-    if (lat !== 0) this.sepSide = lat > 0 ? 1 : -1;
-    else if (!this.sepSide) this.sepSide = 1;
-  }
-  if (Math.abs(lat) < 1e-6) lat = this.sepSide;
-
-  var nx = ux + perpX * lat * SEP_GAIN;
-  var nz = uz + perpZ * lat * SEP_GAIN;
-  var l = flatLen(nx, nz);
-  if (l < 1e-4) return false;
-  out.x = nx / l;
-  out.z = nz / l;
-  return true;
-};
-
 AIController.prototype.driveTo = function (target, dt, opts) {
   opts = opts || {};
   var car = this.car, B = car.body, vin = car.input, sk = this.sk;
@@ -654,13 +614,6 @@ AIController.prototype.driveTo = function (target, dt, opts) {
   if (opts.faceX !== undefined) {
     var fl = flatLen(opts.faceX, opts.faceZ);
     if (fl > 1e-4) { ux = opts.faceX / fl; uz = opts.faceZ / fl; }
-  }
-
-  /* Slide past teammates we are about to drive into - see bendAroundMates().
-   * Skipped when faceX is set: that call is deliberately aiming the body, e.g.
-   * lining up a shot, and yanking the nose off-target there would hurt aim. */
-  if (opts.faceX === undefined && opts.sep !== false) {
-    if (this.bendAroundMates(ux, uz, _sep)) { ux = _sep.x; uz = _sep.z; }
   }
 
   var dot = clamp(fx * ux + fz * uz, -1, 1);
@@ -791,13 +744,6 @@ AIController.prototype.runAirControl = function (dt) {
   var fwd = _v3;
   if (dl > 1e-3) fwd.set(lx / dl, 0, lz / dl);
   else fwd.set(0, 0, this.attackSign());
-
-  /* Airborne bots had no idea where their partners were, and this is where the
-   * teammate collisions actually happened: ~90% of close approaches involved a
-   * bot in this AIR_GLIDE path. Bend the glide direction sideways around any
-   * teammate we are drifting into. (The AIR_STRIKE branch above is deliberately
-   * aiming at the ball, so it is left alone.) */
-  if (this.bendAroundMates(fwd.x, fwd.z, _sep)) { fwd.x = _sep.x; fwd.z = _sep.z; }
 
   if (B.pos.y > 2.0) fwd.y = -clamp((B.pos.y - 1.4) * 0.32, 0, 0.85);
   fwd.norm();
@@ -1585,11 +1531,11 @@ AIController.prototype.decide = function (dt) {
   if (this.role === 1) {
     var myBallD = horizDist(B.pos, ball.pos);
 
-    /* Join the attack when we can actually get there - the separation
-     * steering (bendAroundMates) is what stops us from ramming our partner,
-     * not sitting back. Suppressing this instead cut same-team contacts a lot
-     * but also cut goals by ~44%, so the collision problem is solved
-     * geometrically rather than by refusing to play. */
+    /* Join the attack when we can actually get there. Suppressing this instead
+     * (sitting back so we cannot shove our partner) cut same-team contacts a lot
+     * but cut goals by ~44%, so the collisions are handled by making the bot
+     * decisive - the latched loop-around side and the close-range strike - not by
+     * refusing to play. See the NOTE about teammate avoidance near the top. */
     if (this.solution && this.solution.t < 0.8 && car.boost > 12 && sk.rotation > 0.4) {
       this.state = 'ATTACK';
       return;

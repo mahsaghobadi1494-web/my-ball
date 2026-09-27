@@ -55,7 +55,7 @@ for (var m = 0; m < MATCHES; m++) {
   w.matchTime = MINS * 60; cfg.match.duration = MINS * 60;
 
   var last = [0, 0], prevTt = -1;
-  var lastInFront = null, kick = null, kickTt = -1;
+  var lastInFront = null, kick = null, kickTt = -1, kickMode = '?', kickState = '?';
   var frames = Math.round(MINS * 60 * 60);
 
   for (var f = 0; f < frames; f++) {
@@ -63,7 +63,20 @@ for (var m = 0; m < MATCHES; m++) {
     var b = w.ball.body;
 
     if (Math.abs(b.pos.z) < HZ) lastInFront = snap(b, w.time);
-    if (w.ball.lastTouchTime !== prevTt) { kick = snap(b, w.time); kickTt = w.ball.lastTouchTime; }
+    if (w.ball.lastTouchTime !== prevTt) {
+      kick = snap(b, w.time); kickTt = w.ball.lastTouchTime;
+      /* WHICH aim logic made this touch? chooseAim returns 'CLEAR' while
+       * goalDist > 34 and 'SHOOT' inside that. If most goals come from CLEAR
+       * touches, the SHOOT aim is engaging too late. */
+      kickMode = '?'; kickState = '?';
+      for (var q = 0; q < w.ai.length; q++) {
+        if (w.ai[q].car.index === w.ball.lastTouch) {
+          kickMode = w.ai[q].aimMode || '?';
+          kickState = w.ai[q].state || '?';
+          break;
+        }
+      }
+    }
     prevTt = w.ball.lastTouchTime;
 
     for (var g = 0; g < 2; g++) {
@@ -84,7 +97,8 @@ for (var m = 0; m < MATCHES; m++) {
         spKick: spd(k),
         kickVz: k.vz * sgn,
         kickDepth: k.z * sgn,
-        counted: (k.vz * sgn >= SHOT_V) && (k.z * sgn >= -0.6 * HZ)
+        counted: (k.vz * sgn >= SHOT_V) && (k.z * sgn >= -0.6 * HZ),
+        mode: kickMode, state: kickState
       });
     }
     if (w.state === 'GAMEOVER') break;
@@ -118,3 +132,12 @@ console.log('   airborne at the line: ' + nAir + '/' + N + '  (' + (100 * nAir /
 console.log('   the 12 m/s classifier would count: ' + nCounted + '/' + N + '  (' + (100 * nCounted / N).toFixed(0) + '%)');
 console.log('   missed because touch speed < 12 m/s : ' + nSlow + '/' + N);
 console.log('   missed because touched in our own 40%: ' + nNear + '/' + N);
+/* which aim logic produced the scoring touch? */
+var modes = {}, states = {};
+goals.forEach(function (o) { modes[o.mode] = (modes[o.mode] || 0) + 1; states[o.state] = (states[o.state] || 0) + 1; });
+console.log('   aim mode at the scoring touch:');
+Object.keys(modes).sort(function (a, b) { return modes[b] - modes[a]; })
+  .forEach(function (k) { console.log('      ' + k.padEnd(8) + ' ' + modes[k] + '  (' + (100 * modes[k] / N).toFixed(0) + '%)'); });
+console.log('   bot state at the scoring touch:');
+Object.keys(states).sort(function (a, b) { return states[b] - states[a]; }).slice(0, 6)
+  .forEach(function (k) { console.log('      ' + k.padEnd(8) + ' ' + states[k] + '  (' + (100 * states[k] / N).toFixed(0) + '%)'); });

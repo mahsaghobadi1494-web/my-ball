@@ -76,6 +76,11 @@ function match(seed) {
   var sumBoost = 0, nEmpty = 0, nHeld = 0, nCars = 0;
   var sumDist = 0, nAttack = 0, nThrottle = 0;
   var nHe = 0, nHard = 0, nAligned = 0;
+  /* steering-stability accumulators: is the hard turning an OSCILLATION (the
+   * bot fighting itself) or genuine tracking of a fast-moving target? */
+  var prevSteer = [], prevHe = [], prevState = [];
+  var nSteerFrames = 0, nSat = 0, nFlip = 0, nDSteer = 0, nStateSw = 0;
+  var sumDSteer = 0, sumDHe = 0, nDHe = 0;
   var speeds = [];
   var prevPos = null;
   var firstTouch = -1;
@@ -86,7 +91,7 @@ function match(seed) {
     w.step(dt);
     if (w.state === 'GAMEOVER') break;
     if (startedAt < 0 && w.state === 'PLAYING') startedAt = w.time;
-    if (w.state !== 'PLAYING') { prevPos = null; continue; }
+    if (w.state !== 'PLAYING') { prevPos = null; prevSteer = []; prevHe = []; prevState = []; continue; }
 
     frames++;
     var cars = w.cars;
@@ -115,6 +120,24 @@ function match(seed) {
         nHe++;
         if (he > 0.9) nHard++;
         if (he < 0.1) nAligned++;
+
+        var st = c.input ? c.input.steer : 0;
+        var heS = ai.headingError(ai.target);
+        nSteerFrames++;
+        if (Math.abs(st) >= 0.99) nSat++;
+        if (prevSteer[ci] !== undefined) {
+          sumDSteer += Math.abs(st - prevSteer[ci]); nDSteer++;
+          if (Math.abs(st) > 0.05 && Math.abs(prevSteer[ci]) > 0.05 &&
+              (st > 0) !== (prevSteer[ci] > 0)) nFlip++;
+        }
+        if (prevHe[ci] !== undefined) {
+          var dh = heS - prevHe[ci];
+          while (dh > Math.PI) dh -= 2 * Math.PI;
+          while (dh < -Math.PI) dh += 2 * Math.PI;
+          sumDHe += Math.abs(dh); nDHe++;
+        }
+        if (prevState[ci] !== undefined && prevState[ci] !== ai.state) nStateSw++;
+        prevSteer[ci] = st; prevHe[ci] = heS; prevState[ci] = ai.state;
       }
     }
 
@@ -151,6 +174,11 @@ function match(seed) {
     turnFrac: nHe ? 100 * nHard / nHe : 0,
     alignFrac: nHe ? 100 * nAligned / nHe : 0,
     throttleFrac: nCars ? 100 * nThrottle / nCars : 0,
+    steerSat: nSteerFrames ? 100 * nSat / nSteerFrames : 0,
+    steerFlip: nDSteer ? nFlip / (nDSteer / 60) : 0,
+    steerRate: nDSteer ? 60 * sumDSteer / nDSteer : 0,
+    heRate: nDHe ? 60 * sumDHe / nDHe : 0,
+    stateSw: nSteerFrames ? nStateSw / (nSteerFrames / 60) : 0,
     firstTouch: firstTouch
   };
 }
@@ -183,5 +211,10 @@ console.log('  attackFrac ' + pad(stat('attackFrac').m, 5) + ' +/- ' + pad(stat(
 console.log('  turnFrac   ' + pad(stat('turnFrac').m, 5) + ' +/- ' + pad(stat('turnFrac').e, 4) + ' %   (|heading err| > 0.9 rad - cannot build speed)');
 console.log('  alignFrac  ' + pad(stat('alignFrac').m, 5) + ' +/- ' + pad(stat('alignFrac').e, 4) + ' %   (|heading err| < 0.1 rad)');
 console.log('  throttle   ' + pad(stat('throttleFrac').m, 5) + ' %   (full throttle)');
+console.log('  steerSat   ' + pad(stat('steerSat').m, 5) + ' %   (|steer| at full lock)');
+console.log('  steerFlip  ' + pad(stat('steerFlip').m, 5, 1) + ' /s  (steer sign reversals)');
+console.log('  steerRate  ' + pad(stat('steerRate').m, 5, 2) + ' /s  (mean |d steer|/dt, full scale = 2)');
+console.log('  heRate     ' + pad(stat('heRate').m, 5, 2) + ' rad/s (how fast the target direction swings)');
+console.log('  stateSw    ' + pad(stat('stateSw').m, 5, 2) + ' /s  (state changes per car)');
 console.log('  firstTouch ' + pad(stat('firstTouch').m, 5, 2) + ' +/- ' + pad(stat('firstTouch').e, 4) + ' s   (kickoff -> first touch)');
 Math.random = ORIG;

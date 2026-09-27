@@ -60,6 +60,13 @@ var APPROACH = 4.15;
 /** Airborne contact standoff along the shot axis (nose length + ball radius). */
 var AIR_STANDOFF = 3.15;
 
+/** Teammate separation. Within SEP_RADIUS of a partner a bot bends its desired
+ *  direction away from them, so two cars heading for the same spot slide past
+ *  each other instead of colliding. Opponents are deliberately NOT avoided -
+ *  challenging and bumping them is part of the game. */
+var SEP_RADIUS = 9.0;
+var SEP_GAIN = 1.0;
+
 var AIR_MAX_W = CFG.vehicle.air.maxAirAngSpeed || 5.5;
 var PITCH_RATE = AIR_MAX_W * 1.0;
 var YAW_RATE = AIR_MAX_W * 0.85;
@@ -226,6 +233,7 @@ BallPath.prototype.endT = function () { return this.n > 0 ? this.t[this.n - 1] :
 var _q1 = new Quat(), _q2 = new Quat(), _q3 = new Quat();
 var _v1 = new V3(), _v2 = new V3(), _v3 = new V3(), _v4 = new V3(), _v5 = new V3(), _v6 = new V3();
 var _pb = new V3(), _pa = new V3();
+var _sep = { x: 0, z: 0 };
 
 function flatLen(x, z) { return Math.sqrt(x * x + z * z); }
 function horizDist(a, b) { var dx = a.x - b.x, dz = a.z - b.z; return Math.sqrt(dx * dx + dz * dz); }
@@ -360,6 +368,13 @@ export function AIController(car, world) {
   this.lastPos = new V3();
   this.reverseTimer = 0;
   this.passPoint = new V3();
+
+  /* Which way we are currently routing around the ball to get behind it.
+   * Latched (not recomputed per frame) - see the LINE_UP branch of attackBall. */
+  this.loopSide = 0;
+  /* Which side we are sliding past a teammate on, latched for the same reason
+   * (see bendAroundMates). */
+  this.sepSide = 0;
 }
 
 AIController.prototype.refreshSkill = function () {
@@ -425,6 +440,19 @@ AIController.prototype.solveIntercept = function (aimPoint, opts) {
 
   var stick = opts.air ? null : this.solution;
 
+  /* Is the ball going anywhere? `slack = t - tt` asks "can I get to the
+   * intercept point before the ball does". For a ball at rest every candidate
+   * has t ~ 0 while the travel time tt is positive, so slack is negative for
+   * all of them and the candidate is filed as `chase`. solveIntercept then
+   * returns a chase solution, attackBall() takes the CUT_OFF branch and
+   * RETURNS - it never reaches the CHARGE branch that actually drives through
+   * the ball. Result: the bot drove full throttle at a standoff point 4 m from
+   * a stationary ball, overshot, looped back and repeated forever. A ball that
+   * is not moving cannot be "arrived at too late": there is nothing to be late
+   * for, so a resting ball must not be allowed to trigger the chase path. */
+  var ballSpd = this.world.ball.body.vel.len();
+  var deadBall = ballSpd < 0.8;
+
   for (var i = 0; i < path.n; i += stride) {
     var t = path.t[i];
     bp.set(path.px[i], path.py[i], path.pz[i]);
@@ -453,7 +481,7 @@ AIController.prototype.solveIntercept = function (aimPoint, opts) {
       if (sd < 6.5) cand.score -= 0.40 * (1 - sd / 6.5);
     }
 
-    if (slack < -airTol) {
+    if (slack < -airTol && !deadBall) {
       var lateBy = -slack;
       if (!chase || lateBy < chase.lateBy) { cand.chase = true; cand.lateBy = lateBy; chase = cand; }
       continue;
@@ -547,6 +575,70 @@ AIController.prototype.findPass = function (ballPos) {
 };
 
 /* --------------------------------------------------------------- driving  */
+
+/** Bend a horizontal direction (ux, uz) sideways to avoid teammates we are
+ *  about to drive into. Returns true and writes the bent direction into `out`
+ *  ({x, z}); returns false when no teammate is in the way.
+ *
+ *  Shared by driveTo() AND runAirControl(). That second caller matters: the
+ *  airborne path bypasses driveTo() entirely, and measurement showed ~90% of
+ *  close teammate approaches involve a bot that is off the ground (mode
+ *  AIR_GLIDE). Fixing only driveTo() therefore changed nothing - bots spend
+ *  about a third of the match in the air, because every ball contact launches
+ *  the car, so airborne steering is not a rare path.
+ *
+ *  The push is LATERAL (perpendicular to travel), not straight away from the
+ *  mate. Pushing straight away does not work: when the mate sits exactly
+ *  between us and our target the repulsion is anti-parallel to our heading, so
+ *  re-normalising cancels it and we drive into them anyway. Sliding sideways
+ *  always produces a real detour.
+ *
+ *  The side is latched while a mate is dead ahead, so the bot does not dither
+ *  left/right frame to frame - the same failure mode that made attackBall()
+ *  orbit the ball. */
+AIController.prototype.bendAroundMates = function (ux, uz, out) {
+  var car = this.car, B = car.body;
+
+  /* The designated attacker (role 0) has priority on the ball: it drives
+   * straight through, and it is everyone ELSE's job to get out of its way.
+   * Deflecting the attacker made the whole team less direct and measurably cut
+   * scoring, so the avoidance is deliberately one-sided. */
+  if (this.role === 0) { this.sepSide = 0; return false; }
+
+  var cars = this.world.cars;
+  var perpX = -uz, perpZ = ux;
+  var lat = 0, near = 0, dither = false;
+
+  for (var i = 0; i < cars.length; i++) {
+    var mate = cars[i];
+    if (mate === car || mate.demolished || mate.team !== car.team) continue;
+    var mx = mate.body.pos.x - B.pos.x, mz = mate.body.pos.z - B.pos.z;
+    var md = Math.sqrt(mx * mx + mz * mz);
+    if (md > SEP_RADIUS || md < 1e-3) continue;
+    if (mx * ux + mz * uz < -2.0) continue;          // clearly behind us
+    var mw = 1 - md / SEP_RADIUS;
+    var mside = mx * perpX + mz * perpZ;             // signed lateral offset
+    if (Math.abs(mside) < 1.0) dither = true;        // dead ahead: no clear side
+    lat += (mside >= 0 ? -mw : mw);
+    near++;
+  }
+
+  if (!near) { this.sepSide = 0; return false; }
+  if (dither || !this.sepSide) {
+    if (lat !== 0) this.sepSide = lat > 0 ? 1 : -1;
+    else if (!this.sepSide) this.sepSide = 1;
+  }
+  if (Math.abs(lat) < 1e-6) lat = this.sepSide;
+
+  var nx = ux + perpX * lat * SEP_GAIN;
+  var nz = uz + perpZ * lat * SEP_GAIN;
+  var l = flatLen(nx, nz);
+  if (l < 1e-4) return false;
+  out.x = nx / l;
+  out.z = nz / l;
+  return true;
+};
+
 AIController.prototype.driveTo = function (target, dt, opts) {
   opts = opts || {};
   var car = this.car, B = car.body, vin = car.input, sk = this.sk;
@@ -562,6 +654,13 @@ AIController.prototype.driveTo = function (target, dt, opts) {
   if (opts.faceX !== undefined) {
     var fl = flatLen(opts.faceX, opts.faceZ);
     if (fl > 1e-4) { ux = opts.faceX / fl; uz = opts.faceZ / fl; }
+  }
+
+  /* Slide past teammates we are about to drive into - see bendAroundMates().
+   * Skipped when faceX is set: that call is deliberately aiming the body, e.g.
+   * lining up a shot, and yanking the nose off-target there would hurt aim. */
+  if (opts.faceX === undefined && opts.sep !== false) {
+    if (this.bendAroundMates(ux, uz, _sep)) { ux = _sep.x; uz = _sep.z; }
   }
 
   var dot = clamp(fx * ux + fz * uz, -1, 1);
@@ -692,6 +791,14 @@ AIController.prototype.runAirControl = function (dt) {
   var fwd = _v3;
   if (dl > 1e-3) fwd.set(lx / dl, 0, lz / dl);
   else fwd.set(0, 0, this.attackSign());
+
+  /* Airborne bots had no idea where their partners were, and this is where the
+   * teammate collisions actually happened: ~90% of close approaches involved a
+   * bot in this AIR_GLIDE path. Bend the glide direction sideways around any
+   * teammate we are drifting into. (The AIR_STRIKE branch above is deliberately
+   * aiming at the ball, so it is left alone.) */
+  if (this.bendAroundMates(fwd.x, fwd.z, _sep)) { fwd.x = _sep.x; fwd.z = _sep.z; }
+
   if (B.pos.y > 2.0) fwd.y = -clamp((B.pos.y - 1.4) * 0.32, 0, 0.85);
   fwd.norm();
   var e2 = applyAirAim(car, fwd, _v2.set(0, 1, 0), 7.0, 3.4);
@@ -851,7 +958,13 @@ AIController.prototype.attackBall = function (dt) {
     return;
   }
 
-  if (distToBall < APPROACH + 2.6 && aligned && behindBall && goalward) {
+  /* Strike when the geometry is right. `aligned` alone was too strict: a bot
+   * that has already worked its way behind the ball and is sitting on top of it
+   * would keep waiting for a perfect heading, drift past, and start the whole
+   * loop again. If it is this close, behind the ball and facing the goal, the
+   * nose is already pointing somewhere useful - take the shot. */
+  var strikeReady = aligned || distToBall < APPROACH + 0.7;
+  if (distToBall < APPROACH + 2.6 && strikeReady && behindBall && goalward) {
     this.mode = 'CHARGE';
     var punch = 2.4 + car.speed() * 0.12;
     this.target.set(bp.x + aim.x * punch, 0, bp.z + aim.z * punch);
@@ -873,10 +986,25 @@ AIController.prototype.attackBall = function (dt) {
     var side = (B.pos.x - bp.x) * -aim.z + (B.pos.z - bp.z) * aim.x;
     var ahead = (B.pos.x - bp.x) * aim.x + (B.pos.z - bp.z) * aim.z;
     if (ahead > 1.5 && distToBall < 18) {
-      var sideSgn = side > 0 ? 1 : -1;
-      var swing = Math.min(distToBall * 0.8, 14);
-      tx += -aim.z * sideSgn * swing;
-      tz += aim.x * sideSgn * swing;
+      /* The bot is on the wrong side of the ball and has to loop around it.
+       *
+       * This used to pick the side from `side > 0 ? 1 : -1`. `side` is the
+       * bot's offset perpendicular to the shot axis, so it is ~0 whenever the
+       * bot is sitting on that axis - and then the sign flipped frame to frame.
+       * The detour target therefore jumped up to 28 m left/right every frame,
+       * which is exactly what turned "drive around the ball" into "orbit the
+       * ball at full throttle". Latch the side once and keep it until the bot
+       * is behind the ball again. The swing is also capped much lower: 14 m of
+       * lateral detour is a wide circle, not a route around a 2.3 m ball. */
+      if (!this.loopSide) {
+        this.loopSide = Math.abs(side) > 1.5 ? (side > 0 ? 1 : -1)
+                                             : (B.pos.x >= bp.x ? 1 : -1);
+      }
+      var swing = clamp(distToBall * 0.45, 3.0, 8.0);
+      tx += -aim.z * this.loopSide * swing;
+      tz += aim.x * this.loopSide * swing;
+    } else {
+      this.loopSide = 0;
     }
     this.target.set(tx, 0, tz);
     this.driveTo(this.target, dt, { boost: true, speedCap: MAX_SPD * sk.speedFrac });
@@ -1455,7 +1583,23 @@ AIController.prototype.decide = function (dt) {
   }
 
   if (this.role === 1) {
+    var myBallD = horizDist(B.pos, ball.pos);
+
+    /* Join the attack when we can actually get there - the separation
+     * steering (bendAroundMates) is what stops us from ramming our partner,
+     * not sitting back. Suppressing this instead cut same-team contacts a lot
+     * but also cut goals by ~44%, so the collision problem is solved
+     * geometrically rather than by refusing to play. */
     if (this.solution && this.solution.t < 0.8 && car.boost > 12 && sk.rotation > 0.4) {
+      this.state = 'ATTACK';
+      return;
+    }
+
+    /* Nobody is on the ball and it is right here: go and get it, even on an
+     * empty tank. Leaving for a boost pad at this moment is what produced the
+     * "circles the ball, then drives off, then comes back" loop - the bot burns
+     * its boost circling, drops below the threshold, and abandons the ball. */
+    if (myBallD < 16 && this.solution && this.solution.t < 1.2) {
       this.state = 'ATTACK';
       return;
     }

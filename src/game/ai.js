@@ -51,6 +51,28 @@
  *  0.00 -> +0.44 on one family, and 0.30 -> +0.47 (14W/2L) on the other. 0.30
  *  is the highest value that keeps the win, so it keeps as much feinting as the
  *  bot can actually profit from. Do not "fix" this back up to match All-Star.
+ *
+ *  `speedFrac` is capped at 0.74 for EVERY tier and does not scale upward.
+ *  It is the fraction of max speed used when attacking, and it has a knee: past
+ *  ~0.74 the bot arrives at the ball too fast to control it and gets worse, not
+ *  better. All-Star sat at 0.75 and Legendary at 0.755, i.e. both were past the
+ *  knee, which is why the two "hardest" tiers were the two that played worst.
+ *  Measured with the perturbation instrument (each side averaged over 5 copies
+ *  of itself with every field nudged +/-1%, which is the only reading that is
+ *  not a knife-edge): dropping both to 0.74 took All-Star vs Pro from -0.53 to
+ *  -0.20 (inside noise) and Legendary vs All-Star from -0.34 to +0.52 (16W/0L).
+ *  Amateur's 0.7491 is the trained value that happens to sit on the knee, which
+ *  is most of why the second-easiest tier measures strongest. See the NOTE on
+ *  measuring with perturbation before re-tuning any of these numbers.
+ *
+ *  `steerK` looks like it has a knee too, but lowering it is NOT a fix - it is a
+ *  trade. Legendary carried 2.4766; borrowing Pro's 1.8464 took Legend vs Pro
+ *  from -0.33 to +0.21, and then took Legend vs All-Star from +0.52 down to
+ *  -0.27. Capping steerK at 1.85 for All-Star as well (so it stops being a tier
+ *  differentiator) was measured too and was worse overall: Pro vs Amateur went
+ *  -0.23 -> -0.42 and All-Star vs Pro -0.20 -> -0.54, with no pair turning
+ *  clearly positive. So steerK is left exactly as it was; do not "fix" it.
+ *  Of every configuration measured, capping speedFrac alone is the best.
  * =========================================================================== */
 
 import { PI, TAU, clamp, lerp, V3, Quat, RNG, tv, tc } from './math.js';
@@ -135,7 +157,7 @@ export var AI_LEVELS = [
   {
     id: 3, key: 'ALLSTAR', name: 'All-Star', nameFa: 'ستاره',
     react: 0.1636, ctrl: 0.020, horizon: 3.2328,
-    steerK: 2.2, speedFrac: 0.75, boost: 0.85, boostFloor: 38, boostDuty: 0.50,
+    steerK: 2.2, speedFrac: 0.74, boost: 0.85, boostFloor: 38, boostDuty: 0.50,
     aimErr: 1.6545, posErr: 1.79,
     flip: 0.4949, shotFlip: 0.2546, aerial: 0.60, airDribble: 0.30,
     pass: 0.48, demo: 0.3039, fake: 0.3164,
@@ -145,7 +167,7 @@ export var AI_LEVELS = [
   {
     id: 4, key: 'LEGEND', name: 'Legendary', nameFa: 'افسانه‌ای',
     react: 0.15, ctrl: 0.0134, horizon: 4.0039,
-    steerK: 2.4766, speedFrac: 0.755, boost: 0.7675, boostFloor: 44.7193, boostDuty: 0.5261,
+    steerK: 2.4766, speedFrac: 0.74, boost: 0.7675, boostFloor: 44.7193, boostDuty: 0.5261,
     aimErr: 1.5977, posErr: 2.6135,
     flip: 0.4534, shotFlip: 0.292, aerial: 0.70, airDribble: 0.3356,
     pass: 0.7831, demo: 0.3062, fake: 0.30,
